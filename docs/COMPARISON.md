@@ -51,14 +51,12 @@ Written 2026-11-12; versions change, so treat the numbers as a snapshot.
 | Permission flow | One Setup window, live status | Guided prompts | Guided prompts |
 | Sandbox | Not sandboxed | App Store sandbox | Not sandboxed |
 | Night Shift | Private `CBBlueLightClient` | Private `CBBlueLightClient` | Private APIs |
-| Trash | Finder AppleScript + count | AppleScript + count | Yes (count not verified) |
+| Trash | Finder AppleScript + count | AppleScript + count | Empties only, no count |
 | Extensibility | Edit Swift sources | Closed | Modular; schedules, Shortcuts, remote |
 | Localisation | English only | 12+ languages | 20+ languages |
 | Maintained | By whoever builds it | No release since Sep 2023 | Active |
 | Tests / CLI diagnostics | 17 tests, 6 debug modes | None known | Tests for some modules |
 | Licence | No LICENSE file yet | Proprietary | MIT |
-
-Items marked "not verified" were not checked against the app or its source.
 
 ## Where SwitchDeck wins
 
