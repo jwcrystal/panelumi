@@ -78,8 +78,22 @@ Chosen to keep the "one row, one action" shape and avoid new permissions:
 - **Screenshot** — `screencapture -i`, needs Screen Recording.
 - **Hide Windows** — `NSRunningApplication.hide()`, safer than quitting everything.
 
+## Adjacent tools
+
+Four other ways people get the same job done. None of them is a switch list in the same sense; they are what a user weighs against the App Store switch app or this project.
+
+| Tool | Shape | Why it matters |
+|---|---|---|
+| A paid switch app | Paid, five switches, 7-day trial | The polish bar: fewer switches, refined for years |
+| Control Center + Shortcuts | Built in | The default answer; no install, no shared list |
+| Keyboard launchers | Keyboard commands and extensions | Wins for people who never open a menu |
+| Dedicated keep-awake apps | One job, done deeply | Keep Awake with schedules and triggers |
+
+Deliberately left out: menu-bar managers, cleaners and screenshot tools. They overlap on at most one switch and would blur the comparison; revisit them if SwitchDeck ever grows "Hide Menu Bar Icons" or "Screenshot".
+
 ## Sources
 
 - The App Store listing of a sandboxed menu-bar switch app.
 - The README and sources of an open-source switch app on GitHub.
+- The product page of a paid switch app.
 - This repository's sources, tests and `scripts/`.
