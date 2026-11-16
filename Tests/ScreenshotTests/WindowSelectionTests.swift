@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 import SwitchKit
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class WindowSelectionTests: XCTestCase {
     @MainActor

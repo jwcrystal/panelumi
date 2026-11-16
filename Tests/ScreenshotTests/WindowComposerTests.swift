@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class WindowComposerTests: XCTestCase {
     private let screen = CGRect(x: 0, y: 0, width: 1000, height: 700)

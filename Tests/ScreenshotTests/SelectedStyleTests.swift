@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class SelectedStyleTests: XCTestCase {
     private func arrow(_ color: Color = .red) -> Annotation {

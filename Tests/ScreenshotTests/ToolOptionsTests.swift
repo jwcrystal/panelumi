@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class ToolOptionsTests: XCTestCase {
     @MainActor

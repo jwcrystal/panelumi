@@ -134,12 +134,15 @@ Sources/SwitchKit/             # no AppKit UI, unit-testable
   HotkeyBinding.swift          # key + Carbon modifiers + key-cap label
   Shell.swift / Automation.swift
   Switches/                    # one file per switch
-Sources/SwitchDeckApp/         # AppKit shell
+Sources/SwitchDeckCore/        # the app code, as a library: AppKit + SwiftUI
+  Launcher.swift               # SwitchDeckLauncher.run(), the one public entry point
   MenuController.swift         # NSStatusItem + NSMenu, rebuilt on config change
   HotkeyCenter.swift           # Carbon registration, conflict reporting
   HotkeyRecorder.swift         # NSEvent -> binding, local capture monitor
   SettingsView.swift           # SwiftUI settings
   Screenshot/                  # capture, in-place editor, annotations
+Sources/SwitchDeck/            # thin executable
+  main.swift                   # calls SwitchDeckLauncher.run()
 Tests/SwitchKitTests/          # switches, config, hotkeys, Trash counting
 Tests/ScreenshotTests/         # annotation history, styles, capture and selection
 ```

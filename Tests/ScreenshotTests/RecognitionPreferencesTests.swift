@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 /// Runs against the test process's own defaults domain, restored afterwards.
 final class RecognitionPreferencesTests: XCTestCase {

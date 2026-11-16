@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class ScreenshotSaverTests: XCTestCase {
     /// A fixed date keeps the formatted name stable.

@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class ShareableContentCacheTests: XCTestCase {
     func testReusesFreshCacheContainingAllExcludedWindows() {

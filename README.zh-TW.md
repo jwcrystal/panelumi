@@ -134,12 +134,15 @@ Sources/SwitchKit/             # 沒有 AppKit UI，可單元測試
   HotkeyBinding.swift          # 按鍵 + Carbon 修飾鍵 + 鍵帽標籤
   Shell.swift / Automation.swift
   Switches/                    # 一個開關一個檔
-Sources/SwitchDeckApp/         # AppKit 外殼
+Sources/SwitchDeckCore/        # app 程式碼，包成函式庫：AppKit + SwiftUI
+  Launcher.swift               # SwitchDeckLauncher.run()，唯一公開的進入點
   MenuController.swift         # NSStatusItem + NSMenu，設定變更時重建
   HotkeyCenter.swift           # Carbon 註冊、衝突回報
   HotkeyRecorder.swift         # NSEvent -> binding，本機擷取監聽
   SettingsView.swift           # SwiftUI 設定
   Screenshot/                  # 擷取、就地編輯器、標註
+Sources/SwitchDeck/            # 精簡的執行檔
+  main.swift                   # 呼叫 SwitchDeckLauncher.run()
 Tests/SwitchKitTests/          # 開關、設定、快速鍵、垃圾桶計數
 Tests/ScreenshotTests/         # 標註歷史、樣式、擷取與選取
 ```
