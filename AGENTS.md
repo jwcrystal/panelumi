@@ -1,0 +1,74 @@
+# AGENTS.md
+
+Guidance for coding agents (and humans) working in this repository.
+
+SwitchDeck is a native macOS menu-bar utility: Swift 5.9, SwiftPM, macOS 14+,
+no third-party dependencies, MIT-licensed. Two modules:
+
+- `SwitchKit` — the library: switch definitions, config, ordering, hotkeys,
+  text recognition, update check. Unit-tested in `Tests/SwitchKitTests`.
+- `SwitchDeckApp` — the AppKit/SwiftUI app: menu, settings, screenshot editor,
+  permissions. Tested in `Tests/ScreenshotTests`.
+
+## Build and test
+
+```bash
+swift build                      # debug build
+swift test                       # all unit tests
+./scripts/check-localizations.sh # every t("...") key has a zh-Hant entry
+./scripts/build-app.sh           # assemble build/SwitchDeck.app (release)
+./scripts/smoke.sh               # print every switch and its live state
+```
+
+CI (`.github/workflows/ci.yml`) runs build, the localisation check, tests and
+the app bundle on every push to `main` and every pull request. Run the same
+steps locally before opening a PR.
+
+Tests that grab real screen pixels are skipped unless
+`SWITCHDECK_LIVE_CAPTURE_TESTS=1` is set and the terminal has the Screen
+Recording permission.
+
+## Scope
+
+This repository is the complete app. Changes here should fit what it already
+does: menu switches, shortcuts, screenshots with the in-place editor, text and
+QR recognition, audio recording, settings and permissions. For a larger new
+feature, open an issue first so the direction can be agreed before code is
+written.
+
+When adding a switch, follow `docs/adding-a-switch.md`. User-visible strings go
+through `t("...")` and need a Traditional Chinese entry in
+`Resources/zh-Hant.lproj/Localizable.strings`.
+
+## Stop points (maintainer only)
+
+Agents and contributors must not do the following; leave them to the
+maintainer:
+
+- Push tags or create GitHub releases. Pushing a `v*` tag publishes a release
+  through `.github/workflows/release.yml`.
+- Change repository visibility, settings, branch protection or secrets.
+- Create, use or commit signing keys, certificates, notarization credentials or
+  any other secret. `scripts/setup-signing.sh` makes a local, self-signed
+  identity on your own machine only; never commit its output.
+- Change `LICENSE`.
+
+## Hygiene
+
+- Never commit secrets, tokens, personal paths or links to private resources.
+- Keep commits focused, with a short imperative subject (`fix(screenshot): …`).
+- Issues and PRs live in this repo's GitHub Issues; see `docs/agents/`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in this repo's GitHub Issues, driven with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles map to the same label strings in GitHub. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

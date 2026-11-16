@@ -26,17 +26,17 @@ final class AppModel: ObservableObject {
         registerHotkeys()
     }
 
-    /// Installs ⌥E once as the default screenshot shortcut. Later,
-    /// the user can change or clear it in Settings › Shortcuts.
+    /// Installs ⌥E once as the default screenshot shortcut. Later, the user
+    /// can change or clear it in Settings › Screenshot.
     private func seedScreenshotShortcutIfNeeded() {
         guard !config.didSeedScreenshotShortcut else { return }
 
         var updated = config
         updated.didSeedScreenshotShortcut = true
-        if updated.hotkey(for: "screenshot") == nil {
+        if updated.hotkey(for: ScreenshotCoordinator.id) == nil {
             updated.setHotkey(
                 HotkeyBinding(keyCode: 14, modifiers: HotkeyBinding.optionModifier, label: "E"),
-                for: "screenshot"
+                for: ScreenshotCoordinator.id
             )
         }
 

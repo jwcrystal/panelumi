@@ -33,6 +33,11 @@ enum SwitchDeckApp {
             return
         }
 
+        if arguments.contains("--audio-inputs") {
+            Dump.printAudioInputs()
+            return
+        }
+
         if arguments.contains("--probe-automation") {
             Dump.probeAutomation()
             return
@@ -45,6 +50,16 @@ enum SwitchDeckApp {
 
         if arguments.contains("--window-check") {
             Dump.windowCheck()
+            return
+        }
+
+        if arguments.contains("--window-capture-test") {
+            Dump.windowCaptureTest()
+            return
+        }
+
+        if arguments.contains("--region-bench") {
+            Dump.regionBench()
             return
         }
 
@@ -149,6 +164,16 @@ enum Dump {
         )
     }
 
+    /// Lists the microphones CoreAudio offers, marking the default. Used to
+    /// check the Settings › Recording picker without opening the window.
+    static func printAudioInputs() {
+        let devices = AudioInput.devices()
+        for device in devices {
+            print("\(device.id)\t\(device.name)\(device.isDefault ? "\t(default)" : "")")
+        }
+        if devices.isEmpty { print("no input devices") }
+    }
+
     /// Sends one harmless event per target, the same call the Grant button
     /// makes, and prints what macOS answered. Also writes the same lines to
     /// `/tmp/switchdeck-probe.txt`, because a GUI launch has no stdout.
@@ -214,7 +239,49 @@ enum Dump {
         RunLoop.main.run()
     }
 
-    /// Prints which normal window sits under the mouse, using the same
+    /// Debug: times single-region captures.
+    @MainActor
+    static func regionBench() {
+        let service = ScreenCaptureService()
+        let screen = NSScreen.main ?? NSScreen.screens[0]
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = (screen.deviceDescription[key] as? NSNumber)?.uint32Value ?? CGMainDisplayID()
+        let rect = CGRect(
+            x: screen.frame.midX - 300,
+            y: screen.frame.midY - 200,
+            width: 600,
+            height: 400
+        )
+
+        Task {
+            // First call warms the shareable-content cache; time the rest.
+            _ = try? await service.captureRegion(
+                displayID: displayID, rect: rect, screenFrame: screen.frame,
+                excludingWindowIDs: SelectionController.overlayWindowIDs
+            )
+
+            var size = CGSize.zero
+            var failures = 0
+            let start = Date()
+            for _ in 0..<10 {
+                if let image = try? await service.captureRegion(
+                    displayID: displayID, rect: rect, screenFrame: screen.frame,
+                    excludingWindowIDs: SelectionController.overlayWindowIDs
+                ) {
+                    size = CGSize(width: image.width, height: image.height)
+                } else {
+                    failures += 1
+                }
+            }
+            let ms = Date().timeIntervalSince(start) * 100
+            print("region \(Int(rect.width))x\(Int(rect.height)) pts → \(Int(size.width))x\(Int(size.height)) px, \(String(format: "%.0f", ms)) ms/frame, \(failures) failures")
+            exit(0)
+        }
+
+        RunLoop.main.run()
+    }
+
+    /// Prints which application window or panel sits under the mouse, using the same
     /// coordinate conversion as the selection overlay.
     @MainActor
     static func windowCheck() {
@@ -227,22 +294,106 @@ enum Dump {
         print("mouse=\(mouse) cg=\(topLeft)")
 
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
-        let ownPID = ProcessInfo.processInfo.processIdentifier
+        let excluded = SelectionController.overlayWindowIDs
 
         for info in list {
-            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t, pid != ownPID else { continue }
-            guard (info[kCGWindowLayer as String] as? Int) == 0 else { continue }
+            guard let pid = info[kCGWindowOwnerPID as String] as? pid_t,
+                  let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  !excluded.contains(id),
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  layer >= NSWindow.Level.normal.rawValue,
+                  layer <= NSWindow.Level.modalPanel.rawValue,
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0
+            else { continue }
             guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: dict)
             else { continue }
-            guard rect.contains(topLeft) else { continue }
+            guard rect.width >= 60, rect.height >= 60, rect.contains(topLeft) else { continue }
 
             let owner = info[kCGWindowOwnerName as String] as? String ?? "?"
-            let id = info[kCGWindowNumber as String] ?? "?"
             print("hit owner=\(owner) id=\(id) pid=\(pid) bounds=\(rect)")
             return
         }
         print("no window at cursor")
+    }
+
+    /// Captures the window under the pointer exactly as a click would, composes
+    /// it with the editor shadow and writes /tmp/switchdeck-window.png and
+    /// /tmp/switchdeck-composed.png.
+    @MainActor
+    static func windowCaptureTest() {
+        let mouse = NSEvent.mouseLocation
+        guard let primary = NSScreen.screens.first(where: { $0.frame.origin == .zero }),
+              let screen = NSScreen.screens.first(where: { $0.frame.contains(mouse) })
+        else {
+            print("no screen")
+            return
+        }
+
+        let topLeft = CGPoint(x: mouse.x, y: primary.frame.height - mouse.y)
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
+        let excluded = SelectionController.overlayWindowIDs
+
+        guard let info = list.first(where: { info in
+            guard let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  !excluded.contains(id),
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  layer >= NSWindow.Level.normal.rawValue,
+                  layer <= NSWindow.Level.modalPanel.rawValue,
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let rect = CGRect(dictionaryRepresentation: dict)
+            else { return false }
+            return rect.width >= 60 && rect.height >= 60 && rect.contains(topLeft)
+        }),
+        let dict = info[kCGWindowBounds as String] as? NSDictionary,
+        let rect = CGRect(dictionaryRepresentation: dict),
+        let id = info[kCGWindowNumber as String] as? CGWindowID
+        else {
+            print("no window at cursor")
+            return
+        }
+
+        let local = CGRect(
+            x: rect.minX - screen.frame.minX,
+            y: (primary.frame.height - rect.maxY) - screen.frame.minY,
+            width: rect.width,
+            height: rect.height
+        )
+        let target = CaptureWindowTarget(id: id, rect: local)
+        guard let canvas = WindowComposer.canvas(
+            for: [target],
+            screenBounds: CGRect(origin: .zero, size: screen.frame.size)
+        ) else {
+            print("no canvas")
+            return
+        }
+
+        Task {
+            do {
+                let image = try await ScreenCaptureService().captureWindow(windowID: id)
+                let composed = WindowComposer.compose(
+                    shots: [(image, local)],
+                    canvas: canvas,
+                    scale: screen.backingScaleFactor
+                )
+
+                for (name, cg) in [("window", image), ("composed", composed)] {
+                    guard let cg else { continue }
+                    let rep = NSBitmapImageRep(cgImage: cg)
+                    if let data = rep.representation(using: .png, properties: [:]) {
+                        try? data.write(to: URL(fileURLWithPath: "/tmp/switchdeck-\(name).png"))
+                    }
+                    print("\(name) \(cg.width)x\(cg.height)")
+                }
+                print("window id=\(id) local=\(local) canvas=\(canvas)")
+            } catch {
+                print("failed \(error.localizedDescription)")
+            }
+            exit(0)
+        }
+
+        RunLoop.main.run()
     }
 
     /// Registers a probe shortcut through the real Carbon path and reports the

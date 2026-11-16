@@ -2,16 +2,16 @@ import XCTest
 @testable import SwitchKit
 
 final class ConfigTests: XCTestCase {
-    func testOrderedIDsAppendsUnknownIDsInCatalogOrder() {
+    func testOrderedIDsPlacesUnknownIDsNextToTheirCatalogNeighbour() {
         let config = SwitchDeckConfig(order: ["darkMode", "keepAwake"], disabled: [])
         let result = config.orderedIDs(from: ["showHiddenFiles", "keepAwake", "darkMode", "ejectDisk"])
-        XCTAssertEqual(result, ["darkMode", "keepAwake", "showHiddenFiles", "ejectDisk"])
+        XCTAssertEqual(result, ["darkMode", "showHiddenFiles", "keepAwake", "ejectDisk"])
     }
 
     func testOrderedIDsIgnoresStaleAndDuplicateIDs() {
         let config = SwitchDeckConfig(order: ["removedSwitch", "ejectDisk", "ejectDisk"], disabled: [])
         let result = config.orderedIDs(from: ["keepAwake", "ejectDisk"])
-        XCTAssertEqual(result, ["ejectDisk", "keepAwake"])
+        XCTAssertEqual(result, ["keepAwake", "ejectDisk"], "the unseen id lands before its next catalog neighbour")
     }
 
     func testDisableAndEnableRoundTrip() {
@@ -76,7 +76,25 @@ final class ConfigTests: XCTestCase {
         XCTAssertNotNil(catalog.item(id: "stageManager"))
         XCTAssertNotNil(catalog.item(id: "emptyTrash"))
         XCTAssertNotNil(catalog.item(id: "recording"))
-        XCTAssertNotNil(catalog.item(id: "hideWindows"))
+        XCTAssertNotNil(catalog.item(id: "hideDesktopIcons"))
+
+        let ids = catalog.ids
+        if let hiddenFiles = ids.firstIndex(of: "showHiddenFiles"),
+           let desktopIcons = ids.firstIndex(of: "hideDesktopIcons") {
+            XCTAssertEqual(desktopIcons, hiddenFiles + 1, "the two Finder switches sit together")
+        } else {
+            XCTFail("both Finder switches must exist")
+        }
+    }
+
+    func testFinderBoolParsing() {
+        for value in ["1", "true", "TRUE", "yes", " yes "] {
+            XCTAssertEqual(FinderDefaults.parseBool(value), true, "\(value) should read as true")
+        }
+        for value in ["0", "false", "No", "no\n"] {
+            XCTAssertEqual(FinderDefaults.parseBool(value), false, "\(value) should read as false")
+        }
+        XCTAssertNil(FinderDefaults.parseBool("garbage"))
     }
 
     // MARK: - Empty Trash
@@ -123,6 +141,33 @@ final class ConfigTests: XCTestCase {
         }
 
         let trash = EmptyTrashSwitch(access: FileTrash(url: folder))
+        XCTAssertEqual(trash.subtitle, "No access")
+    }
+
+    private final class FakeTrash: TrashAccess {
+        var count: Int?
+        init(count: Int?) { self.count = count }
+        func itemCount() -> Int? { count }
+        func empty() throws { count = 0 }
+    }
+
+    func testBackgroundTrashCountShowsNothingUntilTheRefreshFinishes() throws {
+        let trash = EmptyTrashSwitch(access: FakeTrash(count: 3), countsInBackground: true)
+        XCTAssertNil(trash.subtitle)
+
+        trash.waitForPendingCount()
+        XCTAssertEqual(trash.subtitle, "3 items")
+
+        try trash.empty()
+        XCTAssertEqual(trash.subtitle, "Empty")
+        trash.waitForPendingCount()
+        XCTAssertEqual(trash.subtitle, "Empty")
+    }
+
+    func testBackgroundTrashCountReportsNoAccessAfterWaiting() {
+        let trash = EmptyTrashSwitch(access: FakeTrash(count: nil), countsInBackground: true)
+        _ = trash.subtitle
+        trash.waitForPendingCount()
         XCTAssertEqual(trash.subtitle, "No access")
     }
 

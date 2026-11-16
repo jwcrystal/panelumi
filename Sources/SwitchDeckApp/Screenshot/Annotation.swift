@@ -1,19 +1,56 @@
 import AppKit
 import CoreImage
 import SwiftUI
+import SwitchKit
 
 enum ArrowStyle: Hashable {
     case straight
     case curved
     case elbow
+    case sCurve
+}
+
+enum NumberStyle: Hashable {
+    case circle
+    case square
+}
+
+enum ShapeFillStyle: CaseIterable, Hashable {
+    case outline, hatched, solid
+}
+
+enum LinePattern: CaseIterable, Hashable {
+    case solid, dashed, dotted
+
+    func dashLengths(width: CGFloat) -> [CGFloat] {
+        switch self {
+        case .solid: return []
+        case .dashed: return [max(3, width * 3), max(2, width * 2)]
+        case .dotted: return [0, max(3, width * 2.5)]
+        }
+    }
+}
+
+/// The appearance shared by the drawing defaults and an individual annotation.
+struct AnnotationStyle: Equatable {
+    var color: Color = .red
+    var lineWidth: CGFloat = 0.004
+    var textScale: CGFloat = 0.022
+    var textBubble = false
+    var arrowStyle: ArrowStyle = .straight
+    var fillStyle: ShapeFillStyle = .outline
+    var linePattern: LinePattern = .solid
+    var mosaicBlock: CGFloat = 14
+    var numberStyle: NumberStyle = .circle
+    var highlighterAlpha: CGFloat = 0.32
 }
 
 /// A mark drawn on top of a screenshot.
 ///
 /// Points are normalised to the image (0…1, origin top-left) so an annotation
 /// survives being displayed at any size and can be rendered at full resolution.
-struct Annotation {
-    enum Shape {
+struct Annotation: Equatable {
+    enum Shape: Equatable {
         case rectangle(from: CGPoint, to: CGPoint)
         case ellipse(from: CGPoint, to: CGPoint)
         case line(from: CGPoint, to: CGPoint)
@@ -36,6 +73,15 @@ struct Annotation {
     var textBubble: Bool = false
     /// How `.arrow` is drawn.
     var arrowStyle: ArrowStyle = .straight
+    /// Fill rectangles and ellipses instead of only stroking them.
+    var fillStyle: ShapeFillStyle = .outline
+    var linePattern: LinePattern = .solid
+    /// Mosaic block size in pixels.
+    var mosaicBlock: CGFloat = 14
+    /// Shape of a numbered marker.
+    var numberStyle: NumberStyle = .circle
+    /// Highlighter opacity (0…1).
+    var highlighterAlpha: CGFloat = 0.32
 
     static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
 
@@ -119,6 +165,54 @@ struct Annotation {
     }
 }
 
+extension Annotation {
+    /// The annotation's appearance, independent of its geometry.
+    var style: AnnotationStyle {
+        get {
+            AnnotationStyle(
+                color: color,
+                lineWidth: lineWidth,
+                textScale: textScale,
+                textBubble: textBubble,
+                arrowStyle: arrowStyle,
+                fillStyle: fillStyle,
+                linePattern: linePattern,
+                mosaicBlock: mosaicBlock,
+                numberStyle: numberStyle,
+                highlighterAlpha: highlighterAlpha
+            )
+        }
+        set {
+            color = newValue.color
+            lineWidth = newValue.lineWidth
+            textScale = newValue.textScale
+            textBubble = newValue.textBubble
+            arrowStyle = newValue.arrowStyle
+            fillStyle = newValue.fillStyle
+            linePattern = newValue.linePattern
+            mosaicBlock = newValue.mosaicBlock
+            numberStyle = newValue.numberStyle
+            highlighterAlpha = newValue.highlighterAlpha
+        }
+    }
+
+    init(shape: Shape, style: AnnotationStyle) {
+        self.init(
+            shape: shape,
+            color: style.color,
+            lineWidth: style.lineWidth,
+            textScale: style.textScale,
+            textBubble: style.textBubble,
+            arrowStyle: style.arrowStyle,
+            fillStyle: style.fillStyle,
+            linePattern: style.linePattern,
+            mosaicBlock: style.mosaicBlock,
+            numberStyle: style.numberStyle,
+            highlighterAlpha: style.highlighterAlpha
+        )
+    }
+}
+
 enum AnnotationRenderer {
     /// Draws the annotations over the capture at full pixel resolution.
     ///
@@ -187,7 +281,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            path.stroke()
+            drawShape(path, annotation: annotation, lineWidth: lineWidth)
 
         case .ellipse(let start, let end):
             let a = point(start)
@@ -197,7 +291,7 @@ enum AnnotationRenderer {
                 width: abs(b.x - a.x), height: abs(b.y - a.y)
             ))
             path.lineWidth = lineWidth
-            path.stroke()
+            drawShape(path, annotation: annotation, lineWidth: lineWidth)
 
         case .line(let start, let end):
             let path = NSBezierPath()
@@ -205,10 +299,11 @@ enum AnnotationRenderer {
             path.lineCapStyle = .round
             path.move(to: point(start))
             path.line(to: point(end))
+            applyPattern(annotation.linePattern, to: path, width: lineWidth)
             path.stroke()
 
         case .arrow(let start, let end):
-            drawArrow(from: point(start), to: point(end), style: annotation.arrowStyle, lineWidth: lineWidth)
+            drawArrow(from: point(start), to: point(end), style: annotation.arrowStyle, lineWidth: lineWidth, pattern: annotation.linePattern)
 
         case .pen(let points):
             guard let first = points.first else { return }
@@ -220,13 +315,14 @@ enum AnnotationRenderer {
             for p in points.dropFirst() {
                 path.line(to: point(p))
             }
+            applyPattern(annotation.linePattern, to: path, width: lineWidth)
             path.stroke()
 
         case .highlighter(let points):
             guard let first = points.first else { return }
-            color.withAlphaComponent(0.32).setStroke()
+            color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
-            path.lineWidth = max(6, rect.width * 0.02)
+            path.lineWidth = max(2, rect.width * annotation.lineWidth * 5)
             path.lineCapStyle = .round
             path.lineJoinStyle = .round
             path.move(to: point(first))
@@ -239,12 +335,17 @@ enum AnnotationRenderer {
             let center = point(at)
             let radius = max(11, rect.width * 0.014)
             color.setFill()
-            NSBezierPath(ovalIn: NSRect(
+            let box = NSRect(
                 x: center.x - radius,
                 y: center.y - radius,
                 width: radius * 2,
                 height: radius * 2
-            )).fill()
+            )
+            if annotation.numberStyle == .square {
+                NSBezierPath(roundedRect: box, xRadius: radius * 0.4, yRadius: radius * 0.4).fill()
+            } else {
+                NSBezierPath(ovalIn: box).fill()
+            }
 
             let attributes: [NSAttributedString.Key: Any] = [
                 .font: NSFont.boldSystemFont(ofSize: radius * 1.15),
@@ -255,10 +356,10 @@ enum AnnotationRenderer {
             string.draw(at: NSPoint(x: center.x - size.width / 2, y: center.y - size.height / 2))
 
         case .mosaic(let start, let end):
-            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: false)
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: false, block: annotation.mosaicBlock)
 
         case .blur(let start, let end):
-            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true)
+            drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true, block: annotation.mosaicBlock)
 
         case .text(let text, let at):
             let fontSize = max(12, rect.width * annotation.textScale)
@@ -302,12 +403,12 @@ enum AnnotationRenderer {
 
             var title: String {
                 switch self {
-                case .bottomRight: return "Bottom Right"
-                case .bottomLeft: return "Bottom Left"
-                case .topRight: return "Top Right"
-                case .topLeft: return "Top Left"
-                case .center: return "Center"
-                case .tiled: return "Tiled"
+                case .bottomRight: return t("Bottom Right")
+                case .bottomLeft: return t("Bottom Left")
+                case .topRight: return t("Top Right")
+                case .topLeft: return t("Top Left")
+                case .center: return t("Center")
+                case .tiled: return t("Tiled")
                 }
             }
 
@@ -407,7 +508,32 @@ enum AnnotationRenderer {
 
     // MARK: - Arrows
 
-    private static func drawArrow(from a: NSPoint, to b: NSPoint, style: ArrowStyle, lineWidth: CGFloat) {
+    private static func applyPattern(_ pattern: LinePattern, to path: NSBezierPath, width: CGFloat) {
+        let lengths = pattern.dashLengths(width: width)
+        path.lineCapStyle = .round
+        lengths.withUnsafeBufferPointer { path.setLineDash($0.baseAddress, count: $0.count, phase: 0) }
+    }
+
+    private static func drawShape(_ path: NSBezierPath, annotation: Annotation, lineWidth: CGFloat) {
+        if annotation.fillStyle == .solid { path.fill(); return }
+        if annotation.fillStyle == .hatched {
+            NSGraphicsContext.saveGraphicsState()
+            path.addClip()
+            let box = path.bounds
+            let hatch = NSBezierPath()
+            hatch.lineWidth = max(1, lineWidth * 0.5)
+            for x in stride(from: box.minX - box.height, through: box.maxX, by: max(6, lineWidth * 3)) {
+                hatch.move(to: NSPoint(x: x, y: box.minY))
+                hatch.line(to: NSPoint(x: x + box.height, y: box.maxY))
+            }
+            hatch.stroke()
+            NSGraphicsContext.restoreGraphicsState()
+        }
+        applyPattern(annotation.linePattern, to: path, width: lineWidth)
+        path.stroke()
+    }
+
+    private static func drawArrow(from a: NSPoint, to b: NSPoint, style: ArrowStyle, lineWidth: CGFloat, pattern: LinePattern) {
         let path = NSBezierPath()
         path.lineWidth = lineWidth
         path.lineCapStyle = .round
@@ -417,6 +543,7 @@ enum AnnotationRenderer {
 
         switch style {
         case .straight:
+            tangentEnd = a
             path.move(to: a)
             path.line(to: b)
 
@@ -424,7 +551,7 @@ enum AnnotationRenderer {
             let control = controlPoint(from: a, to: b)
             path.move(to: a)
             path.curve(to: b, controlPoint1: control, controlPoint2: control)
-            tangentEnd = b
+            tangentEnd = control
 
         case .elbow:
             let corner = NSPoint(x: b.x, y: a.y)
@@ -432,8 +559,18 @@ enum AnnotationRenderer {
             path.line(to: corner)
             path.line(to: b)
             tangentEnd = corner
+
+        case .sCurve:
+            let dx = b.x - a.x
+            let dy = b.y - a.y
+            let control1 = NSPoint(x: a.x + dx * 0.15, y: a.y + dy * 0.75)
+            let control2 = NSPoint(x: a.x + dx * 0.85, y: a.y + dy * 0.25)
+            path.move(to: a)
+            path.curve(to: b, controlPoint1: control1, controlPoint2: control2)
+            tangentEnd = control2
         }
 
+        applyPattern(pattern, to: path, width: lineWidth)
         path.stroke()
 
         let angle = atan2(b.y - tangentEnd.y, b.x - tangentEnd.x)
@@ -464,7 +601,8 @@ enum AnnotationRenderer {
         end: CGPoint,
         rect: CGRect,
         base: CGImage?,
-        blurred: Bool
+        blurred: Bool,
+        block: CGFloat
     ) {
         let a = NSPoint(x: rect.minX + start.x * rect.width, y: rect.maxY - start.y * rect.height)
         let b = NSPoint(x: rect.minX + end.x * rect.width, y: rect.maxY - end.y * rect.height)
@@ -490,7 +628,7 @@ enum AnnotationRenderer {
 
         if blurred {
             let input = CIImage(cgImage: crop)
-            let radius = max(6, cropRect.width * 0.012)
+            let radius = max(2, block * 0.6)
             let output = input
                 .clampedToExtent()
                 .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: radius])
@@ -498,7 +636,7 @@ enum AnnotationRenderer {
             guard let image = CIContext().createCGImage(output, from: input.extent) else { return }
             NSImage(cgImage: image, size: target.size).draw(in: target)
         } else {
-            let blocks = max(2, Int(cropRect.width / 14))
+            let blocks = max(2, Int(cropRect.width / max(4, block)))
             let blocksHigh = max(1, Int(CGFloat(blocks) * cropRect.height / max(1, cropRect.width)))
             let small = NSImage(size: NSSize(width: blocks, height: blocksHigh))
             small.lockFocus()

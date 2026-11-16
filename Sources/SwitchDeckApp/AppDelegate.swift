@@ -38,6 +38,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         controller.openPermissions = { [weak self] in self?.showSetup() }
         menuController = controller
 
+        // Load the text-recognition models in the background, so the first
+        // recognition after login does not wait for them.
+        if model.config.isEnabled(ScreenshotCoordinator.recognizeTextID) {
+            Task.detached(priority: .utility) {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                TextRecognizer.warmUp()
+            }
+        }
+
         permissions.refresh()
         let launchingForScreenshot = CommandLine.arguments.contains("--show-settings")
         if !model.config.didCompleteSetup && !launchingForScreenshot {
@@ -56,9 +65,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
+        if CommandLine.arguments.contains("--editor-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginEditorDemo()
+            }
+        }
+        if CommandLine.arguments.contains("--ocr-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginRecognitionDemo()
+            }
+        }
         if CommandLine.arguments.contains("--selection-demo") {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
                 self?.screenshot.beginDemo()
+            }
+        }
+
+        if CommandLine.arguments.contains("--timed-demo") {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { [weak self] in
+                self?.screenshot.beginTimedDemo()
             }
         }
 
@@ -105,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = "Set up SwitchDeck"
+        window.title = t("Set up SwitchDeck")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()

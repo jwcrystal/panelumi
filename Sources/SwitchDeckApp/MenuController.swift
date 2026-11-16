@@ -12,7 +12,11 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     private final class ActionBox: NSObject {
         let run: () throws -> Void
-        init(_ run: @escaping () throws -> Void) { self.run = run }
+        let isChecked: () -> Bool
+        init(_ run: @escaping () throws -> Void, isChecked: @escaping () -> Bool) {
+            self.run = run
+            self.isChecked = isChecked
+        }
     }
 
     private let statusItem: NSStatusItem
@@ -97,7 +101,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         menu.addItem(.separator())
 
         let permissionsItem = NSMenuItem(
-            title: "Permissions…",
+            title: t("Permissions…"),
             action: #selector(showPermissions),
             keyEquivalent: ""
         )
@@ -105,12 +109,21 @@ final class MenuController: NSObject, NSMenuDelegate {
         permissionsItem.image = symbol("checkmark.shield")
         menu.addItem(permissionsItem)
 
-        let settings = NSMenuItem(title: "Settings…", action: #selector(showSettings), keyEquivalent: ",")
+        let checkForUpdatesItem = NSMenuItem(
+            title: t("Check for Updates…"),
+            action: #selector(checkForUpdates),
+            keyEquivalent: ""
+        )
+        checkForUpdatesItem.target = self
+        checkForUpdatesItem.image = symbol("arrow.down.circle")
+        menu.addItem(checkForUpdatesItem)
+
+        let settings = NSMenuItem(title: t("Settings…"), action: #selector(showSettings), keyEquivalent: "")
         settings.target = self
         settings.image = symbol("gearshape")
         menu.addItem(settings)
 
-        let quit = NSMenuItem(title: "Quit SwitchDeck", action: #selector(quit), keyEquivalent: "q")
+        let quit = NSMenuItem(title: t("Quit SwitchDeck"), action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 
@@ -120,9 +133,13 @@ final class MenuController: NSObject, NSMenuDelegate {
     private func makeSubmenu(_ actions: [SwitchItem.MenuAction]) -> NSMenu {
         let submenu = NSMenu()
         for action in actions {
+            if action.startsSection, !submenu.items.isEmpty {
+                submenu.addItem(.separator())
+            }
             let menuItem = NSMenuItem(title: action.title, action: #selector(runAction(_:)), keyEquivalent: "")
             menuItem.target = self
-            menuItem.representedObject = ActionBox(action.perform)
+            menuItem.representedObject = ActionBox(action.perform, isChecked: action.isChecked)
+            menuItem.state = action.isChecked() ? .on : .off
             submenu.addItem(menuItem)
         }
         return submenu
@@ -143,6 +160,11 @@ final class MenuController: NSObject, NSMenuDelegate {
             let item = box.item
             menuItem.state = (item.kind == .toggle && item.state()) ? .on : .off
             menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            // Submenus are built once per rebuild, so refresh their checkmarks here.
+            for subitem in menuItem.submenu?.items ?? [] {
+                guard let action = subitem.representedObject as? ActionBox else { continue }
+                subitem.state = action.isChecked() ? .on : .off
+            }
         }
     }
 
@@ -183,6 +205,60 @@ final class MenuController: NSObject, NSMenuDelegate {
         perform { try box.run() }
     }
 
+    @objc private func checkForUpdates() {
+        // `swift build` bundles carry no Info.plist version; treat that as 0.0.0.
+        let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0.0.0"
+        let checker = UpdateChecker(currentVersion: current)
+
+        Task {
+            do {
+                switch try await checker.check() {
+                case .updateAvailable(let release):
+                    showUpdateAvailable(release, currentVersion: current)
+                case .upToDate:
+                    showUpToDate(currentVersion: current)
+                }
+            } catch {
+                showUpdateFailure(error)
+            }
+        }
+    }
+
+    private func showUpdateAvailable(_ release: ReleaseInfo, currentVersion: String) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = tf("SwitchDeck %@ is available", release.version)
+        alert.informativeText = tf("You have %@.", currentVersion)
+        alert.addButton(withTitle: t("Download"))
+        alert.addButton(withTitle: t("Later"))
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(release.url)
+        }
+    }
+
+    private func showUpToDate(currentVersion: String) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.messageText = t("SwitchDeck is up to date")
+        alert.informativeText = tf("Version %@ is the latest.", currentVersion)
+        alert.addButton(withTitle: t("OK"))
+        alert.runModal()
+    }
+
+    private func showUpdateFailure(_ error: Error) {
+        NSApp.activate(ignoringOtherApps: true)
+
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = t("Couldn't check for updates")
+        alert.informativeText = error.localizedDescription
+        alert.addButton(withTitle: t("OK"))
+        alert.runModal()
+    }
+
     @objc private func showSettings() {
         openSettings()
     }
@@ -208,13 +284,13 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = "SwitchDeck"
+        alert.messageText = t("SwitchDeck")
         var text = error.localizedDescription
         if let hint = (error as? SwitchDeckError)?.recoveryHint {
             text += "\n\n" + hint
         }
         alert.informativeText = text
-        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: t("OK"))
 
         let needsAutomation: Bool
         if case .automation = (error as? SwitchDeckError) ?? .message("") {
@@ -224,7 +300,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         }
 
         if needsAutomation {
-            alert.addButton(withTitle: "Open Privacy Settings")
+            alert.addButton(withTitle: t("Open Privacy Settings"))
             if alert.runModal() == .alertSecondButtonReturn {
                 let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Automation")!
                 NSWorkspace.shared.open(url)

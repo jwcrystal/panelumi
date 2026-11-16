@@ -21,47 +21,73 @@ public struct SwitchCatalog {
     public static func standard() -> SwitchCatalog {
         let keepAwake = KeepAwakeSwitch()
         let hiddenFiles = ShowHiddenFilesSwitch()
+        let desktopIcons = HideDesktopIconsSwitch()
+        let dockAutohide = DockAutohideSwitch()
         let darkMode = DarkModeSwitch()
+        let muteOutput = MuteSwitch(direction: .output)
+        let muteMicrophone = MuteSwitch(direction: .input)
         let pasteboard = EmptyPasteboardSwitch()
         let quitAll = QuitAllAppsSwitch()
         let eject = EjectDiskSwitch()
         let nightShift = NightShiftSwitch()
         let lockScreen = LockScreenSwitch()
         let stageManager = StageManagerSwitch()
-        let trash = EmptyTrashSwitch()
+        let trash = EmptyTrashSwitch(countsInBackground: true)
         let recording = RecordingSwitch()
         let keyboard = KeyboardLockSwitch()
         let screenClean = ScreenCleanSwitch(keyboard: keyboard)
-        let hideWindows = HideWindowsSwitch()
 
         let items: [SwitchItem] = [
             SwitchItem(
                 id: "showHiddenFiles",
-                title: "Show Hidden Files",
+                title: t("Show Hidden Files"),
                 symbolName: "eye",
                 kind: .toggle,
                 state: { hiddenFiles.isOn() },
                 perform: { try hiddenFiles.toggle() }
             ),
             SwitchItem(
+                id: "hideDesktopIcons",
+                title: t("Hide Desktop Icons"),
+                symbolName: "rectangle.on.rectangle.slash",
+                kind: .toggle,
+                state: { desktopIcons.areIconsHidden },
+                subtitle: { desktopIcons.areIconsHidden ? t("Icons hidden") : nil },
+                perform: { try desktopIcons.toggle() }
+            ),
+            SwitchItem(
+                id: "dockAutohide",
+                title: t("Dock Autohide"),
+                symbolName: "dock.rectangle",
+                kind: .toggle,
+                state: { dockAutohide.isOn },
+                perform: { try dockAutohide.toggle() }
+            ),
+            SwitchItem(
                 id: "screenClean",
-                title: "Screen Clean",
+                title: t("Screen Clean"),
                 symbolName: "sparkles",
                 kind: .action,
-                subtitle: { screenClean.isActive ? "Active" : nil },
+                subtitle: { screenClean.isActive ? t("Active") : nil },
                 perform: { screenClean.start() }
             ),
             SwitchItem(
                 id: "keepAwake",
-                title: "Keep Awake",
+                title: t("Keep Awake"),
                 symbolName: "cup.and.saucer",
                 kind: .toggle,
                 state: { keepAwake.isOn },
                 subtitle: { keepAwake.subtitle },
                 actions: {
                     KeepAwakeSwitch.durations.map { duration in
-                        .init(title: duration.title) { keepAwake.start(minutes: duration.minutes) }
-                    }
+                        .init(title: t(duration.title)) { keepAwake.start(minutes: duration.minutes) }
+                    } + [
+                        .init(
+                            title: t("Keep Display On"),
+                            isChecked: { keepAwake.keepsDisplayOn },
+                            startsSection: true
+                        ) { keepAwake.keepsDisplayOn.toggle() },
+                    ]
                 },
                 perform: {
                     if keepAwake.isOn {
@@ -73,15 +99,33 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "darkMode",
-                title: "Dark Mode",
+                title: t("Dark Mode"),
                 symbolName: "moon",
                 kind: .toggle,
                 state: { darkMode.isDark },
                 perform: { try darkMode.toggle() }
             ),
             SwitchItem(
+                id: "muteOutput",
+                title: t("Mute Sound"),
+                symbolName: "speaker.slash",
+                kind: .toggle,
+                state: { muteOutput.isMuted },
+                subtitle: { muteOutput.subtitle },
+                perform: { try muteOutput.toggle() }
+            ),
+            SwitchItem(
+                id: "muteMicrophone",
+                title: t("Mute Microphone"),
+                symbolName: "mic.slash",
+                kind: .toggle,
+                state: { muteMicrophone.isMuted },
+                subtitle: { muteMicrophone.subtitle },
+                perform: { try muteMicrophone.toggle() }
+            ),
+            SwitchItem(
                 id: "lockKeyboard",
-                title: "Lock Keyboard",
+                title: t("Lock Keyboard"),
                 symbolName: "keyboard.badge.ellipsis",
                 kind: .toggle,
                 state: { keyboard.isLocked },
@@ -96,23 +140,23 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "lockScreen",
-                title: "Lock Screen",
+                title: t("Lock Screen"),
                 symbolName: "lock.display",
                 kind: .action,
                 perform: { try lockScreen.lock() }
             ),
             SwitchItem(
                 id: "nightShift",
-                title: "Night Shift",
+                title: t("Night Shift"),
                 symbolName: "moon.stars",
                 kind: .toggle,
                 state: { nightShift.isOn },
-                subtitle: { nightShift.isAvailable ? nil : "Not available" },
+                subtitle: { nightShift.isAvailable ? nil : t("Not available") },
                 perform: { try nightShift.toggle() }
             ),
             SwitchItem(
                 id: "stageManager",
-                title: "Stage Manager",
+                title: t("Stage Manager"),
                 symbolName: "rectangle.3.group",
                 kind: .toggle,
                 state: { stageManager.isOn },
@@ -120,7 +164,7 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "stageManagerAutohide",
-                title: "Stage Manager Autohide",
+                title: t("Stage Manager Autohide"),
                 symbolName: "rectangle.3.group.bubble",
                 kind: .toggle,
                 state: { stageManager.isAutohideOn },
@@ -128,7 +172,7 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "emptyTrash",
-                title: "Empty Trash",
+                title: t("Empty Trash"),
                 symbolName: "trash",
                 kind: .action,
                 subtitle: { trash.subtitle },
@@ -136,22 +180,22 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "emptyPasteboard",
-                title: "Empty Pasteboard",
+                title: t("Empty Pasteboard"),
                 symbolName: "doc.on.clipboard",
                 kind: .action,
-                subtitle: { pasteboard.isEmpty ? "Empty" : nil },
+                subtitle: { pasteboard.isEmpty ? t("Empty") : nil },
                 perform: { pasteboard.empty() }
             ),
             SwitchItem(
                 id: "recording",
-                title: "Recording",
+                title: t("Recording"),
                 symbolName: "record.circle",
                 kind: .toggle,
                 state: { recording.isRecording },
                 subtitle: { recording.subtitle },
                 actions: {
                     [
-                        .init(title: "Open Recordings Folder") {
+                        .init(title: t("Open Recordings Folder")) {
                             try? FileManager.default.createDirectory(
                                 at: recording.folder,
                                 withIntermediateDirectories: true
@@ -163,16 +207,8 @@ public struct SwitchCatalog {
                 perform: { try recording.toggle() }
             ),
             SwitchItem(
-                id: "hideWindows",
-                title: "Hide Windows",
-                symbolName: "eye.slash",
-                kind: .action,
-                subtitle: { hideWindows.subtitle },
-                perform: { try hideWindows.hideAll() }
-            ),
-            SwitchItem(
                 id: "quitAllApps",
-                title: "Quit All Apps",
+                title: t("Quit All Apps"),
                 symbolName: "xmark.rectangle",
                 kind: .action,
                 subtitle: { quitAll.subtitle },
@@ -180,7 +216,7 @@ public struct SwitchCatalog {
             ),
             SwitchItem(
                 id: "ejectDisk",
-                title: "Eject Disk",
+                title: t("Eject Disk"),
                 symbolName: "eject",
                 kind: .action,
                 subtitle: { eject.subtitle },

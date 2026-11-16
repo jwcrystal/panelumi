@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import SwitchKit
 
 /// One permission with its live state and the two ways out: ask again, or open
 /// the matching System Settings pane.
@@ -10,6 +11,7 @@ struct PermissionStatusRow: View {
     let grantTitle: String
     let onGrant: () -> Void
     let onOpenSettings: () -> Void
+    var onRelaunch: (() -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 12) {
@@ -29,11 +31,16 @@ struct PermissionStatusRow: View {
             Spacer(minLength: 12)
 
             if granted {
-                Label("Granted", systemImage: "checkmark")
+                Label(t("Granted"), systemImage: "checkmark")
                     .labelStyle(.titleAndIcon)
                     .font(.caption)
                     .foregroundStyle(.green)
             } else {
+                if let onRelaunch {
+                    Button(t("Relaunch"), action: onRelaunch)
+                        .controlSize(.small)
+                        .help(t("macOS applies the Screen Recording grant after SwitchDeck relaunches."))
+                }
                 Button(grantTitle, action: onGrant)
                     .controlSize(.small)
                 Button(action: onOpenSettings) {
@@ -41,7 +48,7 @@ struct PermissionStatusRow: View {
                 }
                 .controlSize(.small)
                 .buttonStyle(.borderless)
-                .help("Open the matching System Settings pane")
+                .help(t("Open the matching System Settings pane"))
             }
         }
         .padding(.vertical, 6)
@@ -62,9 +69,9 @@ struct SetupView: View {
                     .frame(width: 56, height: 56)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Set up SwitchDeck")
+                    Text(t("Set up SwitchDeck"))
                         .font(.title2.weight(.semibold))
-                    Text("macOS only asks here. The menu never prompts while you use a switch.")
+                    Text(t("macOS only asks here. The menu never prompts while you use a switch."))
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -72,10 +79,10 @@ struct SetupView: View {
 
             VStack(alignment: .leading, spacing: 14) {
                 PermissionStatusRow(
-                    title: "Accessibility",
-                    detail: "Lock Keyboard and Screen Clean.",
+                    title: t("Accessibility"),
+                    detail: t("Lock Keyboard and Screen Clean."),
                     granted: permissions.accessibility,
-                    grantTitle: "Grant",
+                    grantTitle: t("Grant"),
                     onGrant: { permissions.requestAccessibility() },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_Accessibility") }
                 )
@@ -83,10 +90,10 @@ struct SetupView: View {
                 Divider()
 
                 PermissionStatusRow(
-                    title: "Automation — System Events",
-                    detail: "Dark Mode.",
+                    title: t("Automation — System Events"),
+                    detail: t("Dark Mode."),
                     granted: permissions.systemEvents == .granted,
-                    grantTitle: permissions.systemEvents == .unknown ? "Check" : "Grant",
+                    grantTitle: permissions.systemEvents == .unknown ? t("Check") : t("Grant"),
                     onGrant: { permissions.requestAutomation(bundleID: "com.apple.systemevents") },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_Automation") }
                 )
@@ -94,10 +101,10 @@ struct SetupView: View {
                 Divider()
 
                 PermissionStatusRow(
-                    title: "Automation — Finder",
-                    detail: "Empty Trash and its item count.",
+                    title: t("Automation — Finder"),
+                    detail: t("Empty Trash and its item count."),
                     granted: permissions.finder == .granted,
-                    grantTitle: permissions.finder == .unknown ? "Check" : "Grant",
+                    grantTitle: permissions.finder == .unknown ? t("Check") : t("Grant"),
                     onGrant: { permissions.requestAutomation(bundleID: "com.apple.finder") },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_Automation") }
                 )
@@ -105,27 +112,30 @@ struct SetupView: View {
                 Divider()
 
                 PermissionStatusRow(
-                    title: "Screen Recording",
-                    detail: "Screenshot. macOS applies the grant after a relaunch.",
+                    title: t("Screen Recording"),
+                    detail: t("Screenshot and Recognize Text. macOS applies the grant after a relaunch."),
                     granted: permissions.screenRecording,
-                    grantTitle: "Grant",
+                    grantTitle: t("Grant"),
                     onGrant: { permissions.requestScreenRecording() },
-                    onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") }
+                    onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") },
+                    onRelaunch: permissions.screenRecordingRequested ? { AppLanguage.relaunch() } : nil
                 )
 
                 Divider()
 
                 PermissionStatusRow(
-                    title: "Microphone",
-                    detail: "Recording.",
+                    title: t("Microphone"),
+                    detail: t("Recording."),
                     granted: permissions.microphone == .authorized,
-                    grantTitle: "Allow",
+                    grantTitle: t("Grant"),
                     onGrant: { permissions.requestMicrophone() },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_Microphone") }
                 )
             }
 
-            Text("Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it.")
+            Text(CodeSignature.isAdHoc
+                 ? t("This build is ad-hoc signed, so macOS may ask for these grants again after an update.")
+                 : t("Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it."))
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
 
@@ -137,10 +147,11 @@ struct SetupView: View {
             }
 
             HStack {
-                Button("Not Now") { onClose() }
-                    .buttonStyle(.borderless)
                 Spacer()
-                Button("Done") { onClose() }
+                Text(t("Reopen this window any time from Permissions… in the menu."))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button(t("Done")) { onClose() }
                     .keyboardShortcut(.defaultAction)
             }
         }
