@@ -5,7 +5,7 @@
 [![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#安裝)
-[![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
+[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 
 平常要翻系統設定、或打開終端機下指令才改得到的 18 個 Mac 設定：顯示隱藏檔、保持清醒、夜覽、深色模式、擦鍵盤用的鍵盤鎖、退出磁碟……全都放在選單列，點一下就切換。另外附一個截圖工具，拍完直接在原地標註，不用再開第二個視窗；也能在本機辨識文字和 QR 碼。
 
