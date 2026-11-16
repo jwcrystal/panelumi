@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 @testable import SwitchKit
 
 // The lists in this file are the frozen set of shipped switches and tools:

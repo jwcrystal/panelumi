@@ -1,11 +1,17 @@
 import AppKit
 import SwitchKit
 
+/// Entry point of the app, called by the `SwitchDeck` executable.
+///
 /// The app is a menu-bar accessory: no Dock icon, no main menu.
-@main
-enum SwitchDeckApp {
+public enum SwitchDeckLauncher {
+    /// Reads the process arguments, then either runs one diagnostic command
+    /// (`--dump`, `--menu`, `--capture-test`, …) or starts the app.
+    ///
+    /// Call it once per process, on the main thread. Starting the app never
+    /// returns, and some diagnostic commands end the process with `exit()`.
     @MainActor
-    static func main() {
+    public static func run() {
         let arguments = CommandLine.arguments
 
         if arguments.contains("--dump") {

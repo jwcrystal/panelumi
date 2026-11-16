@@ -3,12 +3,13 @@
 Guidance for coding agents (and humans) working in this repository.
 
 SwitchDeck is a native macOS menu-bar utility: Swift 5.9, SwiftPM, macOS 14+,
-no third-party dependencies, MIT-licensed. Two modules:
+no third-party dependencies, MIT-licensed. Three modules:
 
 - `SwitchKit` — the library: switch definitions, config, ordering, hotkeys,
   text recognition, update check. Unit-tested in `Tests/SwitchKitTests`.
-- `SwitchDeckApp` — the AppKit/SwiftUI app: menu, settings, screenshot editor,
-  permissions. Tested in `Tests/ScreenshotTests`.
+- `SwitchDeckCore` — the AppKit/SwiftUI app code: menu, settings, screenshot
+  editor, permissions, as a library. Tested in `Tests/ScreenshotTests`.
+- `SwitchDeck` — the thin executable: calls `SwitchDeckLauncher.run()`.
 
 ## Build and test
 

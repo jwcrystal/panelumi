@@ -6,12 +6,14 @@ let package = Package(
     platforms: [.macOS(.v14)],
     products: [
         .library(name: "SwitchKit", targets: ["SwitchKit"]),
-        .executable(name: "SwitchDeck", targets: ["SwitchDeckApp"]),
+        .library(name: "SwitchDeckCore", targets: ["SwitchDeckCore"]),
+        .executable(name: "SwitchDeck", targets: ["SwitchDeck"]),
     ],
     targets: [
         .target(name: "SwitchKit"),
-        .executableTarget(name: "SwitchDeckApp", dependencies: ["SwitchKit"]),
+        .target(name: "SwitchDeckCore", dependencies: ["SwitchKit"]),
+        .executableTarget(name: "SwitchDeck", dependencies: ["SwitchDeckCore"]),
         .testTarget(name: "SwitchKitTests", dependencies: ["SwitchKit"]),
-        .testTarget(name: "ScreenshotTests", dependencies: ["SwitchDeckApp"]),
+        .testTarget(name: "ScreenshotTests", dependencies: ["SwitchDeckCore"]),
     ]
 )

@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class ScreenCaptureCropTests: XCTestCase {
     /// The crop takes the same bottom-left global rect the overlay uses, and

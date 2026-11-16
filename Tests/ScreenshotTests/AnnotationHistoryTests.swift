@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckApp
+@testable import SwitchDeckCore
 
 final class AnnotationHistoryTests: XCTestCase {
     private func arrow(at x: CGFloat = 0.2) -> Annotation {

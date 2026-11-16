@@ -62,9 +62,9 @@ shows it until someone hides it.
 
 Permissions are wired by hand, not declared. A switch that needs one must:
 
-- add the query and the request to `Sources/SwitchDeckApp/PermissionCenter.swift`,
-- add a row to `Sources/SwitchDeckApp/PermissionViews.swift` (the setup window),
-- add the same row to the General pane in `Sources/SwitchDeckApp/SettingsView.swift`,
+- add the query and the request to `Sources/SwitchDeckCore/PermissionCenter.swift`,
+- add a row to `Sources/SwitchDeckCore/PermissionViews.swift` (the setup window),
+- add the same row to the General pane in `Sources/SwitchDeckCore/SettingsView.swift`,
 - add the usage string to `Info.plist` in `scripts/build-app.sh` if macOS requires one (microphone, screen recording).
 
 The rule the app follows: the setup window is the only place that triggers a
