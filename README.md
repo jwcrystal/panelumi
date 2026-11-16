@@ -81,7 +81,7 @@ How each one is implemented is listed under [Development](#how-each-switch-works
 
 Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
-Settings › Screenshot gathers everything about a capture — shortcut, delay, colour-readout format, save folder, file-name prefix, image format and signature defaults — Settings › Recognize Text holds the text-recognition shortcut, Silent recognition and Auto copy, and Settings › Recording does the same for audio.
+Settings › Screenshot holds the capture options; Settings › Recognize Text holds the text-recognition shortcut, Silent recognition and Auto copy; Settings › Recording does the same for audio.
 
 Settings › Recording picks the folder and the microphone. `AVAudioRecorder` only records from the macOS default input, so a chosen microphone becomes the default for as long as a recording runs, and the previous device is restored on stop or quit.
 
@@ -89,18 +89,15 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 <p align="center"><img src="docs/images/editor.png" width="640" alt="The in-place editor: a frozen region with a red rectangle, an arrow and a label, and the tool strip under it"></p>
 
-- `⌥E` starts a capture (installed once as a default; change it in Settings › Screenshot).
-- Settings › Screenshot also holds a 0 / 3 / 5 / 10 s delay, the save folder, the file-name prefix, PNG / JPEG / HEIC with a quality slider, the signature text and whether a new capture starts with it, and the starting format for the colour readout. A delayed capture counts down in a small pill and freezes the screen when the clock ends, so a menu or hover state opened during the countdown survives; pressing the shortcut again cancels it.
-- Dragging a region enters editing **in place**: the selection stays on screen, everything outside dims, and the toolbar appears under the region — no second window. Clicking a window captures that window alone, with its shadow, instead of whatever happens to be on top of it; `⇧`-click windows to pick several, then `Return` to edit the composed set; `F` selects the whole screen; `R` restores the last region.
-- The default tool is Select. With a tool active, dragging inside draws: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (S/M/L, optional bubble), numbered markers, mosaic and blur.
-- The region keeps its eight handles while editing, so it can still be resized; while dragging, the live screen shows through and the frozen image is refreshed on release.
-- While selecting, the colour under the pointer is shown with its value and pixel coordinates; `⌥` cycles HEX / RGB / HSL (the starting format is set in Settings › Screenshot), and `C` copies the value, leaves capture mode and shows a short "Copied …" toast. The readout is hidden once editing starts.
-- The region is frozen the moment editing starts, so mosaic and blur preview exactly what gets saved.
-- Main tools stay on one row. Selecting a drawing tool reveals a compact horizontal icon row immediately below it: colour, arrow paths (including an S curve), outline/hatched/solid shapes, solid/dashed/dotted strokes, marker shape, text sizes/bubble and sliders for stroke width, pixel-effect strength or highlighter opacity. Clicking the active tool returns to Select and closes the options row.
-- With Select, clicking an existing mark edits that object instead of the next one: the options row shows its own colour, stroke, fill, arrow path, text size/bubble or marker shape, changes apply live, and the same values become the default for new marks. Dragging and the eight handles still move or resize it.
-- The signature button adds a watermark (the macOS full user name, or the text in Settings › Screenshot); its popover edits the text, colour, position (four corners, centre or a tiled pattern), size (S/M/L), angle (0/30/45°) and opacity. It is clipped to the capture, so a rotated or tiled watermark never spills outside the selection. The eye-slash button hides it from the image but keeps the text in the PNG metadata.
-- `Enter` copies, `Space` saves an image into the folder and format chosen in Settings › Screenshot (`~/Downloads`, PNG by default) as `SwitchDeck_Screenshot_<date>_<time>`, `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo edits, `Esc` closes. A second capture in the same second gets `_2` instead of overwriting.
-- Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity, right-click has Copy / 50% Opacity / Close.
+- `⌥E` starts a capture (change it in Settings › Screenshot). Drag a region, or click a window to capture that window alone (`⇧`-click several to compose them, then `Return` to edit); `F` takes the whole screen, `R` restores the last region.
+- Editing happens **in place**: the selection stays on screen, everything outside it dims, and the toolbar sits under the region — no second window.
+- Tools: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (with an optional bubble), numbered markers, mosaic and blur. Picking a tool reveals its style row below; clicking it again returns to Select.
+- With Select, clicking an existing mark edits that object — the style row shows its own values — and dragging or the eight handles moves and resizes it.
+- While selecting, the colour and pixel coordinates under the pointer are shown; `⌥` cycles HEX / RGB / HSL and `C` copies the value and leaves capture mode.
+- The image freezes the moment editing starts, so mosaic and blur are exactly what gets saved. A delayed capture counts down in a small pill; press the shortcut again to cancel it.
+- `Enter` copies, `Space` saves (`~/Downloads`, PNG by default), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo, `Esc` closes; the folder, file-name prefix, format, quality and delay live in Settings › Screenshot.
+- The signature button adds a watermark (the macOS full user name, or text from Settings) with editable colour, position, size, angle and opacity, clipped to the capture; the eye-slash hides it from the image but keeps the text in the file metadata.
+- Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity.
 
 ## Permissions
 
