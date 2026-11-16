@@ -27,13 +27,13 @@
 
 ### 從 release 安裝
 
-需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/switchdeck/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用 ad-hoc 簽章而不是付費的 Apple Developer ID，所以 macOS 會擋第一次啟動：
+需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/switchdeck/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID；也沒有經過 notarize，所以 macOS 會擋第一次啟動：
 
 1. 點兩下開啟，警告視窗按 **Done**。
 2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
 3. 再啟動一次。之後就會正常開啟。
 
-也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。因為簽章是 ad-hoc，更新後可能會再問一次輔助使用、自動化與螢幕錄製權限；自己在本機建置並跑過 `scripts/setup-signing.sh` 就不會（見下）。
+也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。0.9.1 起每個 release 都用同一張憑證簽章，更新後輔助使用、自動化與螢幕錄製權限會保留。從 0.9.0 或更早版本升級，或在 release 與本機建置之間切換時，會再問一次。
 
 想知道有沒有新版，從選單點「檢查更新…」。它會拿目前版本和 GitHub 上最新的 release 比較，有新版就帶你到下載頁；SwitchDeck 不會自己在背景檢查。
 
@@ -191,7 +191,7 @@ SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
 - 沒有 App Store 用的識別碼、entitlement 或團隊簽章。
 - 私有 API 可能在任一次 macOS 更新後壞掉；壞掉的開關會退化成一句說明而不是 crash，但這個 repo 不承諾別的。
 
-release 會附上 CI 建置的 zip（ad-hoc 簽章），第一次啟動需要按「仍要打開」（見[安裝](#從-release-安裝)）。想自己簽章就用原始碼建置；要交給別人則建議用 Developer ID 簽章並 notarize。
+release 會附上 CI 建置的 zip（自簽憑證簽章，未 notarize），第一次啟動需要按「仍要打開」（見[安裝](#從-release-安裝)）。想自己簽章就用原始碼建置；要交給別人則建議用 Developer ID 簽章並 notarize。
 
 ## 多語系
 
