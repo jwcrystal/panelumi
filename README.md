@@ -201,6 +201,10 @@ The interface ships in English and Traditional Chinese (Taiwan). English wording
 
 SwitchDeck keeps to a short, flat native menu, a local build outside the sandbox, and one `SwitchItem` per switch.
 
+## Feedback
+
+Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com/jwcrystal/switchdeck/issues). For a bug, include your macOS version, the SwitchDeck version (Settings › About) and, if a switch misbehaves, the output of `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` and `--permissions`.
+
 ## License
 
 [MIT](LICENSE). Copyright © 2026 Jared Wang.
