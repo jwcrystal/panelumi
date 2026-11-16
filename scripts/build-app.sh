@@ -6,6 +6,14 @@ cd "$(dirname "$0")/.."
 CONFIGURATION="${1:-release}"
 APP="build/SwitchDeck.app"
 
+# The version has one source, VERSION. scripts/check-version.sh holds the
+# rules; this turns it into the bundle's two version keys. CFBundleVersion is
+# derived rather than counted by hand, so it rises with every release.
+./scripts/check-version.sh
+VERSION="$(tr -d '[:space:]' < VERSION)"
+IFS=. read -r versionMajor versionMinor versionPatch <<<"$VERSION"
+BUILD=$(( versionMajor * 10000 + versionMinor * 100 + versionPatch ))
+
 echo "==> Building ($CONFIGURATION)"
 swift build -c "$CONFIGURATION" --product SwitchDeck
 
@@ -59,9 +67,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.0</string>
+    <string>__VERSION__</string>
     <key>CFBundleVersion</key>
-    <string>12</string>
+    <string>__BUILD__</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -81,6 +89,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
 
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

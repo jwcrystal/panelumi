@@ -16,13 +16,20 @@ no third-party dependencies, MIT-licensed. Two modules:
 swift build                      # debug build
 swift test                       # all unit tests
 ./scripts/check-localizations.sh # every t("...") key has a zh-Hant entry
+./scripts/check-version.sh       # VERSION, its release notes, and the tag agree
 ./scripts/build-app.sh           # assemble build/SwitchDeck.app (release)
 ./scripts/smoke.sh               # print every switch and its live state
 ```
 
-CI (`.github/workflows/ci.yml`) runs build, the localisation check, tests and
-the app bundle on every push to `main` and every pull request. Run the same
-steps locally before opening a PR.
+CI (`.github/workflows/ci.yml`) runs build, the localisation check, the version
+check, tests and the app bundle on every push to `main` and every pull request.
+Run the same steps locally before opening a PR.
+
+The version lives in `VERSION` and nowhere else. `scripts/check-version.sh`
+requires `docs/releases/<version>.md` and, when a tag is passed, that the tag is
+`v<version>`; `scripts/build-app.sh` derives `CFBundleShortVersionString` and
+`CFBundleVersion` from it. Bump the file and add the notes in the same commit —
+the release workflow stops before building when they disagree with the tag.
 
 Tests that grab real screen pixels are skipped unless
 `SWITCHDECK_LIVE_CAPTURE_TESTS=1` is set and the terminal has the Screen
