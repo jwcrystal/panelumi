@@ -4,7 +4,7 @@
 
 [![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
-[![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#requirements)
+[![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#install)
 [![License](https://img.shields.io/github/license/jwcrystal/switchdeck)](LICENSE)
 
 Eighteen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window, and on-device text and QR-code recognition.
@@ -21,7 +21,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-li
 - **Your menu, your order.** Hide the switches you never use and drag the rest into place.
 - **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-**Status: pre-1.0 (0.9.0).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
+**Status: pre-1.0 (0.9.1).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
 
 ## Install
 
