@@ -36,6 +36,14 @@ QR recognition, audio recording, settings and permissions. For a larger new
 feature, open an issue first so the direction can be agreed before code is
 written.
 
+- **Before implementing any new feature or new switch, stop and confirm with
+  the maintainer that it belongs in this repository.** Don't start on your own
+  judgement, even for something that looks like a natural extension.
+- Every shipped switch and annotation tool must keep working and stay
+  ungated. Don't remove, hide or restrict any of them. `FreeScopeContractTests`
+  (switch IDs) and `FreeScopeAnnotationContractTests` (annotation tools) hold
+  the frozen lists; changing them needs the maintainer.
+
 When adding a switch, follow `docs/adding-a-switch.md`. User-visible strings go
 through `t("...")` and need a Traditional Chinese entry in
 `Resources/zh-Hant.lproj/Localizable.strings`.
