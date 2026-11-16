@@ -4,13 +4,26 @@ name: Release
 # locally: test, build the .app, then zip it with ditto so the code signature
 # and extended attributes survive (upload-artifact and Finder's Archive Utility
 # can break both, which turns "unnotarized" into "damaged").
+#
+# Running it by hand (workflow_dispatch) is a dry run: it tests, builds and
+# signs with the release identity, then stops before packaging or publishing.
+#
+# Releases are signed with one stable self-signed certificate, kept in the
+# RELEASE_CERT_P12 / RELEASE_CERT_PASSWORD secrets. A stable certificate keeps
+# the designated requirement the same across releases, so macOS keeps users'
+# Accessibility and Automation grants after an update. The build fails rather
+# than fall back to ad-hoc signing.
 
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
 
 permissions:
   contents: write
+
+env:
+  SIGN_IDENTITY: SwitchDeck Release Signing
 
 jobs:
   release:
@@ -25,15 +38,63 @@ jobs:
         run: swift --version
 
       - name: Check the tag matches VERSION
-        run: ./scripts/check-version.sh "$GITHUB_REF_NAME"
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            ./scripts/check-version.sh "$GITHUB_REF_NAME"
+          else
+            ./scripts/check-version.sh
+          fi
 
       - name: Test
         run: swift test
 
+      - name: Import the signing certificate
+        env:
+          RELEASE_CERT_P12: ${{ secrets.RELEASE_CERT_P12 }}
+          RELEASE_CERT_PASSWORD: ${{ secrets.RELEASE_CERT_PASSWORD }}
+        run: |
+          if [ -z "$RELEASE_CERT_P12" ] || [ -z "$RELEASE_CERT_PASSWORD" ]; then
+            echo "::error::RELEASE_CERT_P12 and RELEASE_CERT_PASSWORD must be set"
+            exit 1
+          fi
+          kc="$RUNNER_TEMP/signing.keychain-db"
+          kc_pass="$(openssl rand -base64 24)"
+          security create-keychain -p "$kc_pass" "$kc"
+          security set-keychain-settings -lut 3600 "$kc"
+          security unlock-keychain -p "$kc_pass" "$kc"
+          printf '%s' "$RELEASE_CERT_P12" | base64 --decode > "$RUNNER_TEMP/release.p12"
+          security import "$RUNNER_TEMP/release.p12" -k "$kc" -P "$RELEASE_CERT_PASSWORD" -T /usr/bin/codesign
+          rm -f "$RUNNER_TEMP/release.p12"
+          security set-key-partition-list -S apple-tool:,apple: -s -k "$kc_pass" "$kc" > /dev/null
+          security list-keychains -d user -s "$kc" $(security list-keychains -d user | tr -d '"')
+          # Trust it for code signing so it counts as a valid identity, as
+          # scripts/setup-signing.sh does on a developer's machine.
+          security find-certificate -c "$SIGN_IDENTITY" -p "$kc" > "$RUNNER_TEMP/release.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+            -k /Library/Keychains/System.keychain "$RUNNER_TEMP/release.pem"
+          security find-identity -v -p codesigning "$kc"
+
       - name: Build the app
         run: ./scripts/build-app.sh
 
+      - name: Check the signature
+        run: |
+          info="$(codesign -dvv build/SwitchDeck.app 2>&1)"
+          echo "$info" | grep -E '^(Authority|CodeDirectory|Identifier)='
+          if ! echo "$info" | grep -qx "Authority=$SIGN_IDENTITY"; then
+            echo "::error::build/SwitchDeck.app is not signed with $SIGN_IDENTITY"
+            exit 1
+          fi
+          codesign --verify --strict build/SwitchDeck.app
+          # Should print the same certificate-leaf requirement on every run.
+          codesign -d -r- build/SwitchDeck.app 2>&1 | grep designated
+
+      - name: Remove the signing keychain
+        if: always()
+        run: security delete-keychain "$RUNNER_TEMP/signing.keychain-db" 2>/dev/null || true
+
       - name: Package
+        if: github.event_name == 'push'
         run: |
           version="${GITHUB_REF_NAME#v}"
           cd build
@@ -41,6 +102,7 @@ jobs:
           shasum -a 256 "SwitchDeck-${version}.zip" > "SwitchDeck-${version}.zip.sha256"
 
       - name: Publish
+        if: github.event_name == 'push'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

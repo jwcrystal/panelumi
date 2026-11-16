@@ -27,13 +27,13 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-li
 
 ### From a release
 
-Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/switchdeck/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed ad-hoc rather than with a paid Apple Developer ID, so macOS blocks the first launch once:
+Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/switchdeck/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed with a stable self-signed certificate rather than a paid Apple Developer ID. They are not notarized, so macOS blocks the first launch once:
 
 1. Double-click it and click **Done** on the warning.
 2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
 3. Launch it again. From then on it opens normally.
 
-`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Because the signature is ad-hoc, an update can ask for the Accessibility, Automation and Screen Recording grants again; a local build avoids that once `scripts/setup-signing.sh` has run (below).
+`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Every release from 0.9.1 on is signed with the same certificate, so updating keeps the Accessibility, Automation and Screen Recording grants. Coming from 0.9.0 or earlier, or switching between a release and a local build, asks for them once more.
 
 To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; SwitchDeck never checks on its own.
 
@@ -191,7 +191,7 @@ SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
 - It has no App Store identifier, no entitlement set and no team signing.
 - Private APIs can break on any macOS update; a failing switch degrades to an explanation rather than a crash, but no release here promises otherwise.
 
-Releases attach a CI-built zip, ad-hoc signed, so the first launch needs **Open Anyway** (see [Install](#from-a-release)). Build from source instead if you would rather sign it with your own identity, or notarize a Developer ID build before handing it to someone else.
+Releases attach a CI-built zip, signed with a self-signed certificate and not notarized, so the first launch needs **Open Anyway** (see [Install](#from-a-release)). Build from source instead if you would rather sign it with your own identity, or notarize a Developer ID build before handing it to someone else.
 
 ## Localisation
 
