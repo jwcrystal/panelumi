@@ -7,12 +7,12 @@ CONFIGURATION="${1:-release}"
 APP="build/SwitchDeck.app"
 
 # The version has one source, VERSION. scripts/check-version.sh holds the
-# rules; this turns it into the bundle's two version keys. CFBundleVersion is
-# derived rather than counted by hand, so it rises with every release.
+# rules. Both bundle keys take the same X.Y.Z string: Apple allows a version of
+# one to three period-separated integers as CFBundleVersion, and every updater
+# that reads it (Sparkle included) compares the parts as numbers, so 0.9.100
+# sorts above 0.9.99 without a hand-counted build number.
 ./scripts/check-version.sh
 VERSION="$(tr -d '[:space:]' < VERSION)"
-IFS=. read -r versionMajor versionMinor versionPatch <<<"$VERSION"
-BUILD=$(( versionMajor * 10000 + versionMinor * 100 + versionPatch ))
 
 echo "==> Building ($CONFIGURATION)"
 swift build -c "$CONFIGURATION" --product SwitchDeck
@@ -69,7 +69,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleShortVersionString</key>
     <string>__VERSION__</string>
     <key>CFBundleVersion</key>
-    <string>__BUILD__</string>
+    <string>__VERSION__</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -90,7 +90,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-sed -i '' -e "s/__VERSION__/$VERSION/" -e "s/__BUILD__/$BUILD/" "$APP/Contents/Info.plist"
+sed -i '' -e "s/__VERSION__/$VERSION/g" "$APP/Contents/Info.plist"
 
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 

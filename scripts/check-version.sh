@@ -22,17 +22,11 @@ fail() {
 VERSION="$(tr -d '[:space:]' < VERSION 2>/dev/null || true)"
 [ -n "$VERSION" ] || fail "VERSION is missing or empty"
 
-# Plain numbers only: UpdateChecker parses the same shape from a release tag.
+# Plain numbers only, in three parts: UpdateChecker parses the same shape from a
+# release tag, and the string doubles as CFBundleVersion, which Apple allows as
+# one to three period-separated integers.
 [[ "$VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]] \
   || fail "VERSION '$VERSION' is not X.Y.Z with plain numbers"
-
-IFS=. read -r major minor patch <<<"$VERSION"
-
-# scripts/build-app.sh turns the version into CFBundleVersion as
-# major*10000 + minor*100 + patch, so the build number rises with the version.
-# That only holds while minor and patch stay below 100.
-(( minor < 100 && patch < 100 )) \
-  || fail "minor and patch must be below 100 for the CFBundleVersion scheme"
 
 [ -f "docs/releases/$VERSION.md" ] || fail "missing docs/releases/$VERSION.md"
 

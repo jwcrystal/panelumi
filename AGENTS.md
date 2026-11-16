@@ -27,9 +27,10 @@ Run the same steps locally before opening a PR.
 
 The version lives in `VERSION` and nowhere else. `scripts/check-version.sh`
 requires `docs/releases/<version>.md` and, when a tag is passed, that the tag is
-`v<version>`; `scripts/build-app.sh` derives `CFBundleShortVersionString` and
-`CFBundleVersion` from it. Bump the file and add the notes in the same commit —
-the release workflow stops before building when they disagree with the tag.
+`v<version>`; `scripts/build-app.sh` sets both bundle version keys from it, so
+`CFBundleVersion` is never counted by hand. Bump the file and add the notes in
+the same commit — the release workflow stops before building when they disagree
+with the tag.
 
 Tests that grab real screen pixels are skipped unless
 `SWITCHDECK_LIVE_CAPTURE_TESTS=1` is set and the terminal has the Screen
