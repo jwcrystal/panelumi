@@ -20,6 +20,9 @@ jobs:
       - name: Translations
         run: ./scripts/check-localizations.sh
 
+      - name: Version
+        run: ./scripts/check-version.sh
+
       - name: Test
         run: swift test
 

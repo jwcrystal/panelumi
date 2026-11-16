@@ -21,6 +21,9 @@ jobs:
       - name: Toolchain
         run: swift --version
 
+      - name: Check the tag matches VERSION
+        run: ./scripts/check-version.sh "$GITHUB_REF_NAME"
+
       - name: Test
         run: swift test
 
@@ -41,8 +44,4 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           notes="docs/releases/${version}.md"
           assets="build/SwitchDeck-${version}.zip build/SwitchDeck-${version}.zip.sha256"
-          if [ -f "$notes" ]; then
-            gh release create "$GITHUB_REF_NAME" --title "$version" --notes-file "$notes" $assets
-          else
-            gh release create "$GITHUB_REF_NAME" --title "$version" --generate-notes $assets
-          fi
+          gh release create "$GITHUB_REF_NAME" --title "$version" --notes-file "$notes" $assets

@@ -6,6 +6,14 @@ cd "$(dirname "$0")/.."
 CONFIGURATION="${1:-release}"
 APP="build/SwitchDeck.app"
 
+# The version has one source, VERSION. scripts/check-version.sh holds the
+# rules. Both bundle keys take the same X.Y.Z string: Apple allows a version of
+# one to three period-separated integers as CFBundleVersion, and every updater
+# that reads it (Sparkle included) compares the parts as numbers, so 0.9.100
+# sorts above 0.9.99 without a hand-counted build number.
+./scripts/check-version.sh
+VERSION="$(tr -d '[:space:]' < VERSION)"
+
 echo "==> Building ($CONFIGURATION)"
 swift build -c "$CONFIGURATION" --product SwitchDeck
 
@@ -59,9 +67,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleIconFile</key>
     <string>AppIcon</string>
     <key>CFBundleShortVersionString</key>
-    <string>0.9.0</string>
+    <string>__VERSION__</string>
     <key>CFBundleVersion</key>
-    <string>12</string>
+    <string>__VERSION__</string>
     <key>LSApplicationCategoryType</key>
     <string>public.app-category.productivity</string>
     <key>LSMinimumSystemVersion</key>
@@ -81,6 +89,8 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </dict>
 </plist>
 PLIST
+
+sed -i '' -e "s/__VERSION__/$VERSION/g" "$APP/Contents/Info.plist"
 
 printf 'APPL????' > "$APP/Contents/PkgInfo"
 
