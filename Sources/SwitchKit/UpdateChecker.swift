@@ -65,23 +65,22 @@ public struct UpdateChecker {
     /// Injected so tests never hit the network.
     public typealias Fetch = (URLRequest) async throws -> (Data, URLResponse)
 
-    private static let latestRelease = URL(
-        string: "https://api.github.com/repos/jwcrystal/switchdeck/releases/latest"
-    )!
-
     private struct ReleasePayload: Decodable {
         let tag_name: String
         let html_url: String
     }
 
     private let currentVersion: String
+    private let feedURL: URL
     private let fetch: Fetch
 
     public init(
         currentVersion: String,
+        feedURL: URL = AppIdentity.current.updateFeedURL,
         fetch: @escaping Fetch = { try await URLSession.shared.data(for: $0) }
     ) {
         self.currentVersion = currentVersion
+        self.feedURL = feedURL
         self.fetch = fetch
     }
 
@@ -90,7 +89,7 @@ public struct UpdateChecker {
             throw SwitchDeckError.message(t("The current version number could not be read."))
         }
 
-        var request = URLRequest(url: Self.latestRelease)
+        var request = URLRequest(url: feedURL)
         request.timeoutInterval = 15
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
 

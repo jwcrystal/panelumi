@@ -1,6 +1,17 @@
 import AppKit
 import SwitchKit
 
+/// Options for starting the app. A hook for packages that embed the app; more
+/// fields can be added later without changing the call.
+public struct LaunchOptions: Equatable, Sendable {
+    /// Update feed, links and support folder the app uses.
+    public var identity: AppIdentity
+
+    public init(identity: AppIdentity = .standard) {
+        self.identity = identity
+    }
+}
+
 /// Entry point of the app, called by the `SwitchDeck` executable.
 ///
 /// The app is a menu-bar accessory: no Dock icon, no main menu.
@@ -11,7 +22,8 @@ public enum SwitchDeckLauncher {
     /// Call it once per process, on the main thread. Starting the app never
     /// returns, and some diagnostic commands end the process with `exit()`.
     @MainActor
-    public static func run() {
+    public static func run(_ options: LaunchOptions = LaunchOptions()) {
+        AppIdentity.current = options.identity
         let arguments = CommandLine.arguments
 
         if arguments.contains("--dump") {

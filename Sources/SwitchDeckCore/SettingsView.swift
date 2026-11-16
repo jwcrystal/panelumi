@@ -1073,8 +1073,8 @@ private struct AboutPane: View {
                 .padding(.top, 4)
 
             HStack(spacing: 18) {
-                Link(t("Repository"), destination: URL(string: "https://github.com/jwcrystal/switchdeck")!)
-                Link(t("Report an Issue"), destination: URL(string: "https://github.com/jwcrystal/switchdeck/issues")!)
+                Link(t("Repository"), destination: AppIdentity.current.repositoryURL)
+                Link(t("Report an Issue"), destination: AppIdentity.current.issuesURL)
             }
             .font(.callout)
             .padding(.top, 6)

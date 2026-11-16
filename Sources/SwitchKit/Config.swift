@@ -127,9 +127,10 @@ public final class ConfigStore {
         self.config = Self.load(from: url)
     }
 
-    public static func defaultURL() -> URL {
+    public static func defaultURL(identity: AppIdentity = .current) -> URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("SwitchDeck/config.json")
+        return base.appendingPathComponent(identity.supportFolderName)
+            .appendingPathComponent("config.json")
     }
 
     private static func load(from url: URL) -> SwitchDeckConfig {
