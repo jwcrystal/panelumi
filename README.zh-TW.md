@@ -201,6 +201,10 @@ release 會附上 CI 建置的 zip（自簽憑證簽章，未 notarize），第�
 
 SwitchDeck 維持精簡的單層原生選單、不受沙盒限制的本機建置，以及一個開關一個 `SwitchItem`。
 
+## 回饋
+
+錯誤回報、問題與新開關的想法請開 [GitHub Issues](https://github.com/jwcrystal/switchdeck/issues)。回報錯誤時請附上 macOS 版本、SwitchDeck 版本（設定 › 關於），若是某個開關異常，也請附上 `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` 與 `--permissions` 的輸出。
+
 ## 授權
 
 [MIT](LICENSE)。Copyright © 2026 Jared Wang。
