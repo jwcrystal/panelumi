@@ -152,7 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func acquireInstanceLock() -> Bool {
         let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("SwitchDeck")
+            .appendingPathComponent(AppIdentity.current.supportFolderName)
         try? FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
 
         let fd = open(support.appendingPathComponent("instance.lock").path, O_CREAT | O_RDWR, 0o644)
