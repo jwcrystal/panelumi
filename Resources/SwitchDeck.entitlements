@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened-runtime entitlements. Keep this list minimal: each key widens what
+  the signed app may do.
+
+  - apple-events: NSAppleScript drives System Events (appearance) and Finder
+    (Trash). Without it, Apple Events fail with -1743 under the hardened runtime.
+  - audio-input: AVAudioRecorder for the Recording switch.
+
+  Not needed: CGEventTap and ScreenCaptureKit are gated by TCC only, and the
+  private frameworks loaded with dlopen live in /System and are Apple-signed,
+  so library validation accepts them.
+-->
+<plist version="1.0">
+<dict>
+    <key>com.apple.security.automation.apple-events</key>
+    <true/>
+    <key>com.apple.security.device.audio-input</key>
+    <true/>
+</dict>
+</plist>

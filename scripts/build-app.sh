@@ -88,16 +88,29 @@ echo "==> Signing"
 # A certificate identity keeps the designated requirement stable across builds,
 # so macOS keeps the Accessibility grant. Falls back to ad-hoc (CDHash-based,
 # which loses permission on every rebuild) when the identity is missing.
+#
+# Every build uses the hardened runtime and the entitlements file, so local
+# builds behave like notarized ones. Notarization also needs a secure
+# timestamp: set TIMESTAMP=1 (needs network) for release builds; local builds
+# skip it to stay fast and offline.
 SIGN_IDENTITY="${SIGN_IDENTITY:-SwitchDeck Local Signing}"
+ENTITLEMENTS="Resources/SwitchDeck.entitlements"
+SIGN_FLAGS=(--force --options runtime --entitlements "$ENTITLEMENTS")
+if [ "${TIMESTAMP:-0}" = "1" ]; then
+  SIGN_FLAGS+=(--timestamp)
+else
+  SIGN_FLAGS+=(--timestamp=none)
+fi
 if security find-identity -v -p codesigning | grep -q "$SIGN_IDENTITY"; then
-  codesign --force --sign "$SIGN_IDENTITY" --timestamp=none "$APP"
+  codesign "${SIGN_FLAGS[@]}" --sign "$SIGN_IDENTITY" "$APP"
   echo "    signed with: $SIGN_IDENTITY"
 else
-  codesign --force --sign - --timestamp=none "$APP"
+  codesign "${SIGN_FLAGS[@]}" --sign - "$APP"
   echo "    signed ad-hoc (run scripts/setup-signing.sh for a stable identity)"
 fi
-codesign --verify --verbose=1 "$APP" 2>&1 | sed 's/^/    /'
+codesign --verify --strict --verbose=1 "$APP" 2>&1 | sed 's/^/    /'
 codesign -d -r- "$APP" 2>&1 | grep designated | sed 's/^/    /'
+codesign -dv "$APP" 2>&1 | grep -E '^CodeDirectory' | sed 's/^/    /'
 
 echo "==> Built $APP"
 echo "    open $APP"
