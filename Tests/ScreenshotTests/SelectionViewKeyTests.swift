@@ -358,6 +358,55 @@ final class SelectionViewKeyTests: XCTestCase {
     private var deleteKeys: [(UInt16, String)] { [(51, "\u{7f}"), (117, "\u{7f}")] }
 
     @MainActor
+    func testToolLetterDuringADragLeavesTheDrawingToolAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        let start = editingPoint(on: screen)
+        let end = CGPoint(x: start.x + 40, y: start.y + 30)
+        view.mouseDown(with: try mouseEvent(.leftMouseDown, at: start, in: view))
+        view.mouseDragged(with: try mouseEvent(.leftMouseDragged, at: end, in: view))
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "v", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+
+        view.mouseUp(with: try mouseEvent(.leftMouseUp, at: end, in: view))
+        XCTAssertEqual(session.annotations.count, 1)
+        guard case .rectangle = session.annotations.first?.shape else {
+            return XCTFail("The drag should still commit a rectangle")
+        }
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "v", in: view)))
+        XCTAssertEqual(session.tool, .select)
+    }
+
+    @MainActor
+    private func mouseEvent(_ type: NSEvent.EventType, at point: CGPoint, in view: SelectionView) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+    }
+
+    @MainActor
     private func requireScreen() throws -> NSScreen {
         guard let screen = NSScreen.screens.first else {
             throw XCTSkip("Needs a screen to host the overlay")

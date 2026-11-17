@@ -1324,7 +1324,11 @@ final class SelectionView: NSView {
         guard let character = event.charactersIgnoringModifiers?.lowercased().first,
               let tool = CaptureSession.Tool.tool(forShortcut: character)
         else { return false }
-        session.tool = tool
+        // A drag is finished by the tool that started it; switching mid-drag
+        // would commit it as another shape or drop it.
+        if interaction.isIdle {
+            session.tool = tool
+        }
         return true
     }
 
