@@ -6,9 +6,19 @@ import SwitchKit
 public struct LaunchOptions: Equatable, Sendable {
     /// Update feed, links and support folder the app uses.
     public var identity: AppIdentity
+    /// Extensions for the capture toolbar. Empty by default; with none, capture behaves as before.
+    public var captureExtensions: [any CaptureExtension]
 
-    public init(identity: AppIdentity = .standard) {
+    public init(identity: AppIdentity = .standard, captureExtensions: [any CaptureExtension] = []) {
         self.identity = identity
+        self.captureExtensions = captureExtensions
+    }
+
+    /// Two options are equal when they share an identity and list the same
+    /// extension identifiers in the same order.
+    public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
+        lhs.identity == rhs.identity
+            && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
     }
 }
 
