@@ -643,6 +643,8 @@ final class SelectionView: NSView {
 
     var hasSelectionForDebug: Bool { selection != nil }
 
+    var pendingTextFieldForDebug: NSTextField? { textField }
+
     func finishForDebug(_ output: CaptureSession.Output) {
         finish(output)
     }
@@ -720,9 +722,7 @@ final class SelectionView: NSView {
 
             // Esc abandons a half-typed text annotation before anything else.
             if self.textField != nil, event.keyCode == 53 {
-                self.removeTextField()
-                self.needsDisplay = true
-                return nil
+                return self.handleTextFieldEscape() ? nil : event
             }
             if self.window?.firstResponder is NSTextView { return event }
 
@@ -787,7 +787,7 @@ final class SelectionView: NSView {
         sessionCancellable?.cancel()
         sessionCancellable = nil
         removeToolbar()
-        removeTextField()
+        removeTextField(refocus: false)
         window?.ignoresMouseEvents = false
     }
 
@@ -800,6 +800,7 @@ final class SelectionView: NSView {
 
     private func finish(_ output: CaptureSession.Output) {
         guard !isFinishing else { return }
+        commitTextFieldIfNeeded(droppingComposition: true)
         if !windowTargets.isEmpty || finishOnSelect != nil, let baseTask {
             isFinishing = true
             outputTask = Task { [weak self] in
@@ -1106,9 +1107,24 @@ final class SelectionView: NSView {
     /// Commits a pending text annotation; an empty field just disappears. Also
     /// called when the field loses focus, so a stray click never leaves a box
     /// hanging around.
-    private func commitTextFieldIfNeeded() {
+    ///
+    /// Finishing drops an unconfirmed input-method composition because the
+    /// editor closes at once and the user never sees it.
+    private func commitTextFieldIfNeeded(droppingComposition: Bool = false) {
         guard let field = textField else { return }
-        let text = field.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let editor = field.currentEditor() as? NSTextView
+        var raw = editor?.string ?? field.stringValue
+        if let editor, editor.hasMarkedText() {
+            if droppingComposition {
+                let marked = editor.markedRange()
+                raw = (raw as NSString).replacingCharacters(in: marked, with: "")
+            } else {
+                // Accept a composition still open in the input method.
+                editor.unmarkText()
+                raw = editor.string
+            }
+        }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         removeTextField()
         if !text.isEmpty, let selection {
             commit(.text(text, at: normalize(textAnchor, in: selection)))
@@ -1116,11 +1132,27 @@ final class SelectionView: NSView {
         needsDisplay = true
     }
 
-    private func removeTextField() {
+    private func removeTextField(refocus: Bool = true) {
         guard let field = textField else { return }
         textField = nil
+        let editor = field.currentEditor()
+        if refocus, let responder = window?.firstResponder, responder === field || responder === editor {
+            window?.makeFirstResponder(self)
+        }
         field.delegate = nil
         field.removeFromSuperview()
+    }
+
+    /// Esc during input-method composition belongs to the input method.
+    @discardableResult
+    func handleTextFieldEscape() -> Bool {
+        guard let field = textField else { return false }
+        if let editor = field.currentEditor() as? NSTextView, editor.hasMarkedText() {
+            return false
+        }
+        removeTextField()
+        needsDisplay = true
+        return true
     }
 
     // MARK: - Keyboard
