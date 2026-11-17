@@ -34,3 +34,26 @@ final class PopoverEdgeTests: XCTestCase {
         XCTAssertEqual(SelectionView.popoverEdge(toolbar: toolbar, selection: selection, bounds: bounds), .bottom)
     }
 }
+
+@MainActor
+final class PopoverPlacementIsolationTests: XCTestCase {
+    func testEachToolbarKeepsItsOwnEdgeWhileSharingASession() {
+        _ = NSApplication.shared
+        let session = CaptureSession()
+        let upper = ToolbarPopoverPlacement()
+        let lower = ToolbarPopoverPlacement()
+        _ = CaptureToolbarView(session: session, popoverPlacement: upper)
+        _ = CaptureToolbarView(session: session, popoverPlacement: lower)
+
+        var sessionChanges = 0
+        let watcher = session.objectWillChange.sink { sessionChanges += 1 }
+        defer { watcher.cancel() }
+
+        upper.edge = .top
+        lower.edge = .bottom
+
+        XCTAssertEqual(upper.edge, .top)
+        XCTAssertEqual(lower.edge, .bottom)
+        XCTAssertEqual(sessionChanges, 0, "an edge change must not wake the session's layout sink")
+    }
+}
