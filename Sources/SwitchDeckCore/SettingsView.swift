@@ -395,6 +395,16 @@ private struct ScreenshotPane: View {
     @AppStorage(ScreenshotPreferences.colorFormatKey) private var colorFormat = 0
     @AppStorage(ScreenshotPreferences.watermarkDefaultKey) private var watermarkDefault = false
     @AppStorage(ScreenshotPreferences.watermarkTextKey) private var watermarkText = ""
+    @AppStorage(ScreenshotPreferences.watermarkPlacementKey)
+    private var watermarkPlacement = ScreenshotPreferences.defaultWatermarkPlacement.rawValue
+    @AppStorage(ScreenshotPreferences.watermarkScaleKey)
+    private var watermarkScale = Double(ScreenshotPreferences.defaultWatermarkScale)
+    @AppStorage(ScreenshotPreferences.watermarkRotationKey)
+    private var watermarkRotation = Double(ScreenshotPreferences.defaultWatermarkRotation)
+    @AppStorage(ScreenshotPreferences.watermarkOpacityKey)
+    private var watermarkOpacity = Double(ScreenshotPreferences.defaultWatermarkOpacity)
+    @AppStorage(ScreenshotPreferences.watermarkColorKey)
+    private var watermarkColorHex = ScreenshotPreferences.defaultWatermarkColor
 
     @State private var folderPath = ScreenshotPreferences.folder.path
 
@@ -404,6 +414,32 @@ private struct ScreenshotPane: View {
 
     private var isCustomFolder: Bool {
         folderPath != ScreenshotPreferences.downloads.path
+    }
+
+    private var watermarkPlacementBinding: Binding<AnnotationRenderer.WatermarkOptions.Placement> {
+        Binding(
+            get: {
+                AnnotationRenderer.WatermarkOptions.Placement(rawValue: watermarkPlacement)
+                    ?? ScreenshotPreferences.defaultWatermarkPlacement
+            },
+            set: { watermarkPlacement = $0.rawValue }
+        )
+    }
+
+    private var selectedWatermarkColor: String {
+        AnnotationPalette.canonicalHex(watermarkColorHex) ?? ScreenshotPreferences.defaultWatermarkColor
+    }
+
+    private func sliderRange(_ range: ClosedRange<CGFloat>) -> ClosedRange<Double> {
+        Double(range.lowerBound)...Double(range.upperBound)
+    }
+
+    private func resetWatermarkAppearance() {
+        watermarkPlacement = ScreenshotPreferences.defaultWatermarkPlacement.rawValue
+        watermarkScale = Double(ScreenshotPreferences.defaultWatermarkScale)
+        watermarkRotation = Double(ScreenshotPreferences.defaultWatermarkRotation)
+        watermarkOpacity = Double(ScreenshotPreferences.defaultWatermarkOpacity)
+        watermarkColorHex = ScreenshotPreferences.defaultWatermarkColor
     }
 
     var body: some View {
@@ -627,9 +663,135 @@ private struct ScreenshotPane: View {
                                 .frame(width: 200)
                         }
                         .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "arrow.up.and.down.and.arrow.left.and.right")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Position"))
+                                Text(t("Where the signature sits on the image."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Picker("", selection: watermarkPlacementBinding) {
+                                ForEach(AnnotationRenderer.WatermarkOptions.Placement.allCases) { placement in
+                                    Label(placement.title, systemImage: placement.symbol).tag(placement)
+                                }
+                            }
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 168)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "textformat.size")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Size"))
+                                Text(t("Relative to the image width."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Slider(
+                                value: $watermarkScale,
+                                in: sliderRange(ScreenshotPreferences.watermarkScaleRange)
+                            )
+                            .frame(width: 168)
+                            Text(String(format: "%.1f%%", watermarkScale * 100))
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "rotate.right")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Angle"))
+                                Text(t("Rotation in degrees."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Slider(
+                                value: $watermarkRotation,
+                                in: sliderRange(ScreenshotPreferences.watermarkRotationRange)
+                            )
+                            .frame(width: 168)
+                            Text("\(Int(watermarkRotation))°")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "circle.lefthalf.filled")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Opacity"))
+                                Text(t("How visible the signature is."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Slider(
+                                value: $watermarkOpacity,
+                                in: sliderRange(ScreenshotPreferences.watermarkOpacityRange)
+                            )
+                            .frame(width: 168)
+                            Text("\(Int(watermarkOpacity * 100))%")
+                                .font(.system(size: 12, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 44, alignment: .trailing)
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack(spacing: 12) {
+                            SymbolTile(symbol: "paintpalette")
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(t("Color"))
+                                Text(t("Choose from the annotation palette."))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            HStack(spacing: 6) {
+                                ForEach(AnnotationPalette.presets) { swatch in
+                                    AnnotationColorSwatch(
+                                        color: swatch.color,
+                                        name: swatch.name,
+                                        selected: selectedWatermarkColor == swatch.hex,
+                                        diameter: 16
+                                    ) {
+                                        watermarkColorHex = swatch.hex
+                                    }
+                                }
+                            }
+                        }
+                        .padding(.vertical, 6)
+
+                        RowDivider()
+
+                        HStack {
+                            Spacer()
+                            Button(t("Reset appearance")) { resetWatermarkAppearance() }
+                                .controlSize(.small)
+                        }
+                        .padding(.vertical, 6)
                     }
 
-                    Text(t("In the editor: Return copies, Space saves, P pins, Esc cancels."))
+                    Text(t("In the editor: Return copies, Space saves, P pins, Esc cancels. Tool letters show when you hover the toolbar; I picks a colour, ⇥ hides the toolbar."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

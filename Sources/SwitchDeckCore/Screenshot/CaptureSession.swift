@@ -113,11 +113,13 @@ final class CaptureSession: ObservableObject {
     }
     @Published var watermarkEnabled = ScreenshotPreferences.watermarkOnByDefault
     @Published var watermarkHidden = false
-    @Published var watermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement = .bottomRight
-    @Published var watermarkScale: CGFloat = 0.02
-    @Published var watermarkRotation: CGFloat = 0
-    @Published var watermarkOpacity: CGFloat = 0.6
-    @Published var watermarkColor: Color = .white
+    @Published var watermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement =
+        ScreenshotPreferences.defaultWatermarkPlacement
+    @Published var watermarkScale: CGFloat = ScreenshotPreferences.defaultWatermarkScale
+    @Published var watermarkRotation: CGFloat = ScreenshotPreferences.defaultWatermarkRotation
+    @Published var watermarkOpacity: CGFloat = ScreenshotPreferences.defaultWatermarkOpacity
+    @Published var watermarkColor: Color =
+        AnnotationPalette.color(fromHex: ScreenshotPreferences.defaultWatermarkColor) ?? .white
 
     @Published var watermarkText: String = ScreenshotPreferences.defaultWatermarkText
 
@@ -128,6 +130,13 @@ final class CaptureSession: ObservableObject {
         let stored = ScreenshotPreferences.watermarkText
         watermarkText = stored.isEmpty ? ScreenshotPreferences.defaultWatermarkText : stored
         watermarkHidden = false
+        watermarkPlacement = ScreenshotPreferences.watermarkPlacement
+        watermarkScale = ScreenshotPreferences.watermarkScale
+        watermarkRotation = ScreenshotPreferences.watermarkRotation
+        watermarkOpacity = ScreenshotPreferences.watermarkOpacity
+        if let color = AnnotationPalette.color(fromHex: ScreenshotPreferences.watermarkColor) {
+            watermarkColor = color
+        }
         toolbarVisible = true
         isPickingColor = false
         isTextEditing = false
@@ -1301,21 +1310,21 @@ private struct WatermarkSettingsView: View {
             sliderRow(
                 t("Size"),
                 value: $session.watermarkScale,
-                range: 0.01...0.06,
+                range: ScreenshotPreferences.watermarkScaleRange,
                 text: String(format: "%.1f%%", session.watermarkScale * 100)
             )
 
             sliderRow(
                 t("Angle"),
                 value: $session.watermarkRotation,
-                range: -90...90,
+                range: ScreenshotPreferences.watermarkRotationRange,
                 text: "\(Int(session.watermarkRotation))°"
             )
 
             sliderRow(
                 t("Opacity"),
                 value: $session.watermarkOpacity,
-                range: 0.15...1,
+                range: ScreenshotPreferences.watermarkOpacityRange,
                 text: "\(Int(session.watermarkOpacity * 100))%"
             )
 
