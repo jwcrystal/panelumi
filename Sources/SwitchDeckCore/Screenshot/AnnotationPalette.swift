@@ -89,13 +89,8 @@ enum AnnotationPalette {
     }
 
     static func color(_ rgb: RGB) -> Color {
-        Color(
-            .sRGB,
-            red: CGFloat(min(255, max(0, rgb.red))) / 255,
-            green: CGFloat(min(255, max(0, rgb.green))) / 255,
-            blue: CGFloat(min(255, max(0, rgb.blue))) / 255,
-            opacity: 1
-        )
+        func unit(_ channel: Int) -> Double { Double(min(255, max(0, channel))) / 255 }
+        return Color(.sRGB, red: unit(rgb.red), green: unit(rgb.green), blue: unit(rgb.blue), opacity: 1)
     }
 
     private static func channel(_ value: CGFloat) -> Int {
