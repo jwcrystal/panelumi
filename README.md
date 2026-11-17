@@ -5,11 +5,11 @@
 [![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#install)
-[![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
 Eighteen Mac settings you would otherwise dig through System Settings or Terminal for — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock for wiping the keys, ejecting disks — each one click away in the menu bar. Plus a screenshot tool that lets you annotate right where you captured, without opening a second window, and on-device text and QR-code recognition.
 
-Native Swift on AppKit and SwiftUI, no third-party dependencies, free and MIT-licensed.
+Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache-2.0-licensed.
 
 <p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
 
@@ -207,4 +207,4 @@ Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com
 
 ## License
 
-[MIT](LICENSE). Copyright © 2026 Jared Wang.
+[Apache License 2.0](LICENSE). Copyright © 2026 Jared Wang. See [NOTICE](NOTICE) for attribution and [TRADEMARKS.md](TRADEMARKS.md) for brand usage. Previously published MIT-licensed versions remain available under their original license.
