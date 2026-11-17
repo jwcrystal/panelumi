@@ -415,8 +415,18 @@ struct CaptureExtensionToolbarEntry: Identifiable {
     let item: CaptureToolbarItem
 }
 
+/// Which edge of one toolbar its popovers open from: away from the
+/// selection, so they do not cover what is being captured. Each screen's
+/// toolbar owns one. On the shared session, two screens wanting opposite
+/// edges would overwrite each other through its change sink forever.
+@MainActor
+final class ToolbarPopoverPlacement: ObservableObject {
+    @Published var edge: Edge = .bottom
+}
+
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
+    @ObservedObject var popoverPlacement = ToolbarPopoverPlacement()
     /// Called with (extension identifier, entry id) when the user picks an
     /// entry. The capture view supplies it; the default does nothing.
     var onCaptureAction: (String, String) -> Void = { _, _ in }
@@ -610,7 +620,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Annotation color"))
         .onHover { hover(.action(t("Color")), inside: $0) }
-        .popover(isPresented: $showColors, arrowEdge: .bottom) {
+        .popover(isPresented: $showColors, arrowEdge: popoverPlacement.edge) {
             colorPopover
         }
     }
@@ -894,7 +904,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Watermark settings"))
         .onHover { hover(.action(t("Watermark settings")), inside: $0) }
-        .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
+        .popover(isPresented: $showWatermarkSettings, arrowEdge: popoverPlacement.edge) {
             WatermarkSettingsView(session: session)
         }
     }
@@ -964,7 +974,7 @@ struct CaptureToolbarView: View {
                         get: { openExtensionPopover == entry.id },
                         set: { openExtensionPopover = $0 ? entry.id : nil }
                     ),
-                    arrowEdge: .bottom
+                    arrowEdge: popoverPlacement.edge
                 ) {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(item.entries) { choice in

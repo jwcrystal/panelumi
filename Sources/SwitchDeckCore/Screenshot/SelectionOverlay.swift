@@ -456,6 +456,7 @@ final class SelectionView: NSView {
     private var penPoints: [CGPoint] = []
 
     private(set) var toolbarHost: CaptureToolbarHost?
+    let popoverPlacement = ToolbarPopoverPlacement()
     private var textField: NSTextField?
     /// Where the user clicked to start the text; the anchor is fitted to it.
     private var textClickPoint: CGPoint = .zero
@@ -1209,6 +1210,7 @@ final class SelectionView: NSView {
         guard toolbarHost == nil else { return }
         let host = CaptureToolbarHost(rootView: CaptureToolbarView(
             session: session,
+            popoverPlacement: popoverPlacement,
             onCaptureAction: { [weak self] extensionID, entryID in
                 self?.requestCaptureAction(extensionID, entryID)
             }
@@ -1254,6 +1256,19 @@ final class SelectionView: NSView {
         let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds)
         toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible || session.takeoverActive
+        let edge = Self.popoverEdge(toolbar: toolbarHost.frame, selection: selection, bounds: bounds)
+        if popoverPlacement.edge != edge {
+            popoverPlacement.edge = edge
+        }
+    }
+
+    /// Away from the selection when the toolbar sits outside it. Inside it
+    /// (a selection that leaves no room around it) covering is unavoidable,
+    /// so the popover takes the side with more screen.
+    static func popoverEdge(toolbar: CGRect, selection: CGRect, bounds: CGRect) -> Edge {
+        if toolbar.maxY <= selection.minY { return .bottom }
+        if toolbar.minY >= selection.maxY { return .top }
+        return toolbar.minY - bounds.minY >= bounds.maxY - toolbar.maxY ? .bottom : .top
     }
 
     /// Re-lays out the toolbar now. The controller calls this when a takeover
