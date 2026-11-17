@@ -302,9 +302,7 @@ final class SelectionController {
         // calling `cancel()`). The key must never reach the closed view.
         if activeTakeover !== run { return true }
         if !handled, key.isEscape {
-            if activeTakeover === run {
-                endTakeover(.dismissed) { self.finish(nil, .copy) }
-            }
+            endTakeover(.dismissed) { self.finish(nil, .copy) }
             return true
         }
         return handled

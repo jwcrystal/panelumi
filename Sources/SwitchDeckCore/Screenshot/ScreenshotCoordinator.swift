@@ -289,6 +289,7 @@ final class ScreenshotCoordinator {
         }
 
         return await captureGate.run {
+            if Task.isCancelled { return nil }
             if let hook = self.regionCaptureHook {
                 return await hook(rect, screen)
             }

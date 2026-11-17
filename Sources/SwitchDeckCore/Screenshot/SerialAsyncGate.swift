@@ -6,7 +6,8 @@ import Foundation
 /// cache, so two overlapping ones can race; this chains them instead. Window
 /// captures are not serialised here. Each operation starts only after the
 /// previous one has returned or failed, and every caller still receives its own
-/// result. A cancelled caller cancels its own queued work and waits no longer.
+/// result. Cancelling a caller cancels its task; it still waits for the operations ahead
+/// of it, so an operation should check `Task.isCancelled` before doing real work.
 @MainActor
 final class SerialAsyncGate {
     /// The last queued operation. A new operation awaits it before starting.
@@ -15,7 +16,8 @@ final class SerialAsyncGate {
     /// Runs `operation` after every operation submitted before it. Returns the
     /// operation's own value; an operation that fails or returns nil still
     /// lets the queue move on. Cancelling the calling task cancels the queued
-    /// work rather than leaving it waiting.
+    /// task; the caller still waits for earlier operations, and the operation
+    /// runs with `Task.isCancelled == true`, so it should return early.
     func run<T: Sendable>(_ operation: @escaping @MainActor () async -> T) async -> T {
         let previous = tail
         let current = Task { @MainActor () -> T in

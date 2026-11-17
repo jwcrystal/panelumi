@@ -55,6 +55,27 @@ final class CaptureLiveTests: XCTestCase {
         XCTAssertEqual(results.compactMap { $0 }, [2], "The queue moves past nil results")
     }
 
+    @MainActor
+    func testACancelledQueuedCallerStillLetsTheQueueAdvance() async {
+        let gate = SerialAsyncGate()
+        let first = Task { @MainActor in
+            await gate.run { () -> Int in
+                try? await Task.sleep(nanoseconds: 30_000_000)
+                return 1
+            }
+        }
+        let second = Task { @MainActor in
+            await gate.run { () -> Int in Task.isCancelled ? -1 : 2 }
+        }
+        await Task.yield()
+        second.cancel()
+        let third = Task { @MainActor in await gate.run { 3 } }
+
+        let values = [await first.value, await second.value, await third.value]
+
+        XCTAssertEqual(values, [1, -1, 3], "A cancelled caller sees the cancellation and the queue moves on")
+    }
+
     // MARK: - The context
 
     @MainActor
