@@ -43,6 +43,12 @@ final class CaptureSession: ObservableObject {
             }
         }
 
+        /// What the hint band says for the tool: Select also has a key that
+        /// only applies to it.
+        var hint: String {
+            self == .select ? t("Select and move (⌫ deletes)") : title
+        }
+
         var shortcut: Character {
             switch self {
             case .select: return "V"
@@ -515,7 +521,7 @@ struct CaptureToolbarView: View {
 
     private var hintText: String {
         switch hovered {
-        case .tool(let tool): return "\(tool.title)  \(tool.shortcut)"
+        case .tool(let tool): return "\(tool.hint)  \(tool.shortcut)"
         case .action(let text): return text
         case nil:
             if session.isPickingColor {

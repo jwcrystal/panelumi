@@ -445,7 +445,6 @@ final class SelectionView: NSView {
     private var isFinishing = false
     private var windowCaptureFailed = false
     private var sampleImage: CGImage?
-    private var sampleRep: NSBitmapImageRep?
     private(set) var hoverColor: NSColor?
     private var optionHeld = false
     private var colorFormat: ScreenshotPreferences.ColorFormat = ScreenshotPreferences.colorFormat
@@ -851,7 +850,6 @@ final class SelectionView: NSView {
         Task { [weak self] in
             guard let self, let image = await self.pixels(in: frame) else { return }
             self.sampleImage = image
-            self.sampleRep = nil
             self.updateHoverColor(at: self.lastMousePoint)
             self.needsDisplay = true
         }
@@ -892,17 +890,13 @@ final class SelectionView: NSView {
             return
         }
 
-        if sampleRep == nil {
-            sampleRep = NSBitmapImageRep(cgImage: sampleImage)
-        }
-        guard let rep = sampleRep, rep.pixelsWide > 0, rep.pixelsHigh > 0 else { return }
+        guard sampleImage.width > 0, sampleImage.height > 0 else { return }
+        let scaleX = CGFloat(sampleImage.width) / max(1, screen.frame.width)
+        let scaleY = CGFloat(sampleImage.height) / max(1, screen.frame.height)
+        let column = min(sampleImage.width - 1, max(0, Int(point.x * scaleX)))
+        let row = min(sampleImage.height - 1, max(0, Int((screen.frame.height - point.y) * scaleY)))
 
-        let scaleX = CGFloat(rep.pixelsWide) / max(1, screen.frame.width)
-        let scaleY = CGFloat(rep.pixelsHigh) / max(1, screen.frame.height)
-        let x = min(rep.pixelsWide - 1, max(0, Int(point.x * scaleX)))
-        let y = min(rep.pixelsHigh - 1, max(0, Int((screen.frame.height - point.y) * scaleY)))
-
-        guard let color = rep.colorAt(x: x, y: y)?.usingColorSpace(.sRGB) else { return }
+        guard let color = Self.srgbPixel(of: sampleImage, column: column, row: row) else { return }
         hoverColor = color
     }
 
@@ -1005,45 +999,39 @@ final class SelectionView: NSView {
     /// Samples the frozen base image, which is only the selected region and
     /// carries no annotations or toolbar. The view point is brought into the
     /// selection, then scaled to the image's own pixel grid: a Retina capture
-    /// has twice the pixels of the rect it is drawn in. The pixel is drawn into
-    /// a 1×1 sRGB context instead of read through `NSBitmapImageRep`, whose
-    /// calibrated colour space shifts the components it reports.
+    /// has twice the pixels of the rect it is drawn in.
     private func pickColor(at point: CGPoint) {
-        guard let selection, let baseImage,
-              let srgb = CGColorSpace(name: CGColorSpace.sRGB)
-        else { return }
+        guard let selection, let baseImage, baseImage.width > 0, baseImage.height > 0 else { return }
         let scaleX = CGFloat(baseImage.width) / max(1, selection.width)
         let scaleY = CGFloat(baseImage.height) / max(1, selection.height)
         let column = min(baseImage.width - 1, max(0, Int((point.x - selection.minX) * scaleX)))
         let row = min(baseImage.height - 1, max(0, Int((selection.maxY - point.y) * scaleY)))
 
-        var pixel = [UInt8](repeating: 0, count: 4)
-        guard let context = CGContext(
-            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-            space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
-        ) else { return }
-        context.interpolationQuality = .none
-        context.draw(
-            baseImage,
-            in: CGRect(
-                x: -CGFloat(column),
-                y: CGFloat(row) + 1 - CGFloat(baseImage.height),
-                width: CGFloat(baseImage.width),
-                height: CGFloat(baseImage.height)
-            )
-        )
-
-        let color = Color(
-            .sRGB,
-            red: CGFloat(pixel[0]) / 255,
-            green: CGFloat(pixel[1]) / 255,
-            blue: CGFloat(pixel[2]) / 255,
-            opacity: 1
-        )
+        guard let pixel = Self.srgbPixel(of: baseImage, column: column, row: row) else { return }
+        let color = Color(nsColor: pixel)
         session.activeStyle.color = color
         if let hex = AnnotationPalette.hex(for: color) {
             session.rememberRecentColor(hex)
         }
+    }
+
+    /// One pixel of `image` in sRGB; `row` counts from the top. The pixel is
+    /// cropped out and drawn into a 1×1 sRGB context instead of read through
+    /// `NSBitmapImageRep.colorAt`, whose calibrated colour space shifts the
+    /// components it reports (a pure sRGB red came back with green 38).
+    static func srgbPixel(of image: CGImage, column: Int, row: Int) -> NSColor? {
+        guard let single = image.cropping(to: CGRect(x: column, y: row, width: 1, height: 1)),
+              let srgb = CGColorSpace(name: CGColorSpace.sRGB)
+        else { return nil }
+        var bytes = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(
+            data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.interpolationQuality = .none
+        context.draw(single, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        func unit(_ value: UInt8) -> CGFloat { CGFloat(Double(value) / 255) }
+        return NSColor(srgbRed: unit(bytes[0]), green: unit(bytes[1]), blue: unit(bytes[2]), alpha: 1)
     }
 
     /// Enter/Space/P work even when the toolbar has focus, because the local

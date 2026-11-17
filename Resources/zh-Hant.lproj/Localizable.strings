@@ -134,6 +134,7 @@
 "Empty uses the macOS full user name." = "留空則使用 macOS 使用者全名。";
 "In the editor: Return copies, Space saves, P pins, Esc cancels." = "編輯器內：Return 複製、Space 儲存、P 釘選、Esc 取消。";
 "In the editor: Return copies, Space saves, P pins, Esc cancels. Tool letters show when you hover the toolbar; I picks a colour, ⇥ hides the toolbar." = "編輯器內：Return 複製、Space 儲存、P 釘選、Esc 取消。游標移到工具列上會顯示工具字母；I 選色、⇥ 隱藏工具列。";
+"In the editor: Return copies, Space saves, P pins, Esc cancels.\nHover the toolbar to see tool letters; I picks a colour, ⇥ hides the toolbar." = "編輯器內：Return 複製、Space 儲存、P 釘選、Esc 取消。\n游標移到工具列上會顯示工具字母；I 選色、⇥ 隱藏工具列。";
 "Where the signature sits on the image." = "簽名在影像上的位置。";
 "Relative to the image width." = "相對於影像寬度的比例。";
 "Rotation in degrees." = "以度為單位的旋轉角度。";
