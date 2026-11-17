@@ -80,9 +80,18 @@ final class CaptureSession: ObservableObject {
             if tool != .select {
                 selectionIndex = nil
             }
+            if tool != oldValue {
+                showsWatermarkBar = false
+            }
         }
     }
-    @Published var selectionIndex: Int?
+    @Published var selectionIndex: Int? {
+        didSet {
+            if selectionIndex != nil {
+                showsWatermarkBar = false
+            }
+        }
+    }
     @Published var toolbarVisible = true
     /// True while an extension's takeover controls the selection. The
     /// controller is the only writer; views read it instead of keeping a copy.
@@ -123,6 +132,23 @@ final class CaptureSession: ObservableObject {
 
     @Published var watermarkText: String = ScreenshotPreferences.defaultWatermarkText
 
+    /// True while the watermark submenu replaces the options row.
+    @Published var showsWatermarkBar = false
+
+    /// Turning the watermark off also drops the "hidden" flag: hiding is only
+    /// meaningful for a watermark that would otherwise be drawn.
+    func setWatermarkEnabled(_ enabled: Bool) {
+        watermarkEnabled = enabled
+        if !enabled { watermarkHidden = false }
+    }
+
+    var watermarkEnabledBinding: Binding<Bool> {
+        Binding(
+            get: { self.watermarkEnabled },
+            set: { self.setWatermarkEnabled($0) }
+        )
+    }
+
     /// Every capture starts from Settings › Screenshot rather than from
     /// whatever the previous screenshot left behind.
     func prepareForCapture() {
@@ -138,6 +164,7 @@ final class CaptureSession: ObservableObject {
             watermarkColor = color
         }
         toolbarVisible = true
+        showsWatermarkBar = false
         isPickingColor = false
         isTextEditing = false
         if let color = AnnotationPalette.color(fromHex: ScreenshotPreferences.annotationColor) {
@@ -254,6 +281,28 @@ final class CaptureSession: ObservableObject {
         Binding(
             get: { self.activeStyle[keyPath: keyPath] },
             set: { self.activeStyle[keyPath: keyPath] = $0 }
+        )
+    }
+
+    /// What the shared colour popover edits for annotations: the active style,
+    /// one history step per drag, and the recent list both palettes write to.
+    var annotationColorPalette: ColorPaletteTarget {
+        ColorPaletteTarget(
+            color: styleBinding(\.color),
+            recentColors: recentAnnotationColors,
+            beginInteractiveChange: beginInteractiveChange,
+            endInteractiveChange: endInteractiveChange,
+            remember: rememberRecentColor
+        )
+    }
+
+    /// The watermark colour is not content of the annotation history, so a
+    /// drag there opens no step; the recent list is still shared.
+    var watermarkColorPalette: ColorPaletteTarget {
+        ColorPaletteTarget(
+            color: Binding(get: { self.watermarkColor }, set: { self.watermarkColor = $0 }),
+            recentColors: recentAnnotationColors,
+            remember: rememberRecentColor
         )
     }
 
@@ -424,15 +473,23 @@ final class ToolbarPopoverPlacement: ObservableObject {
     @Published var edge: Edge = .bottom
 }
 
+/// The one colour the shared popover edits, with the hooks that differ between
+/// callers: annotations record history, the watermark does not.
+struct ColorPaletteTarget {
+    var color: Binding<Color>
+    var recentColors: [String]
+    var beginInteractiveChange: () -> Void = {}
+    var endInteractiveChange: () -> Void = {}
+    var remember: (String) -> Void = { _ in }
+}
+
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
     @ObservedObject var popoverPlacement = ToolbarPopoverPlacement()
     /// Called with (extension identifier, entry id) when the user picks an
     /// entry. The capture view supplies it; the default does nothing.
     var onCaptureAction: (String, String) -> Void = { _, _ in }
-    @State private var showWatermarkSettings = false
     @State private var showColors = false
-    @State private var colorTab: ColorTab = .swatches
     @State private var hovered: HoverItem?
 
     /// Height of the strip above the pill that names what the pointer is on.
@@ -442,11 +499,6 @@ struct CaptureToolbarView: View {
     private enum HoverItem: Equatable {
         case tool(CaptureSession.Tool)
         case action(String)
-    }
-
-    private enum ColorTab: Hashable {
-        case swatches
-        case custom
     }
 
     /// The extension whose entry popover is open, by identifier.
@@ -579,11 +631,15 @@ struct CaptureToolbarView: View {
 
     private var optionsRow: some View {
         HStack(spacing: 5) {
-            if showsColorSwatch {
-                colorControls
-                Divider().frame(height: 18)
+            if session.showsWatermarkBar {
+                watermarkBar
+            } else {
+                if showsColorSwatch {
+                    colorControls
+                    Divider().frame(height: 18)
+                }
+                toolOptions
             }
-            toolOptions
         }
         .frame(height: 26)
         .padding(.horizontal, 9)
@@ -621,7 +677,11 @@ struct CaptureToolbarView: View {
         .accessibilityLabel(t("Annotation color"))
         .onHover { hover(.action(t("Color")), inside: $0) }
         .popover(isPresented: $showColors, arrowEdge: popoverPlacement.edge) {
-            colorPopover
+            ColorPalettePopover(
+                target: session.annotationColorPalette,
+                onPick: { showColors = false },
+                onHover: { hover(.action($0), inside: $1) }
+            )
         }
     }
 
@@ -636,83 +696,6 @@ struct CaptureToolbarView: View {
         } label: {
             Image(systemName: "eyedropper").font(.system(size: 13, weight: .medium))
         }
-    }
-
-    private var colorPopover: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            switch colorTab {
-            case .swatches: swatchGrid
-            case .custom: ColorCustomTab(session: session)
-            }
-
-            Divider()
-
-            Picker("", selection: $colorTab) {
-                Text(t("Swatches")).tag(ColorTab.swatches)
-                Text(t("Custom")).tag(ColorTab.custom)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-        }
-        .frame(width: 142)
-        .padding(12)
-    }
-
-    @ViewBuilder private var swatchGrid: some View {
-        LazyVGrid(
-            columns: Array(repeating: GridItem(.fixed(22), spacing: 8), count: 5),
-            alignment: .leading,
-            spacing: 8
-        ) {
-            ForEach(AnnotationPalette.presets) { swatch in
-                colorSwatch(swatch, diameter: 22) { showColors = false }
-            }
-        }
-
-        if !session.recentAnnotationColors.isEmpty {
-            VStack(alignment: .leading, spacing: 6) {
-                Text(t("Recently Used"))
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundStyle(.secondary)
-                HStack(spacing: 8) {
-                    ForEach(session.recentAnnotationColors, id: \.self) { hex in
-                        recentSwatch(hex)
-                    }
-                }
-            }
-        }
-    }
-
-    private func colorSwatch(
-        _ swatch: AnnotationPalette.Swatch,
-        diameter: CGFloat,
-        onPick: @escaping () -> Void
-    ) -> some View {
-        AnnotationColorSwatch(
-            color: swatch.color,
-            name: swatch.name,
-            selected: AnnotationPalette.hex(for: session.activeStyle.color) == swatch.hex,
-            diameter: diameter
-        ) {
-            session.activeStyle.color = swatch.color
-            onPick()
-        }
-        .onHover { hover(.action(swatch.name), inside: $0) }
-    }
-
-    private func recentSwatch(_ hex: String) -> some View {
-        let color = AnnotationPalette.color(fromHex: hex) ?? .black
-        return AnnotationColorSwatch(
-            color: color,
-            name: hex,
-            selected: AnnotationPalette.hex(for: session.activeStyle.color) == hex,
-            diameter: 22
-        ) {
-            session.activeStyle.color = color
-            session.rememberRecentColor(hex)
-            showColors = false
-        }
-        .onHover { hover(.action(hex), inside: $0) }
     }
 
     @ViewBuilder private var toolOptions: some View {
@@ -884,8 +867,9 @@ struct CaptureToolbarView: View {
     }
 
     private var watermarkChip: some View {
-        Button {
-            showWatermarkSettings.toggle()
+        let open = session.showsWatermarkBar
+        return Button {
+            session.showsWatermarkBar.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "signature")
@@ -897,15 +881,29 @@ struct CaptureToolbarView: View {
             .frame(height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(session.watermarkEnabled ? Color.accentColor.opacity(0.14) : Color.clear)
+                    .fill(watermarkChipFill(open: open))
             )
-            .foregroundStyle(session.watermarkEnabled ? Color.accentColor : .secondary)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(open ? Color.accentColor.opacity(0.6) : Color.clear)
+            )
+            .foregroundStyle(open || session.watermarkEnabled ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t("Watermark settings"))
         .onHover { hover(.action(t("Watermark settings")), inside: $0) }
-        .popover(isPresented: $showWatermarkSettings, arrowEdge: popoverPlacement.edge) {
-            WatermarkSettingsView(session: session)
+    }
+
+    private func watermarkChipFill(open: Bool) -> Color {
+        if open { return Color.accentColor.opacity(0.28) }
+        return session.watermarkEnabled ? Color.accentColor.opacity(0.14) : Color.clear
+    }
+
+    // MARK: - Watermark submenu
+
+    private var watermarkBar: some View {
+        WatermarkBar(session: session, popoverPlacement: popoverPlacement) { text, inside in
+            hover(.action(text), inside: inside)
         }
     }
 
@@ -951,7 +949,7 @@ struct CaptureToolbarView: View {
     /// One extension's item: a plain button when it has a single entry, a
     /// popover with one button per entry when it has several. A pop-up menu can
     /// open behind the overlay's `.screenSaver` window, so this uses the same
-    /// popover pattern as `showWatermarkSettings`.
+    /// popover pattern as the watermark settings.
     @ViewBuilder
     private func captureActionView(_ entry: CaptureExtensionToolbarEntry) -> some View {
         let item = entry.item
@@ -1007,11 +1005,225 @@ struct CaptureToolbarView: View {
     }
 }
 
+/// The watermark submenu that replaces the options row. It edits the session
+/// directly; the settings that do not fit on one 26pt line stay in
+/// `WatermarkSettingsView` behind "More…".
+struct WatermarkBar: View {
+    @ObservedObject var session: CaptureSession
+    @ObservedObject var popoverPlacement = ToolbarPopoverPlacement()
+    var onHover: (String, Bool) -> Void = { _, _ in }
+    @State private var showColors = false
+    @State private var showMore = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            enabledToggle
+
+            Divider().frame(height: 18)
+
+            placementControls
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            sizeControl
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            colorButton
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            moreButton
+        }
+    }
+
+    private var enabledToggle: some View {
+        Toggle(t("Watermark"), isOn: session.watermarkEnabledBinding)
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .font(.system(size: 10.5, weight: .medium))
+            .onHover { onHover(t("Watermark"), $0) }
+    }
+
+    private var placementControls: some View {
+        HStack(spacing: 4) {
+            WatermarkPlacementPicker(
+                placement: $session.watermarkPlacement,
+                onHover: { placement, inside in onHover(placement.title, inside) }
+            )
+            iconButton(
+                "square.grid.3x3",
+                t("Tiled"),
+                selected: session.watermarkPlacement == .tiled
+            ) {
+                session.watermarkPlacement = .tiled
+            }
+        }
+    }
+
+    private var sizeControl: some View {
+        HStack(spacing: 4) {
+            Slider(value: $session.watermarkScale, in: ScreenshotPreferences.watermarkScaleRange)
+                .controlSize(.mini)
+                .frame(width: 72)
+                .accessibilityLabel(t("Size"))
+                .onHover { onHover(t("Size"), $0) }
+            Text(String(format: "%.1f%%", Double(session.watermarkScale) * 100))
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var colorButton: some View {
+        Button { showColors.toggle() } label: {
+            Circle().fill(session.watermarkColor).frame(width: 18, height: 18)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(t("Color"))
+        .onHover { onHover(t("Color"), $0) }
+        .popover(isPresented: $showColors, arrowEdge: popoverPlacement.edge) {
+            ColorPalettePopover(
+                target: session.watermarkColorPalette,
+                onPick: { showColors = false },
+                onHover: onHover
+            )
+        }
+    }
+
+    private var moreButton: some View {
+        iconButton("ellipsis.circle", t("More…"), selected: showMore) {
+            showMore.toggle()
+        }
+        .popover(isPresented: $showMore, arrowEdge: popoverPlacement.edge) {
+            WatermarkSettingsView(session: session)
+        }
+    }
+
+    private func iconButton(
+        _ symbol: String,
+        _ title: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 15))
+                .frame(width: 28, height: 26)
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .onHover { onHover(title, $0) }
+    }
+}
+
+/// The colour popover shared by the annotation toolbar and the watermark
+/// submenu: the presets and recent colours, then the hex card and channel
+/// sliders on their own page.
+private struct ColorPalettePopover: View {
+    let target: ColorPaletteTarget
+    var onPick: () -> Void = {}
+    var onHover: (String, Bool) -> Void = { _, _ in }
+    @State private var tab: Tab = .swatches
+
+    private enum Tab: Hashable {
+        case swatches
+        case custom
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switch tab {
+            case .swatches: swatches
+            case .custom: ColorCustomTab(target: target)
+            }
+
+            Divider()
+
+            Picker("", selection: $tab) {
+                Text(t("Swatches")).tag(Tab.swatches)
+                Text(t("Custom")).tag(Tab.custom)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .frame(width: 142)
+        .padding(12)
+    }
+
+    @ViewBuilder private var swatches: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.fixed(22), spacing: 8), count: 5),
+            alignment: .leading,
+            spacing: 8
+        ) {
+            ForEach(AnnotationPalette.presets) { swatch in
+                colorSwatch(swatch)
+            }
+        }
+
+        if !target.recentColors.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(t("Recently Used"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(target.recentColors, id: \.self) { hex in
+                        recentSwatch(hex)
+                    }
+                }
+            }
+        }
+    }
+
+    private func colorSwatch(_ swatch: AnnotationPalette.Swatch) -> some View {
+        AnnotationColorSwatch(
+            color: swatch.color,
+            name: swatch.name,
+            selected: AnnotationPalette.hex(for: target.color.wrappedValue) == swatch.hex,
+            diameter: 22
+        ) {
+            target.color.wrappedValue = swatch.color
+            onPick()
+        }
+        .onHover { onHover(swatch.name, $0) }
+    }
+
+    private func recentSwatch(_ hex: String) -> some View {
+        let color = AnnotationPalette.color(fromHex: hex) ?? .black
+        return AnnotationColorSwatch(
+            color: color,
+            name: hex,
+            selected: AnnotationPalette.hex(for: target.color.wrappedValue) == hex,
+            diameter: 22
+        ) {
+            target.color.wrappedValue = color
+            target.remember(hex)
+            onPick()
+        }
+        .onHover { onHover(hex, $0) }
+    }
+}
+
 /// The popover's custom page: preview, hex field and one slider per channel.
 /// Edits apply while dragging; a slider drag is one undo step, and the recent
 /// list is only written once the value is final.
 private struct ColorCustomTab: View {
-    @ObservedObject var session: CaptureSession
+    let target: ColorPaletteTarget
     @State private var hexText = ""
     @FocusState private var hexFocused: Bool
     @State private var hexEdited = false
@@ -1019,17 +1231,17 @@ private struct ColorCustomTab: View {
     @State private var copyTask: Task<Void, Never>?
 
     private var currentHex: String {
-        AnnotationPalette.hex(for: session.activeStyle.color) ?? "#000000"
+        AnnotationPalette.hex(for: target.color.wrappedValue) ?? "#000000"
     }
 
     private var components: AnnotationPalette.RGB {
-        AnnotationPalette.rgb(for: session.activeStyle.color) ?? .init(red: 0, green: 0, blue: 0)
+        AnnotationPalette.rgb(for: target.color.wrappedValue) ?? .init(red: 0, green: 0, blue: 0)
     }
 
     /// The card is both the preview and the hex field: the value appears once,
     /// on the colour it describes.
     private var ink: Color {
-        AnnotationPalette.prefersDarkText(on: session.activeStyle.color) ? .black : .white
+        AnnotationPalette.prefersDarkText(on: target.color.wrappedValue) ? .black : .white
     }
 
     var body: some View {
@@ -1072,7 +1284,7 @@ private struct ColorCustomTab: View {
             .frame(height: 44)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(session.activeStyle.color)
+                    .fill(target.color.wrappedValue)
             )
             .overlay {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
@@ -1092,7 +1304,7 @@ private struct ColorCustomTab: View {
                       let color = AnnotationPalette.color(fromHex: canonical)
                 else { return }
                 hexEdited = canonical != currentHex
-                session.activeStyle.color = color
+                target.color.wrappedValue = color
             }
             .onChange(of: hexFocused) { _, focused in
                 if focused {
@@ -1138,9 +1350,9 @@ private struct ColorCustomTab: View {
     /// leaving the field the text goes back to the colour in use.
     private func commitHex() {
         if hexEdited, let color = AnnotationPalette.color(fromHex: hexText) {
-            session.activeStyle.color = color
+            target.color.wrappedValue = color
             if let hex = AnnotationPalette.hex(for: color) {
-                session.rememberRecentColor(hex)
+                target.remember(hex)
             }
         }
         hexEdited = false
@@ -1156,11 +1368,11 @@ private struct ColorCustomTab: View {
                 commitHex()
                 hexFocused = false
             }
-            session.beginInteractiveChange()
+            target.beginInteractiveChange()
         } else {
-            session.endInteractiveChange()
-            if let hex = AnnotationPalette.hex(for: session.activeStyle.color) {
-                session.rememberRecentColor(hex)
+            target.endInteractiveChange()
+            if let hex = AnnotationPalette.hex(for: target.color.wrappedValue) {
+                target.remember(hex)
             }
         }
     }
@@ -1173,7 +1385,7 @@ private struct ColorCustomTab: View {
             set: { value in
                 var updated = components
                 updated[keyPath: keyPath] = min(255, max(0, Int(value.rounded())))
-                session.activeStyle.color = AnnotationPalette.color(updated)
+                target.color.wrappedValue = AnnotationPalette.color(updated)
             }
         )
     }
@@ -1285,22 +1497,12 @@ final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
 private struct WatermarkSettingsView: View {
     @ObservedObject var session: CaptureSession
 
-    private var enabledBinding: Binding<Bool> {
-        Binding(
-            get: { session.watermarkEnabled },
-            set: { enabled in
-                session.watermarkEnabled = enabled
-                if !enabled { session.watermarkHidden = false }
-            }
-        )
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(t("Watermark"))
                 .font(.headline)
 
-            Toggle(t("Show watermark"), isOn: enabledBinding)
+            Toggle(t("Show watermark"), isOn: session.watermarkEnabledBinding)
 
             Toggle(t("Hide watermark"), isOn: $session.watermarkHidden)
                 .disabled(!session.watermarkEnabled)

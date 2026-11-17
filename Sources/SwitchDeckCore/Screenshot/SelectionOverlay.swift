@@ -1099,6 +1099,12 @@ final class SelectionView: NSView {
             return nil
         }
 
+        // The watermark submenu closes first; the capture stays open.
+        if event.keyCode == 53, session.showsWatermarkBar {
+            session.showsWatermarkBar = false
+            return nil
+        }
+
         switch event.keyCode {
         case 53: // Esc
             onCancel?()
@@ -1343,6 +1349,7 @@ final class SelectionView: NSView {
         }
 
         if editing {
+            session.showsWatermarkBar = false
             if windowTargets.isEmpty, let selection, let handle = handle(at: point, in: selection) {
                 interaction = .resizing(handle: handle, rect: selection)
                 return
@@ -1708,6 +1715,12 @@ final class SelectionView: NSView {
             if event.keyCode == 53, session.isPickingColor {
                 session.isPickingColor = false
                 needsDisplay = true
+                return
+            }
+
+            // The watermark submenu closes first; the capture stays open.
+            if event.keyCode == 53, session.showsWatermarkBar {
+                session.showsWatermarkBar = false
                 return
             }
 
