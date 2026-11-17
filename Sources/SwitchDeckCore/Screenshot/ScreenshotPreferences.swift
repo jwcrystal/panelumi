@@ -18,6 +18,11 @@ enum ScreenshotPreferences {
     static let colorFormatKey = "ScreenshotColorFormat"
     static let watermarkTextKey = "ScreenshotWatermarkText"
     static let watermarkDefaultKey = "ScreenshotWatermarkDefault"
+    static let watermarkPlacementKey = "ScreenshotWatermarkPlacement"
+    static let watermarkScaleKey = "ScreenshotWatermarkScale"
+    static let watermarkRotationKey = "ScreenshotWatermarkRotation"
+    static let watermarkOpacityKey = "ScreenshotWatermarkOpacity"
+    static let watermarkColorKey = "ScreenshotWatermarkColor"
     static let annotationColorKey = "ScreenshotAnnotationColor"
     static let annotationLineWidthKey = "ScreenshotAnnotationLineWidth"
     static let recentAnnotationColorsKey = "ScreenshotRecentAnnotationColors"
@@ -204,6 +209,79 @@ enum ScreenshotPreferences {
 
     static var watermarkOnByDefault: Bool {
         UserDefaults.standard.bool(forKey: watermarkDefaultKey)
+    }
+
+    /// The appearance every capture starts from; the editor's popover changes
+    /// only the current capture.
+    static let defaultWatermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement = .bottomRight
+    static let defaultWatermarkScale: CGFloat = 0.02
+    static let watermarkScaleRange: ClosedRange<CGFloat> = 0.01...0.06
+    static let defaultWatermarkRotation: CGFloat = 0
+    static let watermarkRotationRange: ClosedRange<CGFloat> = -90...90
+    static let defaultWatermarkOpacity: CGFloat = 0.6
+    static let watermarkOpacityRange: ClosedRange<CGFloat> = 0.15...1
+    static let defaultWatermarkColor = "#FFFFFF"
+
+    static var watermarkPlacement: AnnotationRenderer.WatermarkOptions.Placement {
+        get {
+            AnnotationRenderer.WatermarkOptions.Placement(
+                rawValue: UserDefaults.standard.string(forKey: watermarkPlacementKey) ?? ""
+            ) ?? defaultWatermarkPlacement
+        }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: watermarkPlacementKey) }
+    }
+
+    static var watermarkScale: CGFloat {
+        get { storedClamped(watermarkScaleKey, default: defaultWatermarkScale, range: watermarkScaleRange) }
+        set { storeClamped(newValue, forKey: watermarkScaleKey, default: defaultWatermarkScale, range: watermarkScaleRange) }
+    }
+
+    static var watermarkRotation: CGFloat {
+        get { storedClamped(watermarkRotationKey, default: defaultWatermarkRotation, range: watermarkRotationRange) }
+        set { storeClamped(newValue, forKey: watermarkRotationKey, default: defaultWatermarkRotation, range: watermarkRotationRange) }
+    }
+
+    static var watermarkOpacity: CGFloat {
+        get { storedClamped(watermarkOpacityKey, default: defaultWatermarkOpacity, range: watermarkOpacityRange) }
+        set { storeClamped(newValue, forKey: watermarkOpacityKey, default: defaultWatermarkOpacity, range: watermarkOpacityRange) }
+    }
+
+    static var watermarkColor: String {
+        get {
+            AnnotationPalette.canonicalHex(
+                UserDefaults.standard.string(forKey: watermarkColorKey) ?? ""
+            ) ?? defaultWatermarkColor
+        }
+        set {
+            UserDefaults.standard.set(
+                AnnotationPalette.canonicalHex(newValue) ?? defaultWatermarkColor,
+                forKey: watermarkColorKey
+            )
+        }
+    }
+
+    private static func storedClamped(
+        _ key: String,
+        default defaultValue: CGFloat,
+        range: ClosedRange<CGFloat>
+    ) -> CGFloat {
+        guard let stored = UserDefaults.standard.object(forKey: key) as? NSNumber else { return defaultValue }
+        let value = CGFloat(stored.doubleValue)
+        guard value.isFinite else { return defaultValue }
+        return min(max(value, range.lowerBound), range.upperBound)
+    }
+
+    private static func storeClamped(
+        _ value: CGFloat,
+        forKey key: String,
+        default defaultValue: CGFloat,
+        range: ClosedRange<CGFloat>
+    ) {
+        let resolved = value.isFinite ? value : defaultValue
+        UserDefaults.standard.set(
+            Double(min(max(resolved, range.lowerBound), range.upperBound)),
+            forKey: key
+        )
     }
 
     // MARK: - Annotation
