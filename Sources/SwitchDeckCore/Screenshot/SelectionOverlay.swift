@@ -719,60 +719,66 @@ final class SelectionView: NSView {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             guard let self, self.window?.isKeyWindow == true else { return event }
+            return self.handleKeyEvent(event)
+        }
+    }
 
-            // Esc abandons a half-typed text annotation before anything else.
-            if self.textField != nil, event.keyCode == 53 {
-                return self.handleTextFieldEscape() ? nil : event
-            }
-            if self.window?.firstResponder is NSTextView { return event }
+    /// Shared by the local key monitor and the tests. Returns nil when the event was consumed,
+    /// or the event itself when it should continue down the responder chain.
+    func handleKeyEvent(_ event: NSEvent) -> NSEvent? {
+        // Esc abandons a half-typed text annotation before anything else,
+        // unless the input method is composing.
+        if textField != nil, event.keyCode == 53 {
+            return handleTextFieldEscape() ? nil : event
+        }
+        if window?.firstResponder is NSTextView { return event }
 
-            // Colour picking only exists while framing the region.
-            if event.keyCode == 8, !self.editing {
-                if let hoverColor = self.hoverColor {
-                    let text = self.colorText(hoverColor)
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(text, forType: .string)
-                    ColorToast.show("Copied \(text)")
-                    self.onCancel?()
-                    return nil
-                }
-                return event
-            }
-
-            guard self.editing else { return event }
-
-            if let command = Self.historyCommand(for: event) {
-                self.performHistory(command)
+        // Colour picking only exists while framing the region.
+        if event.keyCode == 8, !editing {
+            if let hoverColor = hoverColor {
+                let text = colorText(hoverColor)
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+                ColorToast.show("Copied \(text)")
+                onCancel?()
                 return nil
             }
+            return event
+        }
 
-            switch event.keyCode {
-            case 53: // Esc
-                self.onCancel?()
+        guard editing else { return event }
+
+        if let command = Self.historyCommand(for: event) {
+            performHistory(command)
+            return nil
+        }
+
+        switch event.keyCode {
+        case 53: // Esc
+            onCancel?()
+            return nil
+        case 36, 76: // Return
+            finish(.copy)
+            return nil
+        case 49: // Space
+            finish(.save)
+            return nil
+        case 35: // P
+            finish(.pin)
+            return nil
+        case 51, 117: // Delete
+            if session.tool == .select,
+               let index = session.selectionIndex,
+               session.annotations.indices.contains(index) {
+                session.recordUndoSnapshot()
+                session.annotations.remove(at: index)
+                session.selectionIndex = nil
+                needsDisplay = true
                 return nil
-            case 36, 76: // Return
-                self.finish(.copy)
-                return nil
-            case 49: // Space
-                self.finish(.save)
-                return nil
-            case 35: // P
-                self.finish(.pin)
-                return nil
-            case 51, 117: // Delete
-                if self.session.tool == .select,
-                   let index = self.session.selectionIndex,
-                   self.session.annotations.indices.contains(index) {
-                    self.session.recordUndoSnapshot()
-                    self.session.annotations.remove(at: index)
-                    self.session.selectionIndex = nil
-                    self.needsDisplay = true
-                    return nil
-                }
-                return event
-            default:
-                return event
             }
+            return event
+        default:
+            return event
         }
     }
 
