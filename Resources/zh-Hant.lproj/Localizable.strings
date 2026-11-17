@@ -133,6 +133,13 @@
 "Text" = "文字";
 "Empty uses the macOS full user name." = "留空則使用 macOS 使用者全名。";
 "In the editor: Return copies, Space saves, P pins, Esc cancels." = "編輯器內：Return 複製、Space 儲存、P 釘選、Esc 取消。";
+"In the editor: Return copies, Space saves, P pins, Esc cancels. Tool letters show when you hover the toolbar; I picks a colour, ⇥ hides the toolbar." = "編輯器內：Return 複製、Space 儲存、P 釘選、Esc 取消。游標移到工具列上會顯示工具字母；I 選色、⇥ 隱藏工具列。";
+"Where the signature sits on the image." = "簽名在影像上的位置。";
+"Relative to the image width." = "相對於影像寬度的比例。";
+"Rotation in degrees." = "以度為單位的旋轉角度。";
+"How visible the signature is." = "簽名的明顯程度。";
+"Choose from the annotation palette." = "從標註色盤中選擇。";
+"Reset appearance" = "恢復預設";
 "Choose" = "選擇";
 "Where saved screenshots go" = "儲存的截圖放在哪裡";
 "Where audio goes, and which microphone it hears." = "音檔存哪裡，以及用哪支麥克風。";
