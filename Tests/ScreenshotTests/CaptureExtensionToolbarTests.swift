@@ -54,6 +54,28 @@ final class CaptureExtensionToolbarTests: XCTestCase {
         XCTAssertEqual(withItemSize.height, bareSize.height, "An item keeps the row height")
     }
 
+    /// A two-entry item renders a popover button rather than the plain button a
+    /// single entry gets; it still widens the toolbar, and two constructions of
+    /// the same state agree.
+    @MainActor
+    func testATwoEntryItemWidensTheToolbar() {
+        let entries = CaptureSession.toolbarEntries(for: [
+            FakeExtension(identifier: "test.two", toolbarItem: twoEntryItem())
+        ])
+        let first = CaptureSession()
+        first.extensionToolbarItems = entries
+        let second = CaptureSession()
+        second.extensionToolbarItems = entries
+
+        let bareSize = fittingSize(of: CaptureSession())
+        let firstSize = fittingSize(of: first)
+        let secondSize = fittingSize(of: second)
+
+        XCTAssertGreaterThan(firstSize.width, bareSize.width, "A two-entry item widens the toolbar")
+        XCTAssertEqual(firstSize.height, bareSize.height, "An item keeps the row height")
+        XCTAssertEqual(firstSize, secondSize, "The size does not depend on the construction")
+    }
+
     /// The snapshot is taken once, at editing start: later changes to the
     /// extension's item do not reach the toolbar.
     @MainActor
@@ -154,6 +176,18 @@ final class CaptureExtensionToolbarTests: XCTestCase {
             title: "Example",
             systemImage: "sparkles",
             entries: [CaptureToolbarItem.Entry(id: id, title: "Example")]
+        )
+    }
+
+    @MainActor
+    private func twoEntryItem() -> CaptureToolbarItem {
+        CaptureToolbarItem(
+            title: "Example",
+            systemImage: "sparkles",
+            entries: [
+                CaptureToolbarItem.Entry(id: "one", title: "First"),
+                CaptureToolbarItem.Entry(id: "two", title: "Second"),
+            ]
         )
     }
 

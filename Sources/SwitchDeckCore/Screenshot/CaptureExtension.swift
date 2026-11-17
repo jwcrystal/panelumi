@@ -15,11 +15,12 @@ public protocol CaptureExtension: Sendable {
     /// to compare `LaunchOptions` values. Never shown to the user.
     var identifier: String { get }
 
-    /// The toolbar item, or nil to show none. Read on the main actor exactly
-    /// once per capture, when the user starts editing the selection; the host
-    /// keeps that snapshot until the capture ends (the SwiftUI toolbar body is
-    /// re-evaluated often and must not call back into the extension). The host
-    /// does not wrap or localise any string in it; supply final, localised text.
+    /// The toolbar item, or nil to show none. Read on the main actor when the
+    /// user starts editing the selection: once per editing view, so a selection
+    /// spanning two displays reads it for each. The host keeps that snapshot
+    /// until the capture ends (the SwiftUI toolbar body is re-evaluated often
+    /// and must not call back into the extension). The host does not wrap or
+    /// localise any string in it; supply final, localised text.
     @MainActor var toolbarItem: CaptureToolbarItem? { get }
 
     /// Called when the user picks one of the item's entries.
@@ -27,7 +28,8 @@ public protocol CaptureExtension: Sendable {
     /// Return a takeover to take control of the selection, or nil to decline
     /// (nothing happens and the toolbar stays). You may call `context.cancel`
     /// before returning; the host applies it right after `begin` returns (see
-    /// `CaptureTakeover`).
+    /// `CaptureTakeover`). A `cancel()` made inside `begin` is dropped when
+    /// `begin` returns nil.
     @MainActor func begin(_ entryID: String, context: CaptureContext) -> CaptureTakeover?
 }
 
@@ -55,9 +57,9 @@ public struct CaptureToolbarItem: Equatable, Sendable {
     public var help: String?
     /// VoiceOver label. Falls back to `title` when nil.
     public var accessibilityLabel: String?
-    /// One entry renders a plain button; two or more render a menu; none hides
-    /// the item. Required: an item without entries is meaningless, so there is
-    /// no default.
+    /// One entry renders a plain button; two or more render a popover with one
+    /// button per entry; none hides the item. Required: an item without entries
+    /// is meaningless, so there is no default.
     public var entries: [Entry]
 
     /// Creates an item; `entries` has no default because an item without
@@ -127,9 +129,9 @@ public protocol CaptureTakeover: AnyObject {
     /// Called for each key-down event. Return true to consume it. Return false
     /// to hand it back to the window; the host still does not act on it, except
     /// that an unhandled Escape ends the takeover with `.dismissed` (so the user
-    /// can never be stuck). Keys arrive only while the capture window is key; a
-    /// click in another app takes key status away, so offer on-screen controls
-    /// in an attached window too.
+    /// can never be stuck). Keys arrive only while the capture window is key; if
+    /// the user clicks into another app the keys stop, so an extension must also
+    /// call `cancel()` from its own UI or state.
     @MainActor func handleKey(_ key: CaptureKey) -> Bool
 
     /// Called exactly once, on every end path, after the host has restored the

@@ -65,11 +65,16 @@ final class CaptureSession: ObservableObject {
     }
     @Published var selectionIndex: Int?
     @Published var toolbarVisible = true
+    /// True while an extension's takeover controls the selection. The
+    /// controller is the only writer; views read it instead of keeping a copy.
+    @Published var takeoverActive = false
     /// Extensions for the capture toolbar. Set once per capture by the
     /// controller; the views read it.
     var captureExtensions: [any CaptureExtension] = []
-    /// The toolbar items of `captureExtensions`, snapshotted once when editing
-    /// starts. The toolbar body reads this instead of calling the extensions.
+    /// The toolbar items of `captureExtensions`, snapshotted when the user
+    /// starts editing (once per editing view; a selection spanning two displays
+    /// reads the items for each). The toolbar body reads this instead of calling
+    /// the extensions.
     @Published var extensionToolbarItems: [CaptureExtensionToolbarEntry] = []
     /// False while the selection is a set of windows: the toolbar actions need a
     /// region, and a window composite is not one.
@@ -343,6 +348,8 @@ struct CaptureToolbarView: View {
     var onCaptureAction: (String, String) -> Void = { _, _ in }
     @State private var showWatermarkSettings = false
     @State private var showColors = false
+    /// The extension whose entry popover is open, by identifier.
+    @State private var openExtensionPopover: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -619,11 +626,10 @@ struct CaptureToolbarView: View {
         .help(help)
     }
 
-    /// One extension's item: a plain button when it has a single entry, a menu
-    /// when it has several. The toolbar uses popovers elsewhere; a menu is tried
-    /// here because it behaves like a toolbar menu. Whether an NSMenu opens
-    /// above the overlay's window level is unverified: if it does not, fall back
-    /// to a popover with one button per entry, the `showWatermarkSettings` way.
+    /// One extension's item: a plain button when it has a single entry, a
+    /// popover with one button per entry when it has several. A pop-up menu can
+    /// open behind the overlay's `.screenSaver` window, so this uses the same
+    /// popover pattern as `showWatermarkSettings`.
     @ViewBuilder
     private func captureActionView(_ entry: CaptureExtensionToolbarEntry) -> some View {
         let item = entry.item
@@ -636,20 +642,31 @@ struct CaptureToolbarView: View {
                     captureActionImage(item)
                 }
             } else {
-                Menu {
-                    ForEach(item.entries) { choice in
-                        Button {
-                            onCaptureAction(entry.id, choice.id)
-                        } label: {
-                            Text(verbatim: choice.title)
-                        }
-                    }
+                Button {
+                    openExtensionPopover = entry.id
                 } label: {
                     captureActionImage(item)
                 }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
+                .popover(
+                    isPresented: Binding(
+                        get: { openExtensionPopover == entry.id },
+                        set: { openExtensionPopover = $0 ? entry.id : nil }
+                    ),
+                    arrowEdge: .bottom
+                ) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(item.entries) { choice in
+                            Button {
+                                openExtensionPopover = nil
+                                onCaptureAction(entry.id, choice.id)
+                            } label: {
+                                Text(verbatim: choice.title)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(8)
+                }
             }
         }
         .buttonStyle(.plain)
