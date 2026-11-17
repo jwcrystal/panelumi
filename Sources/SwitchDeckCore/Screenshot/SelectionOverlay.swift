@@ -15,6 +15,13 @@ final class SelectionController {
     let session = CaptureSession()
     private(set) var isActive = false
 
+    /// Creates the controller; extensions are passed to the capture session
+    /// with duplicates removed, keeping the first of each identifier.
+    init(captureExtensions: [any CaptureExtension] = []) {
+        var seen: Set<String> = []
+        session.captureExtensions = captureExtensions.filter { seen.insert($0.identifier).inserted }
+    }
+
     /// Exclude only capture overlays, not Settings or other app windows.
     static var overlayWindowIDs: Set<CGWindowID> {
         Set(NSApp.windows.compactMap { window in

@@ -65,6 +65,9 @@ final class CaptureSession: ObservableObject {
     }
     @Published var selectionIndex: Int?
     @Published var toolbarVisible = true
+    /// Extensions for the capture toolbar. Set once per capture by the
+    /// controller; the views read it.
+    var captureExtensions: [any CaptureExtension] = []
     @Published var defaultStyle = AnnotationStyle()
     @Published var annotations: [Annotation] = [] {
         didSet { refreshHistoryAvailability() }

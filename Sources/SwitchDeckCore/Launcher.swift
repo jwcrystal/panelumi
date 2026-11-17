@@ -92,7 +92,7 @@ public enum SwitchDeckLauncher {
         }
 
         let application = NSApplication.shared
-        let delegate = AppDelegate()
+        let delegate = AppDelegate(captureExtensions: options.captureExtensions)
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()
