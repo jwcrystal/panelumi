@@ -456,6 +456,7 @@ final class SelectionView: NSView {
     private var penPoints: [CGPoint] = []
 
     private(set) var toolbarHost: CaptureToolbarHost?
+    let popoverPlacement = ToolbarPopoverPlacement()
     private var textField: NSTextField?
     /// Where the user clicked to start the text; the anchor is fitted to it.
     private var textClickPoint: CGPoint = .zero
@@ -1215,6 +1216,7 @@ final class SelectionView: NSView {
         guard toolbarHost == nil else { return }
         let host = CaptureToolbarHost(rootView: CaptureToolbarView(
             session: session,
+            popoverPlacement: popoverPlacement,
             onCaptureAction: { [weak self] extensionID, entryID in
                 self?.requestCaptureAction(extensionID, entryID)
             }
@@ -1261,10 +1263,8 @@ final class SelectionView: NSView {
         toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible || session.takeoverActive
         let edge = Self.popoverEdge(toolbar: toolbarHost.frame, selection: selection, bounds: bounds)
-        // Assigning an unchanged value still publishes, and the session's
-        // change sink lays the toolbar out again.
-        if session.popoverEdge != edge {
-            session.popoverEdge = edge
+        if popoverPlacement.edge != edge {
+            popoverPlacement.edge = edge
         }
     }
 

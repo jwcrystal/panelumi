@@ -93,9 +93,6 @@ final class CaptureSession: ObservableObject {
         }
     }
     @Published var toolbarVisible = true
-    /// Which edge of the toolbar its popovers open from: away from the
-    /// selection, so they do not cover what is being captured.
-    @Published var popoverEdge: Edge = .bottom
     /// True while an extension's takeover controls the selection. The
     /// controller is the only writer; views read it instead of keeping a copy.
     @Published var takeoverActive = false
@@ -466,8 +463,18 @@ struct CaptureExtensionToolbarEntry: Identifiable {
     let item: CaptureToolbarItem
 }
 
+/// Which edge of one toolbar its popovers open from: away from the
+/// selection, so they do not cover what is being captured. Each screen's
+/// toolbar owns one. On the shared session, two screens wanting opposite
+/// edges would overwrite each other through its change sink forever.
+@MainActor
+final class ToolbarPopoverPlacement: ObservableObject {
+    @Published var edge: Edge = .bottom
+}
+
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
+    @ObservedObject var popoverPlacement = ToolbarPopoverPlacement()
     /// Called with (extension identifier, entry id) when the user picks an
     /// entry. The capture view supplies it; the default does nothing.
     var onCaptureAction: (String, String) -> Void = { _, _ in }
@@ -664,7 +671,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Annotation color"))
         .onHover { hover(.action(t("Color")), inside: $0) }
-        .popover(isPresented: $showColors, arrowEdge: session.popoverEdge) {
+        .popover(isPresented: $showColors, arrowEdge: popoverPlacement.edge) {
             colorPopover
         }
     }
@@ -963,7 +970,7 @@ struct CaptureToolbarView: View {
     // MARK: - Watermark submenu
 
     private var watermarkBar: some View {
-        WatermarkBar(session: session) { text, inside in
+        WatermarkBar(session: session, popoverPlacement: popoverPlacement) { text, inside in
             hover(.action(text), inside: inside)
         }
     }
@@ -1033,7 +1040,7 @@ struct CaptureToolbarView: View {
                         get: { openExtensionPopover == entry.id },
                         set: { openExtensionPopover = $0 ? entry.id : nil }
                     ),
-                    arrowEdge: session.popoverEdge
+                    arrowEdge: popoverPlacement.edge
                 ) {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(item.entries) { choice in
@@ -1071,6 +1078,7 @@ struct CaptureToolbarView: View {
 /// `WatermarkSettingsView` behind "More…".
 struct WatermarkBar: View {
     @ObservedObject var session: CaptureSession
+    @ObservedObject var popoverPlacement = ToolbarPopoverPlacement()
     var onHover: (String, Bool) -> Void = { _, _ in }
     @State private var showColors = false
     @State private var showMore = false
@@ -1184,7 +1192,7 @@ struct WatermarkBar: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Color"))
         .onHover { onHover(t("Color"), $0) }
-        .popover(isPresented: $showColors, arrowEdge: session.popoverEdge) {
+        .popover(isPresented: $showColors, arrowEdge: popoverPlacement.edge) {
             colorPopover
         }
     }
@@ -1235,7 +1243,7 @@ struct WatermarkBar: View {
         iconButton("ellipsis.circle", t("More…"), selected: showMore) {
             showMore.toggle()
         }
-        .popover(isPresented: $showMore, arrowEdge: session.popoverEdge) {
+        .popover(isPresented: $showMore, arrowEdge: popoverPlacement.edge) {
             WatermarkSettingsView(session: session)
         }
     }
