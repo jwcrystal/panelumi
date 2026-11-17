@@ -144,6 +144,37 @@ final class SelectionViewKeyTests: XCTestCase {
         }
     }
 
+    /// Typing a hex colour such as #ABD123 uses letters that are tool shortcuts;
+    /// while a text view owns the keys they must reach it, not switch tools.
+    @MainActor
+    func testToolLettersReachAFocusedTextView() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Typing must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let window = try XCTUnwrap(view.window)
+
+        let editor = NSTextView(frame: NSRect(x: 0, y: 0, width: 100, height: 20))
+        view.addSubview(editor)
+        XCTAssertTrue(window.makeFirstResponder(editor))
+        let session = controller.session
+        let toolBefore = session.tool
+
+        for (keyCode, characters) in [(UInt16(0), "a"), (11, "b"), (2, "d"), (34, "i")] {
+            let event = keyEvent(keyCode, characters, in: view)
+            XCTAssertTrue(view.handleKeyEvent(event) === event, "\(characters) must pass through")
+        }
+        XCTAssertEqual(session.tool, toolBefore)
+        XCTAssertFalse(session.isPickingColor)
+    }
+
     @MainActor
     func testDeleteWithNothingSelectedIsPassedOn() throws {
         for (keyCode, characters) in deleteKeys {
