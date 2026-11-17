@@ -80,9 +80,18 @@ final class CaptureSession: ObservableObject {
             if tool != .select {
                 selectionIndex = nil
             }
+            if tool != oldValue {
+                showsWatermarkBar = false
+            }
         }
     }
-    @Published var selectionIndex: Int?
+    @Published var selectionIndex: Int? {
+        didSet {
+            if selectionIndex != nil {
+                showsWatermarkBar = false
+            }
+        }
+    }
     @Published var toolbarVisible = true
     /// Which edge of the toolbar its popovers open from: away from the
     /// selection, so they do not cover what is being captured.
@@ -126,6 +135,44 @@ final class CaptureSession: ObservableObject {
 
     @Published var watermarkText: String = ScreenshotPreferences.defaultWatermarkText
 
+    /// True while the watermark submenu replaces the options row.
+    @Published var showsWatermarkBar = false
+
+    /// The three states the submenu's segmented control edits.
+    enum WatermarkMode: String, CaseIterable, Identifiable {
+        case off, shown, hidden
+
+        var id: String { rawValue }
+
+        var title: String {
+            switch self {
+            case .off: return t("Off")
+            case .shown: return t("Show")
+            case .hidden: return t("Hidden")
+            }
+        }
+    }
+
+    var watermarkMode: WatermarkMode {
+        get {
+            guard watermarkEnabled else { return .off }
+            return watermarkHidden ? .hidden : .shown
+        }
+        set {
+            switch newValue {
+            case .off:
+                watermarkEnabled = false
+                watermarkHidden = false
+            case .shown:
+                watermarkEnabled = true
+                watermarkHidden = false
+            case .hidden:
+                watermarkEnabled = true
+                watermarkHidden = true
+            }
+        }
+    }
+
     /// Every capture starts from Settings › Screenshot rather than from
     /// whatever the previous screenshot left behind.
     func prepareForCapture() {
@@ -141,6 +188,7 @@ final class CaptureSession: ObservableObject {
             watermarkColor = color
         }
         toolbarVisible = true
+        showsWatermarkBar = false
         isPickingColor = false
         isTextEditing = false
         if let color = AnnotationPalette.color(fromHex: ScreenshotPreferences.annotationColor) {
@@ -423,7 +471,6 @@ struct CaptureToolbarView: View {
     /// Called with (extension identifier, entry id) when the user picks an
     /// entry. The capture view supplies it; the default does nothing.
     var onCaptureAction: (String, String) -> Void = { _, _ in }
-    @State private var showWatermarkSettings = false
     @State private var showColors = false
     @State private var colorTab: ColorTab = .swatches
     @State private var hovered: HoverItem?
@@ -572,11 +619,15 @@ struct CaptureToolbarView: View {
 
     private var optionsRow: some View {
         HStack(spacing: 5) {
-            if showsColorSwatch {
-                colorControls
-                Divider().frame(height: 18)
+            if session.showsWatermarkBar {
+                watermarkBar
+            } else {
+                if showsColorSwatch {
+                    colorControls
+                    Divider().frame(height: 18)
+                }
+                toolOptions
             }
-            toolOptions
         }
         .frame(height: 26)
         .padding(.horizontal, 9)
@@ -877,8 +928,9 @@ struct CaptureToolbarView: View {
     }
 
     private var watermarkChip: some View {
-        Button {
-            showWatermarkSettings.toggle()
+        let open = session.showsWatermarkBar
+        return Button {
+            session.showsWatermarkBar.toggle()
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "signature")
@@ -890,15 +942,29 @@ struct CaptureToolbarView: View {
             .frame(height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(session.watermarkEnabled ? Color.accentColor.opacity(0.14) : Color.clear)
+                    .fill(watermarkChipFill(open: open))
             )
-            .foregroundStyle(session.watermarkEnabled ? Color.accentColor : .secondary)
+            .overlay(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(open ? Color.accentColor.opacity(0.6) : Color.clear)
+            )
+            .foregroundStyle(open || session.watermarkEnabled ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(t("Watermark settings"))
         .onHover { hover(.action(t("Watermark settings")), inside: $0) }
-        .popover(isPresented: $showWatermarkSettings, arrowEdge: session.popoverEdge) {
-            WatermarkSettingsView(session: session)
+    }
+
+    private func watermarkChipFill(open: Bool) -> Color {
+        if open { return Color.accentColor.opacity(0.28) }
+        return session.watermarkEnabled ? Color.accentColor.opacity(0.14) : Color.clear
+    }
+
+    // MARK: - Watermark submenu
+
+    private var watermarkBar: some View {
+        WatermarkBar(session: session) { text, inside in
+            hover(.action(text), inside: inside)
         }
     }
 
@@ -944,7 +1010,7 @@ struct CaptureToolbarView: View {
     /// One extension's item: a plain button when it has a single entry, a
     /// popover with one button per entry when it has several. A pop-up menu can
     /// open behind the overlay's `.screenSaver` window, so this uses the same
-    /// popover pattern as `showWatermarkSettings`.
+    /// popover pattern as the watermark settings.
     @ViewBuilder
     private func captureActionView(_ entry: CaptureExtensionToolbarEntry) -> some View {
         let item = entry.item
@@ -997,6 +1063,201 @@ struct CaptureToolbarView: View {
             .font(.system(size: 12.5, weight: .medium))
             .frame(width: 26, height: 26)
             .contentShape(Rectangle())
+    }
+}
+
+/// The watermark submenu that replaces the options row. It edits the session
+/// directly; the settings that do not fit on one 26pt line stay in
+/// `WatermarkSettingsView` behind "More…".
+struct WatermarkBar: View {
+    @ObservedObject var session: CaptureSession
+    var onHover: (String, Bool) -> Void = { _, _ in }
+    @State private var showColors = false
+    @State private var showMore = false
+
+    var body: some View {
+        HStack(spacing: 6) {
+            modeControl
+
+            Divider().frame(height: 18)
+
+            placementControls
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            sizeControl
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            colorButton
+                .disabled(!session.watermarkEnabled)
+                .opacity(session.watermarkEnabled ? 1 : 0.4)
+
+            Divider().frame(height: 18)
+
+            moreButton
+        }
+    }
+
+    private var modeControl: some View {
+        HStack(spacing: 0) {
+            ForEach(CaptureSession.WatermarkMode.allCases) { mode in
+                modeButton(mode)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
+    }
+
+    private func modeButton(_ mode: CaptureSession.WatermarkMode) -> some View {
+        let selected = session.watermarkMode == mode
+        return Button {
+            session.watermarkMode = mode
+        } label: {
+            Text(mode.title)
+                .font(.system(size: 10.5, weight: .medium))
+                .padding(.horizontal, 7)
+                .frame(height: 22)
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear)
+                )
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(mode.title)
+        .onHover { onHover(modeHint(mode), $0) }
+    }
+
+    private func modeHint(_ mode: CaptureSession.WatermarkMode) -> String {
+        switch mode {
+        case .hidden: return t("Watermark hidden; text is kept in the file metadata")
+        case .off, .shown: return mode.title
+        }
+    }
+
+    private var placementControls: some View {
+        HStack(spacing: 4) {
+            WatermarkPlacementPicker(
+                placement: $session.watermarkPlacement,
+                onHover: { placement, inside in onHover(placement.title, inside) }
+            )
+            iconButton(
+                "square.grid.3x3",
+                t("Tiled"),
+                selected: session.watermarkPlacement == .tiled
+            ) {
+                session.watermarkPlacement = .tiled
+            }
+        }
+    }
+
+    private var sizeControl: some View {
+        HStack(spacing: 4) {
+            Slider(value: $session.watermarkScale, in: ScreenshotPreferences.watermarkScaleRange)
+                .controlSize(.mini)
+                .frame(width: 72)
+                .accessibilityLabel(t("Size"))
+                .onHover { onHover(t("Size"), $0) }
+            Text(String(format: "%.1f%%", Double(session.watermarkScale) * 100))
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 34, alignment: .trailing)
+                .accessibilityHidden(true)
+        }
+    }
+
+    private var colorButton: some View {
+        Button { showColors.toggle() } label: {
+            Circle().fill(session.watermarkColor).frame(width: 18, height: 18)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(t("Color"))
+        .onHover { onHover(t("Color"), $0) }
+        .popover(isPresented: $showColors, arrowEdge: session.popoverEdge) {
+            colorPopover
+        }
+    }
+
+    private var colorPopover: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            LazyVGrid(
+                columns: Array(repeating: GridItem(.fixed(20), spacing: 6), count: 5),
+                alignment: .leading,
+                spacing: 6
+            ) {
+                ForEach(AnnotationPalette.presets) { swatch in
+                    swatchButton(swatch.color, name: swatch.name) {
+                        session.watermarkColor = swatch.color
+                        showColors = false
+                    }
+                }
+            }
+
+            if !session.recentAnnotationColors.isEmpty {
+                HStack(spacing: 6) {
+                    ForEach(session.recentAnnotationColors, id: \.self) { hex in
+                        let color = AnnotationPalette.color(fromHex: hex) ?? .black
+                        swatchButton(color, name: hex) {
+                            session.watermarkColor = color
+                            session.rememberRecentColor(hex)
+                            showColors = false
+                        }
+                    }
+                }
+            }
+        }
+        .padding(10)
+    }
+
+    private func swatchButton(_ color: Color, name: String, onPick: @escaping () -> Void) -> some View {
+        AnnotationColorSwatch(
+            color: color,
+            name: name,
+            selected: AnnotationPalette.hex(for: session.watermarkColor) == AnnotationPalette.hex(for: color),
+            diameter: 18,
+            action: onPick
+        )
+        .onHover { onHover(name, $0) }
+    }
+
+    private var moreButton: some View {
+        iconButton("ellipsis.circle", t("More…"), selected: showMore) {
+            showMore.toggle()
+        }
+        .popover(isPresented: $showMore, arrowEdge: session.popoverEdge) {
+            WatermarkSettingsView(session: session)
+        }
+    }
+
+    private func iconButton(
+        _ symbol: String,
+        _ title: String,
+        selected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol).font(.system(size: 15))
+                .frame(width: 28, height: 26)
+                .foregroundStyle(selected ? Color.accentColor : .secondary)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(selected ? Color.accentColor.opacity(0.14) : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .onHover { onHover(title, $0) }
     }
 }
 

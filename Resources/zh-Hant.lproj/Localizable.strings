@@ -238,6 +238,9 @@
 "Watermark settings" = "浮水印設定";
 "Show watermark" = "顯示浮水印";
 "Hide watermark" = "隱藏浮水印";
+"Show" = "顯示";
+"Hidden" = "隱藏";
+"More…" = "更多…";
 "Copied %@" = "已複製 %@";
 "%@ line" = "%@線";
 "Solid" = "實線";
