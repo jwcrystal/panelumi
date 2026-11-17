@@ -1130,6 +1130,13 @@ private struct ColorCustomTab: View {
 
     private func channelEditingChanged(_ editing: Bool) {
         if editing {
+            // The drag does not take focus from the field. Left focused, it
+            // stops following the sliders and its stale text is replayed on the
+            // next submit or blur, undoing the drag.
+            if hexFocused {
+                commitHex()
+                hexFocused = false
+            }
             session.beginInteractiveChange()
         } else {
             session.endInteractiveChange()
