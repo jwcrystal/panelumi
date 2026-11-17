@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SwitchKit
 
@@ -19,21 +20,16 @@ final class CaptureSession: ObservableObject {
             case .arrow: return "arrow.up.right"
             case .pen: return "pencil.tip"
             case .highlighter: return "highlighter"
-            case .text: return "textformat"
-            case .number: return "number.circle"
+            case .text: return "character"
+            case .number: return "1.circle"
             case .mosaic: return "square.grid.3x3"
             case .blur: return "aqi.medium"
             }
         }
 
-        /// Drawing tools expose the contextual row below the main toolbar.
-        var hasOptions: Bool {
-            self != .select
-        }
-
-        var help: String {
+        var title: String {
             switch self {
-            case .select: return t("Select and move (⌫ deletes)")
+            case .select: return t("Select")
             case .rectangle: return t("Rectangle")
             case .ellipse: return t("Ellipse")
             case .line: return t("Line")
@@ -45,6 +41,29 @@ final class CaptureSession: ObservableObject {
             case .mosaic: return t("Mosaic")
             case .blur: return t("Blur")
             }
+        }
+
+        var shortcut: Character {
+            switch self {
+            case .select: return "V"
+            case .rectangle: return "R"
+            case .ellipse: return "O"
+            case .line: return "L"
+            case .arrow: return "A"
+            case .pen: return "D"
+            case .highlighter: return "H"
+            case .text: return "T"
+            case .number: return "N"
+            case .mosaic: return "M"
+            case .blur: return "B"
+            }
+        }
+
+        /// Character to tool, so the shortcut follows the layout instead of the
+        /// key code.
+        static func tool(forShortcut character: Character) -> Tool? {
+            let lowered = character.lowercased()
+            return allCases.first { String($0.shortcut).lowercased() == lowered }
         }
     }
 
@@ -100,6 +119,7 @@ final class CaptureSession: ObservableObject {
         let stored = ScreenshotPreferences.watermarkText
         watermarkText = stored.isEmpty ? ScreenshotPreferences.defaultWatermarkText : stored
         watermarkHidden = false
+        toolbarVisible = true
     }
 
     /// Builds the toolbar snapshot for one capture: one entry per extension
@@ -149,10 +169,6 @@ final class CaptureSession: ObservableObject {
     var displayTool: Tool {
         guard let shape = selectedAnnotation?.shape else { return tool }
         return Self.tool(for: shape)
-    }
-
-    var showsOptions: Bool {
-        tool.hasOptions || hasSelectedAnnotation
     }
 
     /// Style writes target the selected annotation and always become the
@@ -348,17 +364,60 @@ struct CaptureToolbarView: View {
     var onCaptureAction: (String, String) -> Void = { _, _ in }
     @State private var showWatermarkSettings = false
     @State private var showColors = false
+    @State private var hovered: HoverItem?
+
+    /// Height of the strip above the pill that names what the pointer is on.
+    /// The hosting view's hit test uses the same value.
+    static let hintBandHeight: CGFloat = 24
+
+    private enum HoverItem: Equatable {
+        case tool(CaptureSession.Tool)
+        case action(String)
+    }
+
     /// The extension whose entry popover is open, by identifier.
     @State private var openExtensionPopover: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
+            hintBand
             mainRow
-            if session.showsOptions {
-                optionsRow
-            }
+            optionsRow
         }
         .fixedSize()
+    }
+
+    private var hintText: String {
+        switch hovered {
+        case .tool(let tool): return "\(tool.title)  \(tool.shortcut)"
+        case .action(let text): return text
+        case nil: return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close")
+        }
+    }
+
+    private var hoveredTool: CaptureSession.Tool? {
+        if case .tool(let tool) = hovered { return tool }
+        return nil
+    }
+
+    private func hover(_ item: HoverItem, inside: Bool) {
+        if inside {
+            hovered = item
+        } else if hovered == item {
+            hovered = nil
+        }
+    }
+
+    private var hintBand: some View {
+        Text(hintText)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.white.opacity(0.92))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.black.opacity(0.55)))
+            .frame(height: Self.hintBandHeight)
+            .frame(maxWidth: .infinity)
+            .allowsHitTesting(false)
     }
 
     private var mainRow: some View {
@@ -369,7 +428,7 @@ struct CaptureToolbarView: View {
 
             Divider().frame(height: 18)
 
-            watermarkButton
+            watermarkChip
 
             Divider().frame(height: 18)
 
@@ -377,12 +436,15 @@ struct CaptureToolbarView: View {
                 captureActionView(entry)
             }
 
-            icon("arrow.uturn.backward", help: t("Undo (⌘Z)"), enabled: session.canUndo, action: session.onUndo)
-            icon("arrow.uturn.forward", help: t("Redo (⇧⌘Z)"), enabled: session.canRedo, action: session.onRedo)
-            icon("doc.on.doc", help: t("Copy (↩)"), action: session.onCopy)
-            icon("square.and.arrow.down", help: t("Save (Space)"), action: session.onSave)
-            icon("pin", help: t("Pin (P)"), action: session.onPin)
-            icon("xmark", help: t("Close (Esc)"), action: session.onClose)
+            icon("arrow.uturn.backward", hint: t("Undo (⌘Z)"), enabled: session.canUndo, action: session.onUndo)
+            icon("arrow.uturn.forward", hint: t("Redo (⇧⌘Z)"), enabled: session.canRedo, action: session.onRedo)
+
+            Divider().frame(height: 18)
+
+            primaryIcon("doc.on.doc", hint: t("Copy (↩)"), action: session.onCopy)
+            icon("square.and.arrow.down", hint: t("Save (Space)"), action: session.onSave)
+            icon("pin", hint: t("Pin (P)"), action: session.onPin)
+            icon("xmark", hint: t("Close (Esc)"), action: session.onClose)
         }
         .padding(.horizontal, 9)
         .padding(.vertical, 6)
@@ -401,56 +463,85 @@ struct CaptureToolbarView: View {
     private func toolButton(_ tool: CaptureSession.Tool) -> some View {
         let active = session.tool == tool
         return Button {
-            session.tool = active ? .select : tool
+            session.tool = tool
             showColors = false
         } label: {
-            Image(systemName: tool == .arrow ? arrowSymbol : tool.symbol)
-                .font(.system(size: 12.5, weight: .medium))
+            toolGlyph(tool)
                 .frame(width: 26, height: 26)
                 .background(
                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(active ? Color.accentColor.opacity(0.14) : .clear)
+                        .fill(active
+                            ? Color.accentColor.opacity(0.14)
+                            : hoveredTool == tool ? Color.primary.opacity(0.08) : Color.clear)
                 )
                 .foregroundStyle(active ? Color.accentColor : .secondary)
         }
         .buttonStyle(.plain)
-        .help(tool.help)
-        .accessibilityLabel(tool.help)
+        .accessibilityLabel(tool.title)
+        .onHover { hover(.tool(tool), inside: $0) }
+    }
+
+    @ViewBuilder
+    private func toolGlyph(_ tool: CaptureSession.Tool) -> some View {
+        switch tool {
+        case .mosaic:
+            MosaicToolIcon().frame(width: 15, height: 15)
+        case .blur:
+            BlurToolIcon().frame(width: 15, height: 15)
+        case .arrow:
+            Image(systemName: arrowSymbol).font(.system(size: 12.5, weight: .medium))
+        case .text:
+            // SF Symbols localises `character` (字 in Chinese); the tool should look the same everywhere.
+            Text(verbatim: "A").font(.system(size: 14, weight: .medium))
+        default:
+            Image(systemName: tool.symbol).font(.system(size: 12.5, weight: .medium))
+        }
     }
 
     private var optionsRow: some View {
         HStack(spacing: 5) {
-            if session.displayTool != .mosaic && session.displayTool != .blur {
-                Button { showColors.toggle() } label: {
-                    Circle().fill(session.activeStyle.color).frame(width: 16, height: 16)
-                        .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
-                        .frame(width: 26, height: 26)
-                }
-                .buttonStyle(.plain)
-                .help(t("Color"))
-                .accessibilityLabel("Annotation color")
-                .popover(isPresented: $showColors, arrowEdge: .bottom) {
-                    HStack(spacing: 9) {
-                        ForEach(Annotation.palette, id: \.self) { color in
-                            Button { session.activeStyle.color = color; showColors = false } label: {
-                                Circle().fill(color).frame(width: 20, height: 20)
-                                    .overlay(Circle().strokeBorder(Color.primary.opacity(session.activeStyle.color == color ? 0.7 : 0.15), lineWidth: 2))
-                            }
-                            .buttonStyle(.plain)
-                            .accessibilityLabel(color.description)
-                        }
-                    }.padding(12)
-                }
+            if showsColorSwatch {
+                colorButton
                 Divider().frame(height: 18)
             }
             toolOptions
         }
+        .frame(height: 26)
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
         .background(RoundedRectangle(cornerRadius: 9).fill(.regularMaterial))
         .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Color.primary.opacity(0.1)))
         .shadow(color: .black.opacity(0.15), radius: 7, y: 3)
-        .padding(.leading, min(CGFloat(CaptureSession.Tool.allCases.firstIndex(of: session.displayTool) ?? 0) * 31, 150))
+    }
+
+    private var showsColorSwatch: Bool {
+        switch session.displayTool {
+        case .select, .mosaic, .blur: return false
+        default: return true
+        }
+    }
+
+    private var colorButton: some View {
+        Button { showColors.toggle() } label: {
+            Circle().fill(session.activeStyle.color).frame(width: 16, height: 16)
+                .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
+                .frame(width: 26, height: 26)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(t("Annotation color"))
+        .onHover { hover(.action(t("Color")), inside: $0) }
+        .popover(isPresented: $showColors, arrowEdge: .bottom) {
+            HStack(spacing: 9) {
+                ForEach(Annotation.palette, id: \.self) { color in
+                    Button { session.activeStyle.color = color; showColors = false } label: {
+                        Circle().fill(color).frame(width: 20, height: 20)
+                            .overlay(Circle().strokeBorder(Color.primary.opacity(session.activeStyle.color == color ? 0.7 : 0.15), lineWidth: 2))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(color.description)
+                }
+            }.padding(12)
+        }
     }
 
     @ViewBuilder private var toolOptions: some View {
@@ -467,16 +558,22 @@ struct CaptureToolbarView: View {
             lineWidthSlider
         case .rectangle, .ellipse:
             ForEach(ShapeFillStyle.allCases, id: \.self) { style in
-                optionButton(String(describing: style).capitalized, selected: session.activeStyle.fillStyle == style) { session.activeStyle.fillStyle = style } label: {
+                optionButton(style.title, selected: session.activeStyle.fillStyle == style) { session.activeStyle.fillStyle = style } label: {
                     FillOptionIcon(style: style, ellipse: tool == .ellipse).frame(width: 20, height: 20)
                 }
             }
             patternControls
             lineWidthSlider
         case .text:
-            ForEach([CGFloat(0.016), 0.022, 0.030], id: \.self) { size in
-                optionButton(tf("Text size %d", Int(size * 1000)), selected: session.activeStyle.textScale == size) { session.activeStyle.textScale = size } label: {
-                    Text("A").font(.system(size: size * 600 + 4, weight: .medium))
+            ForEach(Self.textSizeChoices) { choice in
+                optionButton(
+                    choice.name,
+                    hoverText: tf("Font size %d", Int((choice.scale * 1000).rounded())),
+                    selected: session.activeStyle.textScale == choice.scale
+                ) {
+                    session.activeStyle.textScale = choice.scale
+                } label: {
+                    Text(choice.name).font(.system(size: 11, weight: .medium))
                 }
             }
             Divider().frame(height: 18)
@@ -485,17 +582,29 @@ struct CaptureToolbarView: View {
             optionIcon("1.circle", t("Circle marker"), selected: session.activeStyle.numberStyle == .circle) { session.activeStyle.numberStyle = .circle }
             optionIcon("1.square", t("Square marker"), selected: session.activeStyle.numberStyle == .square) { session.activeStyle.numberStyle = .square }
         case .mosaic, .blur:
-            Image(systemName: tool.symbol).frame(width: 26)
-            optionSlider(t("Strength"), value: session.styleBinding(\.mosaicBlock), range: 6...32)
+            toolGlyph(tool).frame(width: 26)
+            optionSlider(
+                t("Strength"),
+                value: session.styleBinding(\.mosaicBlock),
+                range: 6...32,
+                text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
+            )
         case .highlighter:
             lineWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
-            optionSlider(t("Opacity"), value: session.styleBinding(\.highlighterAlpha), range: 0.15...0.7)
+            optionSlider(
+                t("Opacity"),
+                value: session.styleBinding(\.highlighterAlpha),
+                range: 0.15...0.7,
+                text: "\(Int((session.activeStyle.highlighterAlpha * 100).rounded()))%"
+            )
         case .line, .pen:
             patternControls
             lineWidthSlider
         case .select:
-            EmptyView()
+            Text(t("Select an annotation to adjust its style"))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         }
     }
 
@@ -503,31 +612,58 @@ struct CaptureToolbarView: View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             Image(systemName: "lineweight").frame(width: 23)
-            optionSlider(t("Line width"), value: session.styleBinding(\.lineWidth), range: 0.0015...0.016)
+            optionSlider(
+                t("Line width"),
+                value: session.styleBinding(\.lineWidth),
+                range: 0.0015...0.016,
+                text: "\(Self.lineWidthLevel(for: session.activeStyle.lineWidth))"
+            )
         }
+    }
+
+    /// Display-only 1…10 step for the stored width; what is stored keeps its
+    /// 0.0015…0.016 range.
+    static func lineWidthLevel(for width: CGFloat) -> Int {
+        let step = (0.016 - 0.0015) / 9
+        let level = ((width - 0.0015) / step).rounded() + 1
+        return max(1, min(10, Int(level)))
     }
 
     private var patternControls: some View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             ForEach(LinePattern.allCases, id: \.self) { pattern in
-                optionButton(tf("%@ line", t(String(describing: pattern).capitalized)), selected: session.activeStyle.linePattern == pattern) { session.activeStyle.linePattern = pattern } label: {
+                optionButton(pattern.title, selected: session.activeStyle.linePattern == pattern) { session.activeStyle.linePattern = pattern } label: {
                     LinePatternIcon(pattern: pattern).frame(width: 22, height: 18)
                 }
             }
         }
     }
 
-    private func optionSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>) -> some View {
-        Slider(value: value, in: range, onEditingChanged: { editing in
-            if editing {
-                session.beginInteractiveChange()
-            } else {
-                session.endInteractiveChange()
-            }
-        })
-        .controlSize(.mini).frame(width: 90)
-        .help(title).accessibilityLabel(title)
+    private func optionSlider(
+        _ title: String,
+        value: Binding<CGFloat>,
+        range: ClosedRange<CGFloat>,
+        text: String
+    ) -> some View {
+        HStack(spacing: 4) {
+            Slider(value: value, in: range, onEditingChanged: { editing in
+                if editing {
+                    session.beginInteractiveChange()
+                } else {
+                    session.endInteractiveChange()
+                }
+            })
+            .controlSize(.mini).frame(width: 90)
+            .accessibilityLabel(title)
+            .onHover { hover(.action(title), inside: $0) }
+            Text(text)
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 30, alignment: .trailing)
+                .accessibilityHidden(true)
+        }
     }
 
     private func optionIcon(_ symbol: String, _ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -536,15 +672,36 @@ struct CaptureToolbarView: View {
         }
     }
 
-    private func optionButton<Label: View>(_ title: String, selected: Bool, action: @escaping () -> Void, @ViewBuilder label: () -> Label) -> some View {
+    private func optionButton<Label: View>(
+        _ title: String,
+        hoverText: String? = nil,
+        selected: Bool,
+        action: @escaping () -> Void,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
         Button(action: action) {
             label().frame(width: 28, height: 26)
                 .foregroundStyle(selected ? Color.accentColor : .secondary)
-                .background(RoundedRectangle(cornerRadius: 5).fill(selected ? Color.accentColor.opacity(0.14) : .clear))
-        }.buttonStyle(.plain).help(title).accessibilityLabel(title)
+                .background(RoundedRectangle(cornerRadius: 5).fill(selected ? Color.accentColor.opacity(0.14) : Color.clear))
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hoverText ?? title)
+        .onHover { hover(.action(hoverText ?? title), inside: $0) }
     }
 
     // MARK: - Tool options
+
+    private struct TextSizeChoice: Identifiable {
+        let scale: CGFloat
+        let name: String
+        var id: CGFloat { scale }
+    }
+
+    private static let textSizeChoices = [
+        TextSizeChoice(scale: 0.016, name: t("Small")),
+        TextSizeChoice(scale: 0.022, name: t("Medium")),
+        TextSizeChoice(scale: 0.030, name: t("Large")),
+    ]
 
     private var arrowSymbol: String {
         switch session.defaultStyle.arrowStyle {
@@ -555,62 +712,35 @@ struct CaptureToolbarView: View {
         }
     }
 
-    private var watermarkButton: some View {
-        HStack(spacing: 2) {
-            Button {
-                session.watermarkEnabled.toggle()
-                if !session.watermarkEnabled { session.watermarkHidden = false }
-            } label: {
+    private var watermarkChip: some View {
+        Button {
+            showWatermarkSettings.toggle()
+        } label: {
+            HStack(spacing: 4) {
                 Image(systemName: "signature")
                     .font(.system(size: 12.5, weight: .medium))
-                    .frame(width: 24, height: 26)
-                    .background(
-                        RoundedRectangle(cornerRadius: 6, style: .continuous)
-                            .fill(session.watermarkEnabled ? Color.accentColor.opacity(0.14) : .clear)
-                    )
-                    .foregroundStyle(session.watermarkEnabled ? Color.accentColor : .secondary)
+                Text(t("Watermark"))
+                    .font(.system(size: 11, weight: .medium))
             }
-            .buttonStyle(.plain)
-            .help("Watermark: \(session.watermarkText)")
-
-            if session.watermarkEnabled {
-                Button {
-                    session.watermarkHidden.toggle()
-                } label: {
-                    Image(systemName: session.watermarkHidden ? "eye.slash" : "eye")
-                        .font(.system(size: 12.5, weight: .medium))
-                        .frame(width: 24, height: 26)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                .fill(session.watermarkHidden ? Color.orange.opacity(0.16) : .clear)
-                        )
-                        .foregroundStyle(session.watermarkHidden ? Color.orange : .secondary)
-                }
-                .buttonStyle(.plain)
-                .help(session.watermarkHidden
-                    ? t("Watermark hidden; text is kept in the file metadata")
-                    : t("Hide the watermark but keep its text"))
-
-                Button {
-                    showWatermarkSettings.toggle()
-                } label: {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 12.5, weight: .medium))
-                        .frame(width: 24, height: 26)
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .help(t("Watermark position, size, rotation and opacity"))
-                .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
-                    WatermarkSettingsView(session: session)
-                }
-            }
+            .padding(.horizontal, 6)
+            .frame(height: 26)
+            .background(
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(session.watermarkEnabled ? Color.accentColor.opacity(0.14) : Color.clear)
+            )
+            .foregroundStyle(session.watermarkEnabled ? Color.accentColor : .secondary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(t("Watermark settings"))
+        .onHover { hover(.action(t("Watermark settings")), inside: $0) }
+        .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
+            WatermarkSettingsView(session: session)
         }
     }
 
     private func icon(
         _ symbol: String,
-        help: String,
+        hint: String,
         enabled: Bool = true,
         action: @escaping () -> Void
     ) -> some View {
@@ -623,7 +753,28 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
         .disabled(!enabled)
-        .help(help)
+        .accessibilityLabel(hint)
+        .onHover { hover(.action(hint), inside: $0) }
+    }
+
+    private func primaryIcon(
+        _ symbol: String,
+        hint: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 12.5, weight: .semibold))
+                .foregroundStyle(Color.white)
+                .frame(width: 26, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.accentColor)
+                )
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(hint)
+        .onHover { hover(.action(hint), inside: $0) }
     }
 
     /// One extension's item: a plain button when it has a single entry, a
@@ -672,7 +823,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
         .disabled(!enabled)
-        .help(Text(verbatim: item.help ?? item.title))
+        .onHover { hover(.action(item.help ?? item.title), inside: $0) }
         .accessibilityLabel(Text(verbatim: item.accessibilityLabel ?? item.title))
     }
 
@@ -685,18 +836,57 @@ struct CaptureToolbarView: View {
     }
 }
 
+/// The hint band is decoration: clicks and drags there belong to the selection
+/// view underneath, so the hosting view drops them before any SwiftUI button
+/// could claim them.
+final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
+    override func hitTest(_ point: NSPoint) -> NSView? {
+        guard !isInHintBand(point) else { return nil }
+        return super.hitTest(point)
+    }
+
+    /// `point` is in the superview's coordinate space, like `hitTest(_:)`.
+    func isInHintBand(_ point: NSPoint) -> Bool {
+        hintBandRect.contains(convert(point, from: superview))
+    }
+
+    var hintBandRect: NSRect {
+        let height = min(CaptureToolbarView.hintBandHeight, bounds.height)
+        return isFlipped
+            ? NSRect(x: 0, y: 0, width: bounds.width, height: height)
+            : NSRect(x: 0, y: bounds.maxY - height, width: bounds.width, height: height)
+    }
+}
+
 private struct WatermarkSettingsView: View {
     @ObservedObject var session: CaptureSession
 
+    private var enabledBinding: Binding<Bool> {
+        Binding(
+            get: { session.watermarkEnabled },
+            set: { enabled in
+                session.watermarkEnabled = enabled
+                if !enabled { session.watermarkHidden = false }
+            }
+        )
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Watermark")
+            Text(t("Watermark"))
                 .font(.headline)
+
+            Toggle(t("Show watermark"), isOn: enabledBinding)
+
+            Toggle(t("Hide watermark"), isOn: $session.watermarkHidden)
+                .disabled(!session.watermarkEnabled)
+
+            Divider()
 
             TextField(t("Watermark text"), text: $session.watermarkText)
                 .textFieldStyle(.roundedBorder)
 
-            Picker("Position", selection: $session.watermarkPlacement) {
+            Picker(t("Position"), selection: $session.watermarkPlacement) {
                 ForEach(AnnotationRenderer.WatermarkOptions.Placement.allCases) { placement in
                     Label(placement.title, systemImage: placement.symbol).tag(placement)
                 }
@@ -751,6 +941,14 @@ private struct WatermarkSettingsView: View {
 
     private static let palette: [Color] = [.white, .black, .red, .yellow, .blue]
 
+    private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
+        Button(title) {
+            session.watermarkScale = scale
+        }
+        .buttonStyle(.bordered)
+        .tint(session.watermarkScale == scale ? .accentColor : nil)
+    }
+
     private func sliderRow(
         _ title: String,
         value: Binding<CGFloat>,
@@ -768,13 +966,4 @@ private struct WatermarkSettingsView: View {
                 .frame(width: 40, alignment: .trailing)
         }
     }
-
-    private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
-        Button(title) {
-            session.watermarkScale = scale
-        }
-        .buttonStyle(.bordered)
-        .tint(session.watermarkScale == scale ? .accentColor : nil)
-    }
-
 }

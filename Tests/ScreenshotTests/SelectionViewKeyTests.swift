@@ -216,7 +216,7 @@ final class SelectionViewKeyTests: XCTestCase {
         defer { cancel(controller, on: screen) }
         let view = try XCTUnwrap(overlayView(on: screen))
 
-        let event = keyEvent(0, "a", in: view)
+        let event = keyEvent(0, "q", in: view)
         XCTAssertTrue(view.handleKeyEvent(event) === event)
         XCTAssertFalse(cancelled)
     }
@@ -245,10 +245,166 @@ final class SelectionViewKeyTests: XCTestCase {
         XCTAssertTrue(controller.isActive)
     }
 
+    @MainActor
+    func testToolLetterKeysSwitchTheTool() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        for (characters, tool) in [("r", CaptureSession.Tool.rectangle), ("O", .ellipse), ("t", .text), ("B", .blur)] {
+            XCTAssertNil(view.handleKeyEvent(keyEvent(0, characters, in: view)))
+            XCTAssertEqual(session.tool, tool)
+        }
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "v", in: view)))
+        XCTAssertEqual(session.tool, .select)
+    }
+
+    @MainActor
+    func testToolLetterKeysAreIgnoredWithAShortcutModifier() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        for modifiers: NSEvent.ModifierFlags in [[.command], [.control], [.option]] {
+            let event = keyEvent(0, "r", in: view, modifiers: modifiers)
+            XCTAssertTrue(view.handleKeyEvent(event) === event)
+            XCTAssertEqual(session.tool, .select)
+        }
+    }
+
+    @MainActor
+    func testLettersStayInTheTextFieldWhileItIsOpen() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .text
+        let click = try XCTUnwrap(NSEvent.mouseEvent(
+            with: .leftMouseDown,
+            location: editingPoint(on: screen),
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+        view.mouseDown(with: click)
+        XCTAssertNotNil(view.pendingTextFieldForDebug)
+
+        let letter = keyEvent(0, "r", in: view)
+        XCTAssertTrue(view.handleKeyEvent(letter) === letter)
+        XCTAssertEqual(session.tool, .text)
+
+        let tab = keyEvent(48, "\t", in: view)
+        XCTAssertTrue(view.handleKeyEvent(tab) === tab)
+        XCTAssertTrue(session.toolbarVisible)
+    }
+
+    @MainActor
+    func testTabTogglesToolbarVisibility() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tab must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        XCTAssertTrue(session.toolbarVisible)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view)))
+        XCTAssertFalse(session.toolbarVisible)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view)))
+        XCTAssertTrue(session.toolbarVisible)
+    }
+
     // MARK: - Helpers
 
     /// Forward delete and the fn-Delete variant must behave the same.
     private var deleteKeys: [(UInt16, String)] { [(51, "\u{7f}"), (117, "\u{7f}")] }
+
+    @MainActor
+    func testToolLetterDuringADragLeavesTheDrawingToolAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        let start = editingPoint(on: screen)
+        let end = CGPoint(x: start.x + 40, y: start.y + 30)
+        view.mouseDown(with: try mouseEvent(.leftMouseDown, at: start, in: view))
+        view.mouseDragged(with: try mouseEvent(.leftMouseDragged, at: end, in: view))
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "v", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+
+        view.mouseUp(with: try mouseEvent(.leftMouseUp, at: end, in: view))
+        XCTAssertEqual(session.annotations.count, 1)
+        guard case .rectangle = session.annotations.first?.shape else {
+            return XCTFail("The drag should still commit a rectangle")
+        }
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "v", in: view)))
+        XCTAssertEqual(session.tool, .select)
+    }
+
+    @MainActor
+    private func mouseEvent(_ type: NSEvent.EventType, at point: CGPoint, in view: SelectionView) throws -> NSEvent {
+        try XCTUnwrap(NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: view.window?.windowNumber ?? 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        ))
+    }
 
     @MainActor
     private func requireScreen() throws -> NSScreen {
@@ -264,6 +420,13 @@ final class SelectionViewKeyTests: XCTestCase {
     private func editingRect(on screen: NSScreen) -> CGRect {
         let frame = screen.frame
         return CGRect(x: frame.midX - 100, y: frame.midY - 75, width: 200, height: 150)
+    }
+
+    /// The middle of `editingRect` in the overlay's own coordinates.
+    @MainActor
+    private func editingPoint(on screen: NSScreen) -> CGPoint {
+        let rect = editingRect(on: screen)
+        return CGPoint(x: rect.midX - screen.frame.minX, y: rect.midY - screen.frame.minY)
     }
 
     @MainActor

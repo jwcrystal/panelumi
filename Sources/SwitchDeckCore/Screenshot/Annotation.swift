@@ -17,10 +17,26 @@ enum NumberStyle: Hashable {
 
 enum ShapeFillStyle: CaseIterable, Hashable {
     case outline, hatched, solid
+
+    var title: String {
+        switch self {
+        case .outline: return t("Outline")
+        case .hatched: return t("Hatched")
+        case .solid: return t("Solid fill")
+        }
+    }
 }
 
 enum LinePattern: CaseIterable, Hashable {
     case solid, dashed, dotted
+
+    var title: String {
+        switch self {
+        case .solid: return t("Solid line")
+        case .dashed: return t("Dashed line")
+        case .dotted: return t("Dotted line")
+        }
+    }
 
     func dashLengths(width: CGFloat) -> [CGFloat] {
         switch self {

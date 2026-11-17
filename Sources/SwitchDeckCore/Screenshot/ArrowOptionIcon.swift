@@ -1,12 +1,13 @@
 import SwiftUI
+import SwitchKit
 
 extension ArrowStyle {
     var title: String {
         switch self {
-        case .straight: return "Straight arrow"
-        case .curved: return "Curved arrow"
-        case .elbow: return "Elbow arrow"
-        case .sCurve: return "S-curve arrow"
+        case .straight: return t("Straight arrow")
+        case .curved: return t("Curved arrow")
+        case .elbow: return t("Elbow arrow")
+        case .sCurve: return t("S-curve arrow")
         }
     }
 }

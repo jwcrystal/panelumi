@@ -5,7 +5,7 @@ import XCTest
 
 final class ToolOptionsTests: XCTestCase {
     @MainActor
-    func testEveryDrawingToolHasACompactSecondRow() {
+    func testEveryDrawingToolKeepsTheSameToolbarHeight() {
         _ = NSApplication.shared
         func size(_ tool: CaptureSession.Tool) -> NSSize {
             let session = CaptureSession()
@@ -13,11 +13,13 @@ final class ToolOptionsTests: XCTestCase {
             let host = NSHostingView(rootView: CaptureToolbarView(session: session))
             return host.fittingSize
         }
-        let main = size(.select)
+        let plain = size(.select)
         for tool in CaptureSession.Tool.allCases where tool != .select {
-            let expanded = size(tool)
-            XCTAssertGreaterThan(expanded.height, main.height + 20, "\(tool) options must appear below")
-            XCTAssertLessThanOrEqual(expanded.width, main.width + 2, "\(tool) must not widen the main toolbar")
+            let options = size(tool)
+            XCTAssertEqual(options.height, plain.height, accuracy: 0.5,
+                           "\(tool) must keep the toolbar height steady")
+            XCTAssertLessThanOrEqual(options.width, plain.width + 2,
+                                     "\(tool) must not widen the main toolbar")
         }
     }
 
@@ -33,7 +35,7 @@ final class ToolOptionsTests: XCTestCase {
             }
             return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
         }
-        let collapsed = size(nil)
+        let empty = size(nil)
         let shapes: [Annotation.Shape] = [
             .rectangle(from: .zero, to: .zero),
             .ellipse(from: .zero, to: .zero),
@@ -48,9 +50,66 @@ final class ToolOptionsTests: XCTestCase {
         ]
         for shape in shapes {
             let expanded = size(shape)
-            XCTAssertGreaterThan(expanded.height, collapsed.height + 20, "\(shape) options must appear below")
-            XCTAssertLessThanOrEqual(expanded.width, collapsed.width + 2, "\(shape) must not widen the main toolbar")
+            XCTAssertEqual(expanded.height, empty.height, accuracy: 0.5,
+                           "\(shape) must keep the toolbar height steady")
+            XCTAssertLessThanOrEqual(expanded.width, empty.width + 2,
+                                     "\(shape) must not widen the main toolbar")
         }
+    }
+
+    func testEveryToolHasATitleAndAUniqueShortcut() {
+        let tools = CaptureSession.Tool.allCases
+        XCTAssertTrue(tools.allSatisfy { !$0.title.isEmpty })
+        XCTAssertEqual(Set(tools.map(\.shortcut)).count, tools.count)
+    }
+
+    func testShortcutCharactersMapToTools() {
+        let expected: [(Character, CaptureSession.Tool)] = [
+            ("v", .select), ("V", .select),
+            ("r", .rectangle), ("R", .rectangle),
+            ("o", .ellipse), ("l", .line), ("a", .arrow), ("d", .pen),
+            ("h", .highlighter), ("t", .text), ("n", .number),
+            ("m", .mosaic), ("b", .blur),
+        ]
+        for (character, tool) in expected {
+            XCTAssertEqual(CaptureSession.Tool.tool(forShortcut: character), tool, "\(character)")
+        }
+        XCTAssertNil(CaptureSession.Tool.tool(forShortcut: "c"), "C stays the colour key")
+        XCTAssertNil(CaptureSession.Tool.tool(forShortcut: "f"), "F stays the full-screen key")
+    }
+
+    func testLineWidthStepsCoverOneToTen() {
+        XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.0015), 1)
+        XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.016), 10)
+        XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.0001), 1)
+        XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.05), 10)
+    }
+
+    @MainActor
+    func testHintBandDoesNotTakeClicks() {
+        _ = NSApplication.shared
+        let host = CaptureToolbarHost(rootView: CaptureToolbarView(session: CaptureSession()))
+        host.frame = NSRect(origin: .zero, size: host.fittingSize)
+        let container = NSView(frame: host.frame)
+        container.addSubview(host)
+        // Hit testing needs a window and a layout pass; the host's flipped
+        // coordinates are mirrored in the unflipped container.
+        let window = NSWindow(contentRect: host.frame, styleMask: [.borderless], backing: .buffered, defer: false)
+        window.contentView = container
+        window.layoutIfNeeded()
+        container.layoutSubtreeIfNeeded()
+
+        let bandPoint = host.convert(
+            NSPoint(x: host.bounds.midX, y: host.hintBandRect.midY),
+            to: container
+        )
+        XCTAssertNil(host.hitTest(bandPoint), "Clicks on the hint band must reach the selection")
+
+        let pillPoint = host.convert(
+            NSPoint(x: host.bounds.midX, y: host.hintBandRect.maxY + 20),
+            to: container
+        )
+        XCTAssertNotNil(host.hitTest(pillPoint), "The pill itself keeps taking clicks")
     }
 
     func testArrowChoicesUseDifferentPaths() {

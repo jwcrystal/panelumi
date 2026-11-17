@@ -77,15 +77,13 @@ final class SelectedStyleTests: XCTestCase {
         session.selectionIndex = 0
 
         XCTAssertEqual(session.displayTool, .text)
-        XCTAssertTrue(session.showsOptions)
 
         session.selectionIndex = nil
         XCTAssertEqual(session.displayTool, .select)
-        XCTAssertFalse(session.showsOptions)
     }
 
     @MainActor
-    func testSelectingAnnotationRevealsOptionsRow() {
+    func testSelectingAnnotationKeepsTheToolbarHeight() {
         _ = NSApplication.shared
 
         func toolbarSize(selected: Bool) -> NSSize {
@@ -96,11 +94,11 @@ final class SelectedStyleTests: XCTestCase {
             return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
         }
 
-        let collapsed = toolbarSize(selected: false)
-        let expanded = toolbarSize(selected: true)
+        let unselected = toolbarSize(selected: false)
+        let selected = toolbarSize(selected: true)
 
-        XCTAssertGreaterThan(expanded.height, collapsed.height + 20)
-        XCTAssertLessThanOrEqual(expanded.width, collapsed.width + 2)
+        XCTAssertEqual(selected.height, unselected.height, accuracy: 0.5)
+        XCTAssertLessThanOrEqual(selected.width, unselected.width + 2)
     }
 
     @MainActor
