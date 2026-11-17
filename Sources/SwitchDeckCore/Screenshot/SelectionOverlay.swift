@@ -851,18 +851,32 @@ final class SelectionView: NSView {
     private func layoutToolbar() {
         guard let toolbarHost, let selection else { return }
         let size = toolbarHost.fittingSize
-        let gap: CGFloat = 10
-
-        var x = selection.midX - size.width / 2
-        x = min(max(8, x), bounds.width - size.width - 8)
-
-        var y = selection.minY - size.height - gap
-        if y < 8 {
-            y = min(bounds.height - size.height - 8, selection.maxY + gap)
-        }
-
-        toolbarHost.frame = NSRect(x: x, y: y, width: size.width, height: size.height)
+        let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds)
+        toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible
+    }
+
+    /// Below the selection when it fits, else above it, else along the
+    /// selection's bottom edge on the inside: a selection that leaves no room
+    /// on either side is mostly the screen, and its bottom strip is the least
+    /// costly part to cover.
+    static func toolbarOrigin(selection: CGRect, size: CGSize, bounds: CGRect) -> CGPoint {
+        let gap: CGFloat = 10
+        let margin: CGFloat = 8
+
+        let x = max(margin, min(selection.midX - size.width / 2, bounds.width - size.width - margin))
+
+        let below = selection.minY - size.height - gap
+        let above = selection.maxY + gap
+        let y: CGFloat
+        if below >= margin {
+            y = below
+        } else if above + size.height <= bounds.height - margin {
+            y = above
+        } else {
+            y = max(margin, min(selection.minY + gap, bounds.height - size.height - margin))
+        }
+        return CGPoint(x: x, y: y)
     }
 
     private func removeToolbar() {
