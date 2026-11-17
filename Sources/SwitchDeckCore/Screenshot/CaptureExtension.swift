@@ -160,6 +160,9 @@ public protocol CaptureTakeover: AnyObject {
     /// the user clicks into another app the keys stop, so an extension must also
     /// offer on-screen controls (for example in a window attached with
     /// `CaptureContext.attach`) or otherwise call `cancel()` from its own state.
+    /// A window you attach takes the keys for itself once it becomes key (for
+    /// example after a click on one of its buttons), so make it a panel that
+    /// cannot become key if the takeover still needs `handleKey`.
     @MainActor func handleKey(_ key: CaptureKey) -> Bool
 
     /// Called exactly once, on every end path, after the host has restored the
