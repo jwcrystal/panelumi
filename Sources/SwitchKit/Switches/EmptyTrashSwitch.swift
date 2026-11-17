@@ -137,10 +137,12 @@ public final class EmptyTrashSwitch {
             return Self.label(for: count)
         }
 
-        scheduleRefresh()
+        // Read before scheduling: what a caller gets back must not depend on
+        // how fast the utility queue happens to finish.
         lock.lock()
         let state = cached
         lock.unlock()
+        scheduleRefresh()
 
         switch state {
         case .unknown: return nil

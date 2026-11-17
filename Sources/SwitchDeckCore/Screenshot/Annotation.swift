@@ -236,7 +236,9 @@ enum AnnotationRenderer {
     ///
     /// `pointScale` is the pixels per point of the selection, so the minimum
     /// sizes in `draw(_:in:base:)` and `drawWatermark(_:in:)` match the editor
-    /// instead of shrinking on a Retina capture.
+    /// instead of shrinking on a Retina capture. The returned image is sized
+    /// in points for the same scale, so a paste or a pinned window shows it
+    /// at the size it had on screen rather than enlarged and soft.
     static func render(
         base: CGImage,
         annotations: [Annotation],
@@ -246,6 +248,8 @@ enum AnnotationRenderer {
         let width = base.width
         let height = base.height
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
+        let scale = pointScale > 0 ? pointScale : 1
+        let pointSize = NSSize(width: CGFloat(width) / scale, height: CGFloat(height) / scale)
 
         guard let rep = NSBitmapImageRep(
             bitmapDataPlanes: nil,
@@ -259,7 +263,7 @@ enum AnnotationRenderer {
             bytesPerRow: 0,
             bitsPerPixel: 0
         ) else {
-            return NSImage(cgImage: base, size: NSSize(width: width, height: height))
+            return NSImage(cgImage: base, size: pointSize)
         }
 
         rep.size = NSSize(width: width, height: height)
@@ -272,15 +276,9 @@ enum AnnotationRenderer {
         // Annotations and the watermark are drawn in point space so their
         // absolute minimum sizes behave as they do in the editor; the base
         // image and the canvas stay at pixel size.
-        let scale = pointScale > 0 ? pointScale : 1
         NSGraphicsContext.saveGraphicsState()
         NSGraphicsContext.current?.cgContext.scaleBy(x: scale, y: scale)
-        let pointRect = CGRect(
-            x: 0,
-            y: 0,
-            width: CGFloat(width) / scale,
-            height: CGFloat(height) / scale
-        )
+        let pointRect = CGRect(origin: .zero, size: pointSize)
         for annotation in annotations {
             draw(annotation, in: pointRect, base: base)
         }
@@ -290,7 +288,9 @@ enum AnnotationRenderer {
         NSGraphicsContext.restoreGraphicsState()
         NSGraphicsContext.restoreGraphicsState()
 
-        let image = NSImage(size: rep.size)
+        // Only after drawing: the context above was laid out one point per pixel.
+        rep.size = pointSize
+        let image = NSImage(size: pointSize)
         image.addRepresentation(rep)
         return image
     }
