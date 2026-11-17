@@ -42,7 +42,10 @@ enum ScreenshotSaver {
         )
         let url = uniqueURL(in: folder, name: name)
 
-        guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil),
+        // The bitmap rep holds every captured pixel; asking the image itself
+        // would rasterise it at its point size and halve a Retina capture.
+        let bitmap = image.representations.lazy.compactMap { $0 as? NSBitmapImageRep }.first
+        guard let cgImage = bitmap?.cgImage ?? image.cgImage(forProposedRect: nil, context: nil, hints: nil),
               let destination = CGImageDestinationCreateWithURL(
                   url as CFURL,
                   format.utType.identifier as CFString,
@@ -52,6 +55,10 @@ enum ScreenshotSaver {
         else { return nil }
 
         var properties: [CFString: Any] = [:]
+        if image.size.width > 0, image.size.height > 0 {
+            properties[kCGImagePropertyDPIWidth] = 72 * CGFloat(cgImage.width) / image.size.width
+            properties[kCGImagePropertyDPIHeight] = 72 * CGFloat(cgImage.height) / image.size.height
+        }
         if format.isLossy {
             properties[kCGImageDestinationLossyCompressionQuality] = quality
         }
