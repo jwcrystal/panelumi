@@ -29,8 +29,9 @@ public protocol CaptureExtension: Sendable {
     /// (nothing happens and the toolbar stays). You may call `context.cancel`
     /// or `context.deliver` before returning; the host applies either right
     /// after `begin` returns (see `CaptureTakeover`). A `cancel()` or
-    /// `deliver` made inside `begin` is dropped when `begin` returns nil. When
-    /// both were called, the cancel wins.
+    /// `deliver` made inside `begin` is dropped when `begin` returns nil. Two
+    /// delivers inside `begin`: the first one wins. When both were called, the
+    /// cancel wins.
     @MainActor func begin(_ entryID: String, context: CaptureContext) -> CaptureTakeover?
 }
 
@@ -247,8 +248,9 @@ public final class CaptureContext {
     ///
     /// Returns nil when Screen Recording is not allowed, when the context is
     /// inactive (also when the takeover ended while the capture was running),
-    /// or when the capture failed. Calls are serialised by the host: a call
-    /// made while another one is in flight waits for it.
+    /// or when the capture failed. Calls are serialised with the host's
+    /// base-region captures: a call made while one of those is in flight waits
+    /// for it. Window captures are not serialised with them.
     public func captureLive() async -> CGImage? {
         guard active else { return nil }
         let image = await onLive()

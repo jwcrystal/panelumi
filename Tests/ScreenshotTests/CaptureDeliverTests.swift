@@ -153,6 +153,43 @@ final class CaptureDeliverTests: XCTestCase {
     }
 
     @MainActor
+    func testCancelInsideBeginWinsOverDeliver() throws {
+        let harness = try Harness()
+        defer { harness.cleanup() }
+        let image = try harness.image(width: 6, height: 4)
+        harness.fake.beginAction = { context in
+            context.cancel()
+            context.deliver(image, to: [.copy])
+        }
+
+        try XCTUnwrap(harness.view).requestCaptureAction(harness.fake.identifier, "entry")
+
+        XCTAssertEqual(harness.takeover.endReasons, [.cancelled], "Cancel wins and ends once")
+        XCTAssertTrue(harness.deliveries.isEmpty, "The deliver after a cancel never runs")
+        XCTAssertEqual(harness.cancelled, 1)
+        XCTAssertFalse(harness.controller.isActive)
+    }
+
+    @MainActor
+    func testTheFirstDeliverInsideBeginWins() throws {
+        let harness = try Harness()
+        defer { harness.cleanup() }
+        let first = try harness.image(width: 6, height: 4)
+        let second = try harness.image(width: 9, height: 5)
+        harness.fake.beginAction = { context in
+            context.deliver(first, to: [.copy])
+            context.deliver(second, to: [.save])
+        }
+
+        try XCTUnwrap(harness.view).requestCaptureAction(harness.fake.identifier, "entry")
+
+        XCTAssertEqual(harness.deliveries.count, 1, "Only the first deliver runs")
+        XCTAssertTrue(harness.deliveries.first?.payload.base === first, "The first image wins")
+        XCTAssertEqual(harness.deliveries.map(\.output), [.copy])
+        XCTAssertEqual(harness.takeover.endReasons, [.delivered])
+    }
+
+    @MainActor
     func testDeliverFromHandleKeyIsConsumedAndRunsOnce() throws {
         let harness = try Harness()
         defer { harness.cleanup() }
@@ -182,6 +219,7 @@ final class CaptureDeliverTests: XCTestCase {
         view.requestCaptureAction(harness.fake.identifier, "entry")
         let context = try XCTUnwrap(harness.fake.contexts.last)
         let image = try harness.image(width: 6, height: 4)
+        let toastsBefore = ColorToast.currentWindows.count
 
         context.deliver(image, to: [.copy])
         context.deliver(image, to: [.pin])
@@ -191,7 +229,11 @@ final class CaptureDeliverTests: XCTestCase {
         XCTAssertFalse(context.isActive)
         XCTAssertEqual(harness.deliveries.map(\.output), [.copy], "No second delivery")
         XCTAssertEqual(harness.takeover.endReasons, [.delivered], "No second takeoverDidEnd")
-        XCTAssertTrue(ColorToast.currentWindows.isEmpty, "No message after the end")
+        XCTAssertEqual(
+            ColorToast.currentWindows.count,
+            toastsBefore,
+            "No message after the end"
+        )
         XCTAssertFalse(harness.controller.isActive)
     }
 
@@ -233,10 +275,34 @@ final class CaptureDeliverTests: XCTestCase {
     @MainActor
     func testTheColourCopyToastKeepsItsDefaults() throws {
         defer { ColorToast.closeAll() }
+        let harness = try Harness()
+        defer { harness.cleanup() }
 
         let window = ColorToast.show("Copied #000000")
 
         XCTAssertEqual(window.level, .statusBar, "The colour-copy toast is unchanged")
+        XCTAssertTrue(window.isVisible)
+        XCTAssertGreaterThan(window.windowNumber, 0)
+        XCTAssertFalse(
+            SelectionController.overlayWindowIDs.contains(CGWindowID(window.windowNumber)),
+            "The colour-copy toast is not part of the exclusion set"
+        )
+
+        let view = try XCTUnwrap(harness.view)
+        view.requestCaptureAction(harness.fake.identifier, "entry")
+        let context = try XCTUnwrap(harness.fake.contexts.last)
+        context.showMessage("Hello")
+        let message = try XCTUnwrap(ColorToast.currentWindows.last)
+        XCTAssertTrue(message.isVisible)
+        XCTAssertGreaterThan(message.windowNumber, 0)
+        XCTAssertTrue(
+            SelectionController.overlayWindowIDs.contains(CGWindowID(message.windowNumber)),
+            "A message toast is left out of live captures"
+        )
+        XCTAssertFalse(
+            SelectionController.overlayWindowIDs.contains(CGWindowID(window.windowNumber)),
+            "Showing a message does not add the colour-copy toast"
+        )
     }
 
     // MARK: - Helpers

@@ -163,11 +163,77 @@ final class CaptureLiveTests: XCTestCase {
         XCTAssertFalse(context.isActive)
     }
 
+    // MARK: - The coordinator's region paths
+
+    /// A frozen frame belongs to a timed capture only: a live request goes to
+    /// the service instead. A hook stands in for the service, so the test needs
+    /// no Screen Recording.
+    @MainActor
+    func testALiveRegionCaptureIgnoresTheFrozenFrame() async throws {
+        guard let screen = NSScreen.screens.first else {
+            throw XCTSkip("Needs a screen to key the frozen frame by")
+        }
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = try XCTUnwrap(screen.deviceDescription[key] as? CGDirectDisplayID)
+        let frozen = try displayImage(for: screen, red: 0.9, green: 0.1, blue: 0.1)
+        let live = try solidImage(red: 0.1, green: 0.2, blue: 0.9)
+
+        let coordinator = ScreenshotCoordinator()
+        coordinator.frozenScreens[displayID] = frozen
+        let probe = LiveProbe()
+        coordinator.regionCaptureHook = { rect, hookScreen in
+            probe.record(rect, hookScreen)
+            return live
+        }
+
+        let frame = screen.frame
+        let region = CGRect(
+            x: frame.midX - 40,
+            y: frame.midY - 30,
+            width: 80,
+            height: 60
+        )
+
+        let timed = await coordinator.captureRegion(region, screen)
+        XCTAssertNotNil(timed, "A timed capture crops the frozen frame")
+        XCTAssertTrue(probe.calls.isEmpty, "The frozen crop never reaches the service")
+
+        let captured = await coordinator.captureRegion(region, screen, live: true)
+        XCTAssertTrue(captured === live, "A live capture reads the service, not the frozen frame")
+        XCTAssertEqual(probe.calls.count, 1)
+        let call = try XCTUnwrap(probe.calls.first)
+        XCTAssertEqual(call.rect, region)
+        XCTAssertTrue(call.screen === screen)
+    }
+
+    /// With no frozen frame a base capture also goes to the service, through
+    /// the same gate as a live capture.
+    @MainActor
+    func testABaseRegionCaptureWithoutAFrozenFrameUsesTheService() async throws {
+        guard let screen = NSScreen.screens.first else {
+            throw XCTSkip("Needs a screen to key the frozen frame by")
+        }
+        let image = try solidImage(red: 0.4, green: 0.5, blue: 0.6)
+        let coordinator = ScreenshotCoordinator()
+        let probe = LiveProbe()
+        coordinator.regionCaptureHook = { rect, hookScreen in
+            probe.record(rect, hookScreen)
+            return image
+        }
+        let frame = screen.frame
+        let region = CGRect(x: frame.midX - 20, y: frame.midY - 15, width: 40, height: 30)
+
+        let captured = await coordinator.captureRegion(region, screen)
+
+        XCTAssertTrue(captured === image)
+        XCTAssertEqual(probe.calls.count, 1)
+    }
+
     // MARK: - End to end (needs Screen Recording)
 
-    /// Opt-in live pixel check: an attached panel is left out of a region
-    /// capture taken through the same exclusion set, and the image has the
-    /// size the documentation promises.
+    /// Opt-in live pixel check: a capture requested through the context, using
+    /// the coordinator's exclusion path, leaves an attached panel out and has
+    /// the size the documentation promises.
     @MainActor
     func testLiveCaptureLeavesAnAttachedPanelOutAndHasTheDocumentedSize() async throws {
         try XCTSkipUnless(ProcessInfo.processInfo.environment["SWITCHDECK_LIVE_CAPTURE_TESTS"] == "1")
@@ -194,7 +260,17 @@ final class CaptureLiveTests: XCTestCase {
         panel.isOpaque = true
         defer { panel.close() }
 
-        let harness = try Harness()
+        let key = NSDeviceDescriptionKey("NSScreenNumber")
+        let displayID = try XCTUnwrap(screen.deviceDescription[key] as? CGDirectDisplayID)
+        let service = ScreenCaptureService()
+        let harness = try Harness(captureLive: { _, liveScreen in
+            try? await service.captureRegion(
+                displayID: displayID,
+                rect: region,
+                screenFrame: liveScreen.frame,
+                excludingWindowIDs: SelectionController.overlayWindowIDs
+            )
+        })
         defer { harness.cleanup() }
         let view = try XCTUnwrap(harness.view)
         view.requestCaptureAction(harness.fake.identifier, "entry")
@@ -209,15 +285,8 @@ final class CaptureLiveTests: XCTestCase {
             "An attached panel belongs to the exclusion set"
         )
 
-        let key = NSDeviceDescriptionKey("NSScreenNumber")
-        let displayID = try XCTUnwrap(screen.deviceDescription[key] as? CGDirectDisplayID)
-        let service = ScreenCaptureService()
-        let excluded = try await service.captureRegion(
-            displayID: displayID,
-            rect: region,
-            screenFrame: screen.frame,
-            excludingWindowIDs: SelectionController.overlayWindowIDs
-        )
+        let captured = await context.captureLive()
+        let excluded = try XCTUnwrap(captured, "The live path captures the region")
         let plain = try await service.captureRegion(
             displayID: displayID,
             rect: region,
@@ -376,6 +445,36 @@ final class CaptureLiveTests: XCTestCase {
     @MainActor
     private func solidImage(red: CGFloat, green: CGFloat, blue: CGFloat) throws -> CGImage {
         let width = 8, height = 8
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw XCTSkip("Could not allocate a test bitmap")
+        }
+        context.setFillColor(NSColor(srgbRed: red, green: green, blue: blue, alpha: 1).cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        guard let image = context.makeImage() else {
+            throw XCTSkip("Could not make a solid test image")
+        }
+        return image
+    }
+
+    /// A frame the size of the screen in points, so cropping to a region keeps
+    /// the region's size.
+    @MainActor
+    private func displayImage(
+        for screen: NSScreen,
+        red: CGFloat,
+        green: CGFloat,
+        blue: CGFloat
+    ) throws -> CGImage {
+        let width = max(1, Int(screen.frame.width))
+        let height = max(1, Int(screen.frame.height))
         guard let context = CGContext(
             data: nil,
             width: width,

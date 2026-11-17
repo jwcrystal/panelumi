@@ -33,7 +33,9 @@ final class SelectionController {
 
     /// Exclude only capture overlays and the helper windows a takeover
     /// attached, not Settings or other app windows. Also excludes the visible
-    /// message toasts, so a message never lands in a live capture.
+    /// message toasts a takeover showed, so a message never lands in a live
+    /// capture. The colour-copy toast stays out: it was always part of the
+    /// captured pixels.
     static var overlayWindowIDs: Set<CGWindowID> {
         var ids = Set(NSApp.windows.compactMap { window -> CGWindowID? in
             guard window.contentView is SelectionView, window.windowNumber > 0 else { return nil }
@@ -42,7 +44,7 @@ final class SelectionController {
         // Visible only: a window that is not on screen yet has a window number
         // the shared content cache does not know, which would make every frame
         // refetch that cache.
-        for window in attachedWindows.allObjects + ColorToast.currentWindows
+        for window in attachedWindows.allObjects + messageToasts.allObjects
         where window.isVisible && window.windowNumber > 0 {
             ids.insert(CGWindowID(window.windowNumber))
         }
@@ -52,6 +54,11 @@ final class SelectionController {
     /// Every window an extension attached during any takeover. Weak, so it
     /// never keeps a window alive.
     private static let attachedWindows = NSHashTable<NSWindow>.weakObjects()
+
+    /// The message toasts a takeover showed, and only those. Weak, so a toast
+    /// that has gone never stays in the set. The colour-copy toast is
+    /// deliberately absent because captures have always included it.
+    private static let messageToasts = NSHashTable<NSWindow>.weakObjects()
 
     func begin(
         onCapture: @escaping (CapturePayload, CaptureSession.Output) -> Void,
@@ -128,8 +135,8 @@ final class SelectionController {
     /// identifier.
     ///
     /// A `cancel()` or `deliver` made inside `begin` is applied right after
-    /// this method installs the takeover; when both were called, the cancel
-    /// wins. Both are dropped when `begin` returns nil.
+    /// this method installs the takeover; the first deliver wins, and a cancel
+    /// wins over deliver. Both are dropped when `begin` returns nil.
     func beginTakeover(
         _ extensionID: String,
         _ entryID: String,
@@ -160,7 +167,10 @@ final class SelectionController {
             deliver: { [box, weak self] image, outputs in
                 guard let run = box.run else { return }
                 if run.beginning {
-                    run.pendingDeliver = (image, outputs)
+                    // Two delivers inside `begin`: the first one wins.
+                    if run.pendingDeliver == nil {
+                        run.pendingDeliver = (image, outputs)
+                    }
                     return
                 }
                 self?.endTakeover(.delivered) {
@@ -169,11 +179,12 @@ final class SelectionController {
             },
             message: { [box] text in
                 guard let run = box.run else { return }
-                ColorToast.show(
+                let toast = ColorToast.show(
                     text,
                     level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1),
                     screen: run.context.screen
                 )
+                Self.messageToasts.add(toast)
             },
             attach: { [box, weak self] window in
                 guard let self, let run = box.run, run.endedReason == nil, self.isActive else { return }
@@ -1853,8 +1864,10 @@ enum ColorToast {
     /// and close them without waiting for the timer.
     static var currentWindows: [NSWindow] { windows }
 
-    /// Shows `text` near the mouse, or centred in `screen` when the mouse is
-    /// elsewhere. Defaults keep the colour-copy toast as it always was.
+    /// Shows `text` next to the mouse, on the screen that holds it. A caller
+    /// that names a screen the mouse is not on gets the toast centred there
+    /// instead. The default placement, used by the colour-copy toast, keeps the
+    /// mouse position and the screen that holds it.
     @discardableResult
     static func show(
         _ text: String,
@@ -1893,15 +1906,21 @@ enum ColorToast {
         window.contentView = container
 
         let mouse = NSEvent.mouseLocation
-        let target = screen ?? NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        let visible = target?.visibleFrame ?? .zero
         let origin: NSPoint
-        if let target, !target.frame.contains(mouse) {
+        let visible: NSRect
+        if let screen, !screen.frame.contains(mouse) {
+            // The caller named a screen the pointer is not on: centre there.
+            visible = screen.visibleFrame
             origin = NSPoint(
                 x: visible.midX - size.width / 2,
                 y: visible.midY - size.height / 2
             )
         } else {
+            // Next to the pointer, on the screen that holds it. With no screen
+            // passed this is exactly the placement the colour-copy toast has
+            // always used.
+            let target = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+            visible = target?.visibleFrame ?? .zero
             origin = NSPoint(x: mouse.x + 18, y: mouse.y - size.height - 18)
         }
         window.setFrameOrigin(NSPoint(

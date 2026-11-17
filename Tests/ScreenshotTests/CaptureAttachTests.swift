@@ -92,6 +92,7 @@ final class CaptureAttachTests: XCTestCase {
         context.attach(panel)
 
         XCTAssertFalse(panel.isVisible, "The extension has not ordered it front yet")
+        XCTAssertGreaterThan(panel.windowNumber, 0, "The window exists, so only visibility can explain the set")
         XCTAssertFalse(
             SelectionController.overlayWindowIDs.contains(CGWindowID(panel.windowNumber)),
             "Only visible helpers are excluded, or the shared content cache would refetch every frame"
