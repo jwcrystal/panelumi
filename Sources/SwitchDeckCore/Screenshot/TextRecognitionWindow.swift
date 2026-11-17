@@ -117,18 +117,68 @@ private extension NSRect {
 
 /// A panel that can take key focus, closes on `Esc` and copies on `⌘↩`
 /// even while the text view has focus.
+///
+/// SwitchDeck is an accessory app with no main menu, so there is no Edit
+/// menu to carry `⌘C`, `⌘A` and the other editing shortcuts to the text
+/// view; the panel dispatches them itself.
 final class RecognitionPanel: NSPanel {
+    enum Shortcut: Equatable {
+        case copyAll, copy, cut, paste, selectAll, undo, redo
+    }
+
     var onCopy: (() -> Void)?
 
     override var canBecomeKey: Bool { true }
 
-    override func performKeyEquivalent(with event: NSEvent) -> Bool {
-        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-        if flags == .command, event.keyCode == 36 || event.keyCode == 76 {
-            onCopy?()
-            return true
+    /// `selection` is the focused text view's selected range and `length` its
+    /// text length, or nil when no text view has focus. `⌘C` with nothing or
+    /// everything selected is the same as the Copy button.
+    static func shortcut(
+        characters: String?,
+        keyCode: UInt16,
+        flags: NSEvent.ModifierFlags,
+        selection: NSRange?,
+        length: Int
+    ) -> Shortcut? {
+        let flags = flags.intersection([.command, .shift, .option, .control])
+        if flags == .command, keyCode == 36 || keyCode == 76 { return .copyAll }
+
+        let key = characters?.lowercased()
+        if flags == .command, key == "c" {
+            guard let selection, selection.length > 0, selection.length < length else { return .copyAll }
+            return .copy
         }
-        return super.performKeyEquivalent(with: event)
+        guard selection != nil else { return nil }
+        switch (flags, key) {
+        case (.command, "x"): return .cut
+        case (.command, "v"): return .paste
+        case (.command, "a"): return .selectAll
+        case (.command, "z"): return .undo
+        case ([.command, .shift], "z"): return .redo
+        default: return nil
+        }
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let textView = firstResponder as? NSTextView
+        let shortcut = Self.shortcut(
+            characters: event.charactersIgnoringModifiers,
+            keyCode: event.keyCode,
+            flags: event.modifierFlags,
+            selection: textView?.selectedRange(),
+            length: (textView?.string as NSString?)?.length ?? 0
+        )
+        switch shortcut {
+        case .copyAll: onCopy?()
+        case .copy: textView?.copy(nil)
+        case .cut: textView?.cut(nil)
+        case .paste: textView?.pasteAsPlainText(nil)
+        case .selectAll: textView?.selectAll(nil)
+        case .undo: textView?.undoManager?.undo()
+        case .redo: textView?.undoManager?.redo()
+        case nil: return super.performKeyEquivalent(with: event)
+        }
+        return true
     }
 
     override func cancelOperation(_ sender: Any?) {
@@ -387,6 +437,7 @@ private struct TextRecognitionView: View {
                     .frame(minWidth: 64)
             }
             .keyboardShortcut(.return, modifiers: .command)
+            .help(t("Copy and close (⌘C or ⌘↩)"))
             .buttonStyle(.borderedProminent)
             .disabled(model.text.isEmpty)
         }

@@ -4,7 +4,7 @@ import SwitchKit
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    private let screenshot = ScreenshotCoordinator()
+    private let screenshot: ScreenshotCoordinator
     private lazy var model: AppModel = {
         AppModel(catalog: AppCatalog.make(screenshot: screenshot))
     }()
@@ -13,6 +13,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var settingsWindow: NSWindow?
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
+
+    /// Creates the delegate; extensions are handed to the screenshot coordinator.
+    init(captureExtensions: [any CaptureExtension] = []) {
+        screenshot = ScreenshotCoordinator(captureExtensions: captureExtensions)
+        super.init()
+    }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // One menu-bar icon per user: a second instance would add a duplicate
