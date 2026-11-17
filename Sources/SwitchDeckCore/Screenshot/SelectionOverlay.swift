@@ -396,6 +396,7 @@ final class SelectionView: NSView {
         case moving(start: CGPoint, rect: CGRect)
         case resizing(handle: Handle, rect: CGRect)
         case drawing
+        /// `start` is a view-space point.
         case movingAnnotation(start: CGPoint, index: Int, original: Annotation)
         case resizingAnnotation(handle: Handle, index: Int, original: Annotation, rect: CGRect)
 
@@ -456,6 +457,8 @@ final class SelectionView: NSView {
 
     private(set) var toolbarHost: NSHostingView<CaptureToolbarView>?
     private var textField: NSTextField?
+    /// Where the user clicked to start the text; the anchor is fitted to it.
+    private var textClickPoint: CGPoint = .zero
     private var textAnchor: CGPoint = .zero
     private var keyMonitor: Any?
     private var sessionCancellable: AnyCancellable?
@@ -570,6 +573,7 @@ final class SelectionView: NSView {
                     AnnotationRenderer.drawWatermark(options, in: selection)
                 }
                 drawAnnotationSelection(in: selection)
+                drawTextBubble(in: selection)
             }
 
             if windowTargets.isEmpty { drawHandles(for: selection) }
@@ -641,12 +645,14 @@ final class SelectionView: NSView {
               session.annotations.indices.contains(index)
         else { return }
 
-        let rect = viewRect(for: session.annotations[index].bounds, in: selection)
+        let rect = annotationFrame(index, in: selection)
         let path = NSBezierPath(rect: rect)
         path.lineWidth = 1
         path.setLineDash([4, 3], count: 2, phase: 0)
         NSColor.controlAccentColor.setStroke()
         path.stroke()
+
+        guard hasResizeHandles(session.annotations[index].shape) else { return }
 
         for box in handleRects(for: rect).values {
             NSColor.white.setFill()
@@ -655,6 +661,14 @@ final class SelectionView: NSView {
             handle.lineWidth = 1.5
             handle.fill()
             handle.stroke()
+        }
+    }
+
+    /// Text and numbered markers are sized by what they draw, not dragged.
+    private func hasResizeHandles(_ shape: Annotation.Shape) -> Bool {
+        switch shape {
+        case .text, .number: return false
+        default: return true
         }
     }
 
@@ -894,7 +908,7 @@ final class SelectionView: NSView {
     }
 
     private func drawEditingHint() {
-        guard let toolbarHost else { return }
+        guard textField == nil, let toolbarHost else { return }
         let text = t("↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close")
         let string = NSAttributedString(
             string: text,
@@ -934,6 +948,11 @@ final class SelectionView: NSView {
 
     var pendingTextFieldForDebug: NSTextField? { textField }
 
+    func annotationFrameForDebug(_ index: Int) -> CGRect? {
+        guard let selection, session.annotations.indices.contains(index) else { return nil }
+        return annotationFrame(index, in: selection)
+    }
+
     func finishForDebug(_ output: CaptureSession.Output) {
         finish(output)
     }
@@ -971,6 +990,7 @@ final class SelectionView: NSView {
         sessionCancellable = session.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.layoutToolbar()
+                self?.updateTextField()
                 self?.needsDisplay = true
             }
         }
@@ -1452,17 +1472,97 @@ final class SelectionView: NSView {
 
     private func showTextField(at point: CGPoint) {
         removeTextField()
+        textClickPoint = point
         textAnchor = point
 
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 12, width: 200, height: 24))
         field.placeholderString = t("Text")
-        field.font = .systemFont(ofSize: 13)
+        field.isBezeled = false
+        field.isBordered = false
+        field.drawsBackground = false
+        // One line, like `draw`; a wrapped field would hide the tail.
+        field.cell?.wraps = false
         field.target = self
         field.action = #selector(commitText)
         field.delegate = self
         addSubview(field)
         textField = field
         window?.makeFirstResponder(field)
+        updateTextField()
+    }
+
+    /// The text as typed, including an input-method composition in progress.
+    private func textFieldContents() -> String {
+        guard let field = textField else { return "" }
+        return (field.currentEditor() as? NSTextView)?.string ?? field.stringValue
+    }
+
+    /// The mark the open field will commit.
+    private func pendingTextAnnotation(_ text: String) -> Annotation {
+        Annotation(shape: .text(text, at: .zero), style: session.defaultStyle)
+    }
+
+    /// Fits the anchor, then places and restyles the field so it shows the
+    /// text where and how `draw` will.
+    private func updateTextField() {
+        guard let field = textField, let selection else { return }
+        let text = textFieldContents()
+        let measured = text.isEmpty ? t("Text") : text
+        let annotation = pendingTextAnnotation(measured)
+
+        // Fitted anchor: the drawn text stays inside the selection.
+        var anchor = textClickPoint
+        let probe = AnnotationRenderer.textLayout(measured, at: anchor, annotation: annotation, in: selection)
+        let overflow = probe.frame.maxX - selection.maxX
+        if overflow > 0 {
+            anchor.x = max(selection.minX, anchor.x - overflow)
+        }
+        let headroom = selection.minY - probe.frame.minY
+        if headroom > 0 {
+            anchor.y += headroom
+        }
+        textAnchor = anchor
+
+        let layout = AnnotationRenderer.textLayout(measured, at: anchor, annotation: annotation, in: selection)
+        field.font = layout.font
+        field.textColor = layout.textColor
+
+        // The editor draws its glyphs at the field's top, one line-fragment
+        // padding in from the left; line up the box and the glyphs.
+        let editor = field.currentEditor() as? NSTextView
+        editor?.insertionPointColor = layout.textColor
+        let inset = editor?.textContainer?.lineFragmentPadding ?? 2
+        let slack = max(0, min(2, layout.textBox.minY - selection.minY))
+        var frame = NSRect(
+            x: max(selection.minX, layout.textBox.minX - inset),
+            // Extra room goes below, so the field's top stays at the text's top.
+            y: layout.textBox.minY - slack,
+            width: layout.textBox.width + inset * 2 + 1,
+            height: layout.textBox.height + slack
+        )
+        let available = selection.maxX - frame.minX
+        if available > 0 {
+            frame.size.width = min(frame.width, available)
+        }
+        field.frame = frame
+        needsDisplay = true
+    }
+
+    /// The pending text's bubble, drawn behind the field.
+    private func drawTextBubble(in selection: CGRect) {
+        guard textField != nil, session.defaultStyle.textBubble else { return }
+        let text = textFieldContents()
+        let measured = text.isEmpty ? t("Text") : text
+        let layout = AnnotationRenderer.textLayout(
+            measured,
+            at: textAnchor,
+            annotation: pendingTextAnnotation(measured),
+            in: selection
+        )
+        guard let bubble = layout.bubble else { return }
+        NSColor(session.defaultStyle.color).setFill()
+        let radius = layout.font.pointSize * 0.6
+        NSBezierPath(roundedRect: bubble, xRadius: radius, yRadius: radius).fill()
     }
 
     @objc private func commitText() {
@@ -1618,10 +1718,10 @@ final class SelectionView: NSView {
     // MARK: - Geometry
 
     private func beginSelectionInteraction(at point: CGPoint, in selection: CGRect) {
-        let normalized = normalize(point, in: selection)
-
-        if let index = session.selectionIndex, session.annotations.indices.contains(index) {
-            let rect = viewRect(for: session.annotations[index].bounds, in: selection)
+        if let index = session.selectionIndex,
+           session.annotations.indices.contains(index),
+           hasResizeHandles(session.annotations[index].shape) {
+            let rect = annotationFrame(index, in: selection)
             if let handle = handle(at: point, in: rect) {
                 session.beginInteractiveChange()
                 interaction = .resizingAnnotation(
@@ -1634,11 +1734,11 @@ final class SelectionView: NSView {
             }
         }
 
-        if let index = annotationIndex(at: normalized) {
+        if let index = annotationIndex(at: point, in: selection) {
             session.selectionIndex = index
             session.beginInteractiveChange()
             interaction = .movingAnnotation(
-                start: normalized,
+                start: point,
                 index: index,
                 original: session.annotations[index]
             )
@@ -1650,11 +1750,32 @@ final class SelectionView: NSView {
         needsDisplay = true
     }
 
-    private func annotationIndex(at point: CGPoint) -> Int? {
-        for index in session.annotations.indices.reversed() where session.annotations[index].contains(point) {
-            return index
+    /// Text and numbers are hit where they are drawn, not at their anchor.
+    private func annotationIndex(at point: CGPoint, in selection: CGRect) -> Int? {
+        let tolerance = 0.012 * selection.width
+        for index in session.annotations.indices.reversed() {
+            let annotation = session.annotations[index]
+            switch annotation.shape {
+            case .text, .number:
+                if annotationFrame(index, in: selection)
+                    .insetBy(dx: -tolerance, dy: -tolerance)
+                    .contains(point) {
+                    return index
+                }
+            default:
+                if annotation.contains(normalize(point, in: selection)) {
+                    return index
+                }
+            }
         }
         return nil
+    }
+
+    private func annotationFrame(_ index: Int, in selection: CGRect) -> CGRect {
+        guard session.annotations.indices.contains(index) else { return .zero }
+        let annotation = session.annotations[index]
+        return AnnotationRenderer.frame(of: annotation, in: selection)
+            ?? viewRect(for: annotation.bounds, in: selection)
     }
 
     private func viewRect(for bounds: CGRect, in selection: CGRect) -> CGRect {
@@ -1849,6 +1970,10 @@ private enum SelectionMemory {
 extension SelectionView: NSTextFieldDelegate {
     func controlTextDidEndEditing(_ obj: Notification) {
         commitTextFieldIfNeeded()
+    }
+
+    func controlTextDidChange(_ obj: Notification) {
+        updateTextField()
     }
 }
 

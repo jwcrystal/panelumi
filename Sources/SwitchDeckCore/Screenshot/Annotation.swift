@@ -281,6 +281,71 @@ enum AnnotationRenderer {
         return image
     }
 
+    // MARK: - Layout
+
+    /// Where and how a text annotation is drawn; the editor uses the same
+    /// values so the field matches the committed mark.
+    struct TextLayout {
+        let font: NSFont
+        let textColor: NSColor
+        let textBox: NSRect
+        let bubble: NSRect?
+        var frame: NSRect { bubble ?? textBox }
+    }
+
+    /// Maps a normalized point into view space (bottom-left origin).
+    static func viewPoint(_ point: CGPoint, in rect: CGRect) -> NSPoint {
+        NSPoint(x: rect.minX + point.x * rect.width, y: rect.maxY - point.y * rect.height)
+    }
+
+    /// `anchor` is the text's top-left in view space.
+    static func textLayout(
+        _ text: String,
+        at anchor: NSPoint,
+        annotation: Annotation,
+        in rect: CGRect
+    ) -> TextLayout {
+        let fontSize = max(12, rect.width * annotation.textScale)
+        let font = NSFont.systemFont(ofSize: fontSize, weight: .semibold)
+        let size = NSAttributedString(string: text, attributes: [.font: font]).size()
+        let textBox = NSRect(x: anchor.x, y: anchor.y - size.height, width: size.width, height: size.height)
+
+        let bubble: NSRect?
+        let textColor: NSColor
+        if annotation.textBubble {
+            let padding = fontSize * 0.55
+            bubble = textBox.insetBy(dx: -padding, dy: -padding * 0.6)
+            textColor = .white
+        } else {
+            bubble = nil
+            textColor = NSColor(annotation.color)
+        }
+        return TextLayout(font: font, textColor: textColor, textBox: textBox, bubble: bubble)
+    }
+
+    static func numberRadius(in rect: CGRect) -> CGFloat {
+        max(11, rect.width * 0.014)
+    }
+
+    /// The view-space area a text or number annotation actually covers.
+    static func frame(of annotation: Annotation, in rect: CGRect) -> CGRect? {
+        switch annotation.shape {
+        case .text(let text, let at):
+            return textLayout(text, at: viewPoint(at, in: rect), annotation: annotation, in: rect).frame
+        case .number(_, let at):
+            let center = viewPoint(at, in: rect)
+            let radius = numberRadius(in: rect)
+            return CGRect(
+                x: center.x - radius,
+                y: center.y - radius,
+                width: radius * 2,
+                height: radius * 2
+            )
+        default:
+            return nil
+        }
+    }
+
     /// Draws one annotation into `rect` (bottom-left origin, AppKit space).
     /// `base` is nil for live previews, where mosaic and blur are approximate.
     static func draw(_ annotation: Annotation, in rect: CGRect, base: CGImage?) {
@@ -291,7 +356,7 @@ enum AnnotationRenderer {
         let lineWidth = max(1, annotation.lineWidth * rect.width)
 
         func point(_ p: CGPoint) -> NSPoint {
-            NSPoint(x: rect.minX + p.x * rect.width, y: rect.maxY - p.y * rect.height)
+            viewPoint(p, in: rect)
         }
 
         switch annotation.shape {
@@ -355,7 +420,7 @@ enum AnnotationRenderer {
 
         case .number(let value, let at):
             let center = point(at)
-            let radius = max(11, rect.width * 0.014)
+            let radius = numberRadius(in: rect)
             color.setFill()
             let box = NSRect(
                 x: center.x - radius,
@@ -384,34 +449,16 @@ enum AnnotationRenderer {
             drawPixelEffect(start: start, end: end, rect: rect, base: base, blurred: true, block: annotation.mosaicBlock)
 
         case .text(let text, let at):
-            let fontSize = max(12, rect.width * annotation.textScale)
-            let origin = point(at)
-
-            if annotation.textBubble {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-                    .foregroundColor: NSColor.white,
-                ]
-                let string = NSAttributedString(string: text, attributes: attributes)
-                let textSize = string.size()
-                let padding = fontSize * 0.55
-                let bubble = NSRect(
-                    x: origin.x - padding,
-                    y: origin.y - textSize.height - padding * 0.4,
-                    width: textSize.width + padding * 2,
-                    height: textSize.height + padding * 1.2
-                )
+            let layout = textLayout(text, at: point(at), annotation: annotation, in: rect)
+            if let bubble = layout.bubble {
                 color.setFill()
-                NSBezierPath(roundedRect: bubble, xRadius: fontSize * 0.6, yRadius: fontSize * 0.6).fill()
-                string.draw(at: NSPoint(x: origin.x, y: origin.y - textSize.height))
-            } else {
-                let attributes: [NSAttributedString.Key: Any] = [
-                    .font: NSFont.systemFont(ofSize: fontSize, weight: .semibold),
-                    .foregroundColor: color,
-                ]
-                NSAttributedString(string: text, attributes: attributes)
-                    .draw(at: NSPoint(x: origin.x, y: origin.y - fontSize))
+                let radius = layout.font.pointSize * 0.6
+                NSBezierPath(roundedRect: bubble, xRadius: radius, yRadius: radius).fill()
             }
+            NSAttributedString(string: text, attributes: [
+                .font: layout.font,
+                .foregroundColor: layout.textColor,
+            ]).draw(at: layout.textBox.origin)
         }
     }
 
