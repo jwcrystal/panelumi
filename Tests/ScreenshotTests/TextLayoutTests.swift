@@ -114,7 +114,12 @@ final class TextLayoutTests: XCTestCase {
         let field = try XCTUnwrap(view.pendingTextFieldForDebug)
 
         session.activeStyle.textScale = 0.030
-        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        // The view relays style changes on the next main-queue turn; a loaded
+        // CI runner can take longer than one short spin to get there.
+        let deadline = Date().addingTimeInterval(2)
+        while abs((field.font?.pointSize ?? 0) - 800 * 0.030) > 0.01, Date() < deadline {
+            RunLoop.main.run(until: Date().addingTimeInterval(0.02))
+        }
 
         XCTAssertEqual(field.font?.pointSize ?? 0, 800 * 0.030, accuracy: 0.01)
     }
