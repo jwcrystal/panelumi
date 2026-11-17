@@ -224,7 +224,7 @@ private struct GeneralPane: View {
                         SymbolTile(symbol: "power")
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("Launch at login"))
-                            Text(t("Needs SwitchDeck in /Applications."))
+                            Text(t("Needs Panelumi in /Applications."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -285,7 +285,7 @@ private struct GeneralPane: View {
                     if languageChanged {
                         HStack {
                             Spacer()
-                            Button(t("Relaunch SwitchDeck")) { AppLanguage.relaunch() }
+                            Button(t("Relaunch Panelumi")) { AppLanguage.relaunch() }
                         }
                     }
                 }
@@ -911,7 +911,7 @@ private struct RecordingPane: View {
                         .padding(.vertical, 6)
                     }
 
-                    Text(t("AVAudioRecorder only records from the macOS default input, so SwitchDeck switches that default while a recording runs and puts the previous one back when it stops."))
+                    Text(t("AVAudioRecorder only records from the macOS default input, so Panelumi switches that default while a recording runs and puts the previous one back when it stops."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
@@ -1221,7 +1221,7 @@ private struct AboutPane: View {
                 .resizable()
                 .frame(width: 88, height: 88)
 
-            Text(t("SwitchDeck"))
+            Text(t("Panelumi"))
                 .font(.system(size: 22, weight: .semibold))
 
             Text(tf("Version %@", Self.version))
