@@ -97,6 +97,20 @@ enum AnnotationPalette {
         Int((min(max(value, 0), 1) * 255).rounded())
     }
 
+    /// Black reads better than white on light colours and white better on dark
+    /// ones. WCAG contrast crosses over at a relative luminance of 0.179.
+    static func prefersDarkText(on color: Color) -> Bool {
+        guard let rgb = rgb(for: color) else { return false }
+        func linear(_ value: Int) -> Double {
+            let channel = Double(value) / 255
+            return channel <= 0.04045 ? channel / 12.92 : pow((channel + 0.055) / 1.055, 2.4)
+        }
+        let luminance = 0.2126 * linear(rgb.red)
+            + 0.7152 * linear(rgb.green)
+            + 0.0722 * linear(rgb.blue)
+        return luminance > 0.179
+    }
+
     /// sRGB `#RRGGBB`; nil when the colour cannot be converted.
     static func hex(for color: Color) -> String? {
         hex(for: NSColor(color))

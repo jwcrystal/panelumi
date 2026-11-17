@@ -194,6 +194,8 @@
 "Custom" = "自訂";
 "Pick a colour from the screenshot" = "從截圖取色";
 "Click the screenshot to pick a colour · Esc cancels" = "點一下截圖取色 · Esc 取消";
+"Hex colour" = "十六進位色碼";
+"Copy hex colour" = "複製十六進位色碼";
 "Red" = "紅色";
 "Orange" = "橘色";
 "Yellow" = "黃色";

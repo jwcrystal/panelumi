@@ -42,6 +42,20 @@ final class AnnotationPaletteRGBTests: XCTestCase {
         XCTAssertEqual(AnnotationPalette.rgb(for: color),
                        AnnotationPalette.RGB(red: 255, green: 0, blue: 128))
     }
+
+    func testCardTextContrastFollowsLuminance() {
+        XCTAssertTrue(AnnotationPalette.prefersDarkText(on: .white))
+        XCTAssertFalse(AnnotationPalette.prefersDarkText(on: .black))
+        XCTAssertTrue(AnnotationPalette.prefersDarkText(
+            on: AnnotationPalette.color(.init(red: 255, green: 204, blue: 0))
+        ))
+        XCTAssertFalse(AnnotationPalette.prefersDarkText(
+            on: AnnotationPalette.color(.init(red: 108, green: 92, blue: 231))
+        ))
+        XCTAssertFalse(AnnotationPalette.prefersDarkText(
+            on: AnnotationPalette.color(.init(red: 10, green: 20, blue: 60))
+        ))
+    }
 }
 
 final class ColorPickingTests: XCTestCase {
