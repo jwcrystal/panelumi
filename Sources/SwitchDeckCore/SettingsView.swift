@@ -224,7 +224,7 @@ private struct GeneralPane: View {
                         SymbolTile(symbol: "power")
                         VStack(alignment: .leading, spacing: 2) {
                             Text(t("Launch at login"))
-                            Text(t("Needs Panelumi in /Applications."))
+                            Text(t("Needs SwitchDeck in /Applications."))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
