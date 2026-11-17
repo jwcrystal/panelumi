@@ -48,7 +48,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>SwitchDeck</string>
+    <string>Panelumi</string>
     <key>CFBundleExecutable</key>
     <string>SwitchDeck</string>
     <key>CFBundleIdentifier</key>
@@ -61,7 +61,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
         <string>zh-Hant</string>
     </array>
     <key>CFBundleName</key>
-    <string>SwitchDeck</string>
+    <string>Panelumi</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -79,9 +79,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMultipleInstancesProhibited</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>SwitchDeck uses System Events to change appearance and other system settings.</string>
+    <string>Panelumi uses System Events to change appearance and other system settings.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>SwitchDeck records audio when you start Recording from its menu.</string>
+    <string>Panelumi records audio when you start Recording from its menu.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
