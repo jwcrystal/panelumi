@@ -52,24 +52,24 @@
 "Could not eject: %@. A file on the disk may still be open." = "無法退出：%@。磁碟上的檔案可能還開著。";
 "Could not delete %@%@. Something may still be open." = "無法刪除 %@%@。可能有東西還開著。";
 " and %d more" = "，另外還有 %d 個";
-"SwitchDeck needs Accessibility permission to block the keyboard. Open SwitchDeck › Permissions… and grant it once — after that this switch works without asking again." = "SwitchDeck 需要「輔助使用」權限才能封鎖鍵盤。打開 SwitchDeck ›「權限…」授予一次，之後這個開關就不會再問。";
+"Panelumi needs Accessibility permission to block the keyboard. Open Panelumi › Permissions… and grant it once — after that this switch works without asking again." = "SwitchDeck 需要「輔助使用」權限才能封鎖鍵盤。打開 SwitchDeck ›「權限…」授予一次，之後這個開關就不會再問。";
 "Could not create the keyboard event tap." = "無法建立鍵盤事件攔截。";
 "Could not attach the keyboard event tap to the run loop." = "無法把鍵盤事件攔截接上執行迴圈。";
 "Night Shift is not available on this macOS version." = "這個 macOS 版本沒有夜覽。";
 "CoreBrightness refused to change Night Shift." = "CoreBrightness 拒絕切換夜覽。";
 "Microphone access is off. Turn it on in System Settings › Privacy & Security › Microphone." = "麥克風存取已關閉。請到「系統設定 › 隱私權與安全性 › 麥克風」開啟。";
 "The recorder could not start." = "錄音器無法啟動。";
-"SwitchDeck needs Automation permission for the app it is scripting. Grant it in System Settings › Privacy & Security › Automation, then try again." = "SwitchDeck 需要「自動化」權限才能控制它正在操作的 App。請到「系統設定 › 隱私權與安全性 › 自動化」授予後再試一次。";
+"Panelumi needs Automation permission for the app it is scripting. Grant it in System Settings › Privacy & Security › Automation, then try again." = "SwitchDeck 需要「自動化」權限才能控制它正在操作的 App。請到「系統設定 › 隱私權與安全性 › 自動化」授予後再試一次。";
 "Click anywhere to show the exit button" = "點一下畫面顯示結束按鈕";
 "Stop Clean" = "停止清潔";
 "The display is dark and the keyboard is locked.\nWipe the screen with a dry cloth, then press the button below." = "螢幕已熄暗、鍵盤已鎖定。\n請用乾布擦拭螢幕，然後按下面的按鈕。";
 "The display is dark.\nWipe the screen with a dry cloth, then press the button below.\n\nAccessibility permission is missing, so the keyboard is not locked." = "螢幕已熄暗。\n請用乾布擦拭螢幕，然後按下面的按鈕。\n\n缺少「輔助使用」權限，鍵盤沒有鎖定。";
 "Permissions…" = "權限…";
 "Settings…" = "設定…";
-"Quit SwitchDeck" = "結束 SwitchDeck";
+"Quit Panelumi" = "結束 SwitchDeck";
 "OK" = "好";
 "Open Privacy Settings" = "打開隱私權設定";
-"Set up SwitchDeck" = "設定 SwitchDeck";
+"Set up Panelumi" = "設定 SwitchDeck";
 "Granted" = "已授予";
 "Open the matching System Settings pane" = "打開對應的系統設定面板";
 "macOS only asks here. The menu never prompts while you use a switch." = "macOS 只在這裡詢問；使用開關時選單不會跳提示。";
@@ -95,7 +95,7 @@
 "Permissions" = "權限";
 "Startup" = "啟動";
 "Launch at login" = "登入時啟動";
-"Needs SwitchDeck in /Applications." = "需要把 SwitchDeck 放進 /Applications。";
+"Needs Panelumi in /Applications." = "需要把 SwitchDeck 放進 /Applications。";
 "Drag to reorder. Turn a switch off to hide it from the menu." = "拖曳排序。關掉開關就不會出現在選單。";
 "Drag to reorder" = "拖曳排序";
 "Move Up" = "上移";
@@ -151,7 +151,7 @@
 "Input" = "輸入";
 "Used from the next recording on. A missing device falls back to the system default." = "從下一次錄音開始生效；裝置不在時會退回系統預設。";
 "System default" = "系統預設";
-"AVAudioRecorder only records from the macOS default input, so SwitchDeck switches that default while a recording runs and puts the previous one back when it stops." = "AVAudioRecorder 只能錄 macOS 的預設輸入，所以錄音期間 SwitchDeck 會切換預設裝置，停止後再換回去。";
+"AVAudioRecorder only records from the macOS default input, so Panelumi switches that default while a recording runs and puts the previous one back when it stops." = "AVAudioRecorder 只能錄 macOS 的預設輸入，所以錄音期間 SwitchDeck 會切換預設裝置，停止後再換回去。";
 "Where recordings go" = "錄音存放位置";
 "Press shortcut…" = "按下快速鍵…";
 "Cancel" = "取消";
@@ -264,10 +264,10 @@
 "Language" = "語言";
 "Interface language" = "介面語言";
 "Follows the system until you pick one; a change applies after a relaunch." = "預設跟隨系統；選了之後要重新啟動才會生效。";
-"Relaunch SwitchDeck" = "重新啟動 SwitchDeck";
+"Relaunch Panelumi" = "重新啟動 SwitchDeck";
 "System" = "系統";
 
-"SwitchDeck" = "SwitchDeck";
+"Panelumi" = "Panelumi";
 
 /* Text recognition */
 "Recognize Text" = "文字辨識";
