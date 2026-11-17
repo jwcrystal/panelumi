@@ -7,13 +7,18 @@ import UniformTypeIdentifiers
 /// compose and deliver (copy, save or pin).
 @MainActor
 final class ScreenshotCoordinator {
-    private let selections = SelectionController()
+    private let selections: SelectionController
     private let capture = ScreenCaptureService()
     private var pinnedWindows: [NSWindow] = []
     private var countdown: CaptureCountdown?
     /// Frames taken just before a timed overlay appeared, keyed by display.
     private var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
     private let recognitionWindow = TextRecognitionWindowController()
+
+    /// Creates the coordinator; extensions are offered to the capture toolbar.
+    init(captureExtensions: [any CaptureExtension] = []) {
+        selections = SelectionController(captureExtensions: captureExtensions)
+    }
 
     /// The catalog id, also used for the shortcut the settings pane edits.
     static let id = "screenshot"

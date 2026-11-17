@@ -65,6 +65,20 @@ final class CaptureSession: ObservableObject {
     }
     @Published var selectionIndex: Int?
     @Published var toolbarVisible = true
+    /// True while an extension's takeover controls the selection. The
+    /// controller is the only writer; views read it instead of keeping a copy.
+    @Published var takeoverActive = false
+    /// Extensions for the capture toolbar. Set once per capture by the
+    /// controller; the views read it.
+    var captureExtensions: [any CaptureExtension] = []
+    /// The toolbar items of `captureExtensions`, snapshotted when the user
+    /// starts editing (once per editing view; a selection spanning two displays
+    /// reads the items for each). The toolbar body reads this instead of calling
+    /// the extensions.
+    @Published var extensionToolbarItems: [CaptureExtensionToolbarEntry] = []
+    /// False while the selection is a set of windows: the toolbar actions need a
+    /// region, and a window composite is not one.
+    @Published var captureActionsAllowed = true
     @Published var defaultStyle = AnnotationStyle()
     @Published var annotations: [Annotation] = [] {
         didSet { refreshHistoryAvailability() }
@@ -86,6 +100,19 @@ final class CaptureSession: ObservableObject {
         let stored = ScreenshotPreferences.watermarkText
         watermarkText = stored.isEmpty ? ScreenshotPreferences.defaultWatermarkText : stored
         watermarkHidden = false
+    }
+
+    /// Builds the toolbar snapshot for one capture: one entry per extension
+    /// that returns an item with at least one entry, in registration order.
+    /// Extensions without an item, or with an empty item, are left out.
+    @MainActor
+    static func toolbarEntries(
+        for extensions: [any CaptureExtension]
+    ) -> [CaptureExtensionToolbarEntry] {
+        extensions.compactMap { ext in
+            guard let item = ext.toolbarItem, !item.entries.isEmpty else { return nil }
+            return CaptureExtensionToolbarEntry(id: ext.identifier, item: item)
+        }
     }
 
     var watermarkOptions: AnnotationRenderer.WatermarkOptions? {
@@ -305,10 +332,24 @@ struct CapturePayload {
     let watermarkVisible: Bool
 }
 
+/// One extension's toolbar item, snapshotted when editing starts so the
+/// SwiftUI body never calls back into the extension.
+struct CaptureExtensionToolbarEntry: Identifiable {
+    /// The extension's identifier; also the toolbar item's identity.
+    let id: String
+    /// The item to show, with at least one entry.
+    let item: CaptureToolbarItem
+}
+
 struct CaptureToolbarView: View {
     @ObservedObject var session: CaptureSession
+    /// Called with (extension identifier, entry id) when the user picks an
+    /// entry. The capture view supplies it; the default does nothing.
+    var onCaptureAction: (String, String) -> Void = { _, _ in }
     @State private var showWatermarkSettings = false
     @State private var showColors = false
+    /// The extension whose entry popover is open, by identifier.
+    @State private var openExtensionPopover: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -331,6 +372,10 @@ struct CaptureToolbarView: View {
             watermarkButton
 
             Divider().frame(height: 18)
+
+            ForEach(session.extensionToolbarItems) { entry in
+                captureActionView(entry)
+            }
 
             icon("arrow.uturn.backward", help: t("Undo (⌘Z)"), enabled: session.canUndo, action: session.onUndo)
             icon("arrow.uturn.forward", help: t("Redo (⇧⌘Z)"), enabled: session.canRedo, action: session.onRedo)
@@ -579,6 +624,64 @@ struct CaptureToolbarView: View {
         .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
         .disabled(!enabled)
         .help(help)
+    }
+
+    /// One extension's item: a plain button when it has a single entry, a
+    /// popover with one button per entry when it has several. A pop-up menu can
+    /// open behind the overlay's `.screenSaver` window, so this uses the same
+    /// popover pattern as `showWatermarkSettings`.
+    @ViewBuilder
+    private func captureActionView(_ entry: CaptureExtensionToolbarEntry) -> some View {
+        let item = entry.item
+        let enabled = session.captureActionsAllowed && session.annotations.isEmpty
+        Group {
+            if let only = item.entries.first, item.entries.count == 1 {
+                Button {
+                    onCaptureAction(entry.id, only.id)
+                } label: {
+                    captureActionImage(item)
+                }
+            } else {
+                Button {
+                    openExtensionPopover = entry.id
+                } label: {
+                    captureActionImage(item)
+                }
+                .popover(
+                    isPresented: Binding(
+                        get: { openExtensionPopover == entry.id },
+                        set: { openExtensionPopover = $0 ? entry.id : nil }
+                    ),
+                    arrowEdge: .bottom
+                ) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(item.entries) { choice in
+                            Button {
+                                openExtensionPopover = nil
+                                onCaptureAction(entry.id, choice.id)
+                            } label: {
+                                Text(verbatim: choice.title)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(8)
+                }
+            }
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(enabled ? Color.secondary : Color.secondary.opacity(0.35))
+        .disabled(!enabled)
+        .help(Text(verbatim: item.help ?? item.title))
+        .accessibilityLabel(Text(verbatim: item.accessibilityLabel ?? item.title))
+    }
+
+    /// The image shared by the button and menu label, sized like `icon(...)`.
+    private func captureActionImage(_ item: CaptureToolbarItem) -> some View {
+        Image(systemName: item.systemImage)
+            .font(.system(size: 12.5, weight: .medium))
+            .frame(width: 26, height: 26)
+            .contentShape(Rectangle())
     }
 }
 
