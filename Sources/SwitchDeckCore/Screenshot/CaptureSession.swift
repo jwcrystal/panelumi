@@ -84,6 +84,9 @@ final class CaptureSession: ObservableObject {
     }
     @Published var selectionIndex: Int?
     @Published var toolbarVisible = true
+    /// Which edge of the toolbar its popovers open from: away from the
+    /// selection, so they do not cover what is being captured.
+    @Published var popoverEdge: Edge = .bottom
     /// True while an extension's takeover controls the selection. The
     /// controller is the only writer; views read it instead of keeping a copy.
     @Published var takeoverActive = false
@@ -601,7 +604,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Annotation color"))
         .onHover { hover(.action(t("Color")), inside: $0) }
-        .popover(isPresented: $showColors, arrowEdge: .bottom) {
+        .popover(isPresented: $showColors, arrowEdge: session.popoverEdge) {
             colorPopover
         }
     }
@@ -885,7 +888,7 @@ struct CaptureToolbarView: View {
         .buttonStyle(.plain)
         .accessibilityLabel(t("Watermark settings"))
         .onHover { hover(.action(t("Watermark settings")), inside: $0) }
-        .popover(isPresented: $showWatermarkSettings, arrowEdge: .bottom) {
+        .popover(isPresented: $showWatermarkSettings, arrowEdge: session.popoverEdge) {
             WatermarkSettingsView(session: session)
         }
     }
@@ -955,7 +958,7 @@ struct CaptureToolbarView: View {
                         get: { openExtensionPopover == entry.id },
                         set: { openExtensionPopover = $0 ? entry.id : nil }
                     ),
-                    arrowEdge: .bottom
+                    arrowEdge: session.popoverEdge
                 ) {
                     VStack(alignment: .leading, spacing: 2) {
                         ForEach(item.entries) { choice in
