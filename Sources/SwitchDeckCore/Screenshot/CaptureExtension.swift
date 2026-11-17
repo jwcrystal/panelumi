@@ -27,9 +27,10 @@ public protocol CaptureExtension: Sendable {
     ///
     /// Return a takeover to take control of the selection, or nil to decline
     /// (nothing happens and the toolbar stays). You may call `context.cancel`
-    /// before returning; the host applies it right after `begin` returns (see
-    /// `CaptureTakeover`). A `cancel()` made inside `begin` is dropped when
-    /// `begin` returns nil.
+    /// or `context.deliver` before returning; the host applies either right
+    /// after `begin` returns (see `CaptureTakeover`). A `cancel()` or
+    /// `deliver` made inside `begin` is dropped when `begin` returns nil. When
+    /// both were called, the cancel wins.
     @MainActor func begin(_ entryID: String, context: CaptureContext) -> CaptureTakeover?
 }
 
@@ -79,8 +80,33 @@ public struct CaptureToolbarItem: Equatable, Sendable {
     }
 }
 
+/// Where an image delivered by an extension goes. Same outcomes as the
+/// toolbar's copy, save and pin buttons; `deliver` takes a set.
+public struct CaptureOutput: Hashable, Sendable {
+    /// Copies the image to the clipboard.
+    public static let copy = CaptureOutput(rawValue: "copy")
+    /// Writes the image to the folder and format Settings › Screenshot picked.
+    public static let save = CaptureOutput(rawValue: "save")
+    /// Opens the image in a small floating window the user can move or close.
+    public static let pin = CaptureOutput(rawValue: "pin")
+    let rawValue: String
+    private init(rawValue: String) { self.rawValue = rawValue }
+}
+
+extension CaptureOutput {
+    /// The pipeline output behind a public one. `.recognizeText` has no public
+    /// equivalent, so it cannot appear here.
+    var sessionOutput: CaptureSession.Output {
+        if self == .copy { return .copy }
+        if self == .save { return .save }
+        return .pin
+    }
+}
+
 /// Why a takeover ended. Constructed by the host only.
 public struct CaptureEndReason: Equatable, Sendable {
+    /// `CaptureContext.deliver` ran; the image entered the output pipeline.
+    public static let delivered = CaptureEndReason(rawValue: "delivered")
     /// The extension called `CaptureContext.cancel()`.
     public static let cancelled = CaptureEndReason(rawValue: "cancelled")
     /// The host ended it: Esc that `handleKey` did not handle, the overlay was
@@ -147,7 +173,8 @@ public extension CaptureTakeover {
 }
 
 /// The extension's handle on the capture. Main-actor only. Once the takeover
-/// has ended (any reason) the context is inactive and `cancel()` does nothing.
+/// has ended (any reason) the context is inactive and `cancel()`, `deliver`
+/// and `showMessage` do nothing.
 ///
 /// Coordinate system: `region` is in global AppKit screen coordinates, in
 /// points, origin at the bottom-left of the primary display (the same space as
@@ -162,6 +189,32 @@ public final class CaptureContext {
     /// False after the takeover ended.
     public var isActive: Bool { active }
 
+    /// Shows a short transient message on `screen`. Pass final, localised
+    /// text; the host does not localise it.
+    ///
+    /// Usable only while active, so show it before `deliver`. Does nothing
+    /// when inactive. The output pipeline already gives its own feedback, so
+    /// use this for anything beyond that, for example "saved 3 frames":
+    /// copy shows nothing, save reports only a failure, and pin shows the
+    /// pinned window.
+    public func showMessage(_ text: String) {
+        guard active else { return }
+        onMessage(text)
+    }
+
+    /// Sends `image` through the normal output pipeline as if it were the
+    /// selection's pixels: the toolbar's watermark settings apply, then every
+    /// output in `outputs` runs, in the fixed order copy, save, pin. Ends the
+    /// takeover with `.delivered` and closes the capture overlay. `image`
+    /// keeps its pixel size.
+    ///
+    /// Does nothing when inactive or when `outputs` is empty (the takeover
+    /// stays active).
+    public func deliver(_ image: CGImage, to outputs: Set<CaptureOutput>) {
+        guard active, !outputs.isEmpty else { return }
+        onDeliver(image, outputs)
+    }
+
     /// Ends the takeover and closes the capture overlay without output.
     /// Reason `.cancelled`.
     public func cancel() {
@@ -171,12 +224,22 @@ public final class CaptureContext {
 
     private var active = true
     private let onCancel: () -> Void
+    private let onDeliver: (CGImage, Set<CaptureOutput>) -> Void
+    private let onMessage: (String) -> Void
 
     /// Created by the host only.
-    init(region: CGRect, screen: NSScreen, cancel: @escaping () -> Void) {
+    init(
+        region: CGRect,
+        screen: NSScreen,
+        cancel: @escaping () -> Void,
+        deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
+        message: @escaping (String) -> Void = { _ in }
+    ) {
         self.region = region
         self.screen = screen
         self.onCancel = cancel
+        self.onDeliver = deliver
+        self.onMessage = message
     }
 
     /// Marks the context inactive; later `cancel()` calls do nothing.

@@ -19,15 +19,25 @@ final class TakeoverRun {
     var beginning = true
     /// The extension called `cancel()` synchronously inside `begin`.
     var pendingCancel = false
+    /// The extension called `deliver` synchronously inside `begin`.
+    var pendingDeliver: (image: CGImage, outputs: Set<CaptureOutput>)?
 
     init(
         view: SelectionView,
         region: CGRect,
         screen: NSScreen,
-        cancel: @escaping () -> Void
+        cancel: @escaping () -> Void,
+        deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
+        message: @escaping (String) -> Void = { _ in }
     ) {
         self.view = view
-        self.context = CaptureContext(region: region, screen: screen, cancel: cancel)
+        self.context = CaptureContext(
+            region: region,
+            screen: screen,
+            cancel: cancel,
+            deliver: deliver,
+            message: message
+        )
     }
 }
 
