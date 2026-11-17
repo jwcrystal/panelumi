@@ -42,41 +42,56 @@ final class ExportScaleTests: XCTestCase {
     }
 
     /// The pasteboard gets the image as TIFF, so this is what a paste carries.
-    func testCopiedRetinaCaptureKeepsItsPixelsAndIsTaggedAt144DPI() throws {
+    /// 144 is the 2x row, not a constant: the tag follows the capture's pixels
+    /// per point, so the image opens at the size it had on screen.
+    func testCopiedCaptureIsTaggedAtTheScaleItWasTakenOn() throws {
         let base = try solidImage(CGSize(width: 600, height: 400))
-        let image = AnnotationRenderer.render(base: base, annotations: [], pointScale: 2)
-        let tiff = try XCTUnwrap(image.tiffRepresentation)
-        let source = try XCTUnwrap(CGImageSourceCreateWithData(tiff as CFData, nil))
-        let properties = try XCTUnwrap(
-            CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-        )
-        XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 600)
-        XCTAssertEqual(try XCTUnwrap(properties[kCGImagePropertyDPIWidth] as? Double), 144, accuracy: 0.5)
+        for scale in captureScales {
+            let image = AnnotationRenderer.render(base: base, annotations: [], pointScale: scale)
+            let tiff = try XCTUnwrap(image.tiffRepresentation)
+            let source = try XCTUnwrap(CGImageSourceCreateWithData(tiff as CFData, nil))
+            let properties = try XCTUnwrap(
+                CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
+            )
+            let label = "\(scale)x"
+            XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 600, label)
+            // TIFF leaves out a resolution tag at the 72 dpi default.
+            let dpi = properties[kCGImagePropertyDPIWidth] as? Double ?? 72
+            XCTAssertEqual(dpi, 72 * scale, accuracy: 0.5, label)
+        }
     }
 
-    func testSavedRetinaCaptureKeepsItsPixelsAndIsTaggedAt144DPI() throws {
+    func testSavedCaptureIsTaggedAtTheScaleItWasTakenOn() throws {
         let folder = FileManager.default.temporaryDirectory
             .appendingPathComponent("switchdeck-dpi-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let base = try solidImage(CGSize(width: 600, height: 400))
-        let image = AnnotationRenderer.render(base: base, annotations: [], pointScale: 2)
 
-        for format in ScreenshotPreferences.ImageFormat.allCases {
-            let url = try XCTUnwrap(
-                ScreenshotSaver.write(image, watermark: nil, folder: folder, format: format, quality: 0.8)
-            )
-            let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil))
-            let properties = try XCTUnwrap(
-                CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any]
-            )
-            XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 600, format.title)
-            XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 400, format.title)
-            let dpi = try XCTUnwrap(properties[kCGImagePropertyDPIWidth] as? Double, format.title)
-            XCTAssertEqual(dpi, 144, accuracy: 0.5, format.title)
+        for scale in captureScales {
+            let image = AnnotationRenderer.render(base: base, annotations: [], pointScale: scale)
+            for format in ScreenshotPreferences.ImageFormat.allCases {
+                let label = "\(scale)x \(format.title)"
+                let url = try XCTUnwrap(
+                    ScreenshotSaver.write(image, watermark: nil, folder: folder, format: format, quality: 0.8),
+                    label
+                )
+                let source = try XCTUnwrap(CGImageSourceCreateWithURL(url as CFURL, nil), label)
+                let properties = try XCTUnwrap(
+                    CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+                    label
+                )
+                XCTAssertEqual(properties[kCGImagePropertyPixelWidth] as? Int, 600, label)
+                XCTAssertEqual(properties[kCGImagePropertyPixelHeight] as? Int, 400, label)
+                let dpi = try XCTUnwrap(properties[kCGImagePropertyDPIWidth] as? Double, label)
+                XCTAssertEqual(dpi, 72 * scale, accuracy: 0.5, label)
+            }
         }
     }
 
     // MARK: - Helpers
+
+    /// A 1x display, a fractional scale from a scaled resolution, and Retina.
+    private let captureScales: [CGFloat] = [1, 1.5, 2]
 
     private func style(textScale: CGFloat) -> AnnotationStyle {
         var style = AnnotationStyle()
