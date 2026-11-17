@@ -236,6 +236,7 @@
 "Uses the macOS Vision models; nothing is uploaded. Reads Chinese, English, Japanese and Korean, and copies a QR code's content when one is found." = "使用 macOS 內建的 Vision 模型，不會上傳任何資料。可辨識中文、英文、日文與韓文；偵測到 QR 碼時會複製 QR 碼的內容。";
 "%d lines · %d characters" = "%d 行 · %d 字";
 "Copied ✓" = "已複製 ✓";
+"Copy and close (⌘C or ⌘↩)" = "複製並關閉（⌘C 或 ⌘↩）";
 "Join Lines" = "合併成一行";
 "Merge the lines into one paragraph: no space between Chinese characters, one between words." = "把多行合併成一段：中文字之間不加空格，英文單字之間補一個空格。";
 "Open Link" = "開啟連結";
