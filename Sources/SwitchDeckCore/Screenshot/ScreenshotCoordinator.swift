@@ -326,7 +326,8 @@ final class ScreenshotCoordinator {
             let image = AnnotationRenderer.render(
                 base: cropped,
                 annotations: payload.annotations,
-                watermark: visibleWatermark
+                watermark: visibleWatermark,
+                pointScale: CGFloat(cropped.width) / max(1, payload.rect.width)
             )
 
             switch output {

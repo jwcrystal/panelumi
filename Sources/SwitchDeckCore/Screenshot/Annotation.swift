@@ -219,7 +219,16 @@ enum AnnotationRenderer {
     /// Rendering into an `NSBitmapImageRep` (one point per pixel) keeps the
     /// output at the capture's pixel size; drawing into an `NSImage(size:)`
     /// would rasterise it again at the screen's backing scale.
-    static func render(base: CGImage, annotations: [Annotation], watermark: WatermarkOptions? = nil) -> NSImage {
+    ///
+    /// `pointScale` is the pixels per point of the selection, so the minimum
+    /// sizes in `draw(_:in:base:)` and `drawWatermark(_:in:)` match the editor
+    /// instead of shrinking on a Retina capture.
+    static func render(
+        base: CGImage,
+        annotations: [Annotation],
+        watermark: WatermarkOptions? = nil,
+        pointScale: CGFloat = 1
+    ) -> NSImage {
         let width = base.width
         let height = base.height
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
@@ -246,12 +255,25 @@ enum AnnotationRenderer {
         NSGraphicsContext.current?.imageInterpolation = .high
         NSImage(cgImage: base, size: rep.size).draw(in: rect)
 
+        // Annotations and the watermark are drawn in point space so their
+        // absolute minimum sizes behave as they do in the editor; the base
+        // image and the canvas stay at pixel size.
+        let scale = pointScale > 0 ? pointScale : 1
+        NSGraphicsContext.saveGraphicsState()
+        NSGraphicsContext.current?.cgContext.scaleBy(x: scale, y: scale)
+        let pointRect = CGRect(
+            x: 0,
+            y: 0,
+            width: CGFloat(width) / scale,
+            height: CGFloat(height) / scale
+        )
         for annotation in annotations {
-            draw(annotation, in: rect, base: base)
+            draw(annotation, in: pointRect, base: base)
         }
         if let watermark {
-            drawWatermark(watermark, in: rect)
+            drawWatermark(watermark, in: pointRect)
         }
+        NSGraphicsContext.restoreGraphicsState()
         NSGraphicsContext.restoreGraphicsState()
 
         let image = NSImage(size: rep.size)
