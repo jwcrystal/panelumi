@@ -187,7 +187,7 @@ final class SelectionView: NSView {
     private var draft: Annotation?
     private var penPoints: [CGPoint] = []
 
-    private var toolbarHost: NSHostingView<CaptureToolbarView>?
+    private var toolbarHost: CaptureToolbarHost?
     private var textField: NSTextField?
     /// Where the user clicked to start the text; the anchor is fitted to it.
     private var textClickPoint: CGPoint = .zero
@@ -295,8 +295,6 @@ final class SelectionView: NSView {
             stroke.stroke()
             if windowCaptureFailed {
                 drawHint(t("The selected window could not be captured. Press Esc to try again."))
-            } else {
-                drawEditingHint()
             }
         } else {
             let stroke = NSBezierPath(rect: selection)
@@ -595,7 +593,7 @@ final class SelectionView: NSView {
             hoverColor = nil
             return
         }
-        if let toolbarHost, toolbarHost.frame.contains(point) {
+        if isPointOnToolbar(point) {
             hoverColor = nil
             return
         }
@@ -618,34 +616,11 @@ final class SelectionView: NSView {
         hoverColor = color
     }
 
-    private func drawEditingHint() {
-        guard textField == nil, let toolbarHost else { return }
-        let text = t("↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close")
-        let string = NSAttributedString(
-            string: text,
-            attributes: [
-                .font: NSFont.systemFont(ofSize: 11.5, weight: .medium),
-                .foregroundColor: NSColor.white.withAlphaComponent(0.85),
-            ]
-        )
-        let size = string.size()
-        let frame = toolbarHost.frame
-        let origin = NSPoint(
-            x: min(max(8, frame.midX - size.width / 2), bounds.width - size.width - 8),
-            y: max(6, frame.minY - 22)
-        )
-        NSColor.black.withAlphaComponent(0.5).setFill()
-        NSBezierPath(
-            roundedRect: NSRect(
-                x: origin.x - 10,
-                y: origin.y - 4,
-                width: size.width + 20,
-                height: size.height + 8
-            ),
-            xRadius: 6,
-            yRadius: 6
-        ).fill()
-        string.draw(at: origin)
+    /// The hint band above the pill is decoration: pointing or clicking there
+    /// belongs to the selection, not the toolbar.
+    private func isPointOnToolbar(_ point: CGPoint) -> Bool {
+        guard let toolbarHost, toolbarHost.frame.contains(point) else { return false }
+        return !toolbarHost.isInHintBand(point)
     }
 
     private func sizeText(for rect: CGRect) -> String {
@@ -759,7 +734,7 @@ final class SelectionView: NSView {
                 let text = colorText(hoverColor)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
-                ColorToast.show("Copied \(text)")
+                ColorToast.show(tf("Copied %@", text))
                 onCancel?()
                 return nil
             }
@@ -772,6 +747,8 @@ final class SelectionView: NSView {
             performHistory(command)
             return nil
         }
+
+        if applyEditingShortcut(event) { return nil }
 
         switch event.keyCode {
         case 53: // Esc
@@ -863,7 +840,7 @@ final class SelectionView: NSView {
 
     private func installToolbar() {
         guard toolbarHost == nil else { return }
-        let host = NSHostingView(rootView: CaptureToolbarView(session: session))
+        let host = CaptureToolbarHost(rootView: CaptureToolbarView(session: session))
         host.frame.size = host.fittingSize
         addSubview(host)
         toolbarHost = host
@@ -1270,6 +1247,8 @@ final class SelectionView: NSView {
                 return
             }
 
+            if applyEditingShortcut(event) { return }
+
             switch event.keyCode {
             case 53: onCancel?()                                  // Esc
             case 36, 76: finish(.copy)                            // Return
@@ -1312,6 +1291,27 @@ final class SelectionView: NSView {
         default:
             break
         }
+    }
+
+    /// Tool letters and the Tab toggle only work once the toolbar is up, no
+    /// text field (including an input-method composition) owns the keys, and
+    /// no ⌘/⌃/⌥ shortcut is meant. `charactersIgnoringModifiers` keeps this
+    /// right on layouts such as Dvorak.
+    private func applyEditingShortcut(_ event: NSEvent) -> Bool {
+        guard textField == nil,
+              event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+        else { return false }
+
+        if event.keyCode == 48 { // Tab
+            session.toolbarVisible.toggle()
+            return true
+        }
+
+        guard let character = event.charactersIgnoringModifiers?.lowercased().first,
+              let tool = CaptureSession.Tool.tool(forShortcut: character)
+        else { return false }
+        session.tool = tool
+        return true
     }
 
     /// Shared by the local key monitor and `keyDown` so both entry points treat
