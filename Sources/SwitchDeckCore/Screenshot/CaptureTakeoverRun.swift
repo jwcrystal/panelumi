@@ -32,7 +32,8 @@ final class TakeoverRun {
         cancel: @escaping () -> Void,
         deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
         message: @escaping (String) -> Void = { _ in },
-        attach: @escaping (NSWindow) -> Void = { _ in }
+        attach: @escaping (NSWindow) -> Void = { _ in },
+        live: @escaping @MainActor () async -> CGImage? = { nil }
     ) {
         self.view = view
         self.context = CaptureContext(
@@ -41,7 +42,8 @@ final class TakeoverRun {
             cancel: cancel,
             deliver: deliver,
             message: message,
-            attach: attach
+            attach: attach,
+            live: live
         )
     }
 }

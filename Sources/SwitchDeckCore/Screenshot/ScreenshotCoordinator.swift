@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 final class ScreenshotCoordinator {
     private let selections: SelectionController
     private let capture = ScreenCaptureService()
+    /// Live captures from extensions share the capture service's content
+    /// cache, so they run one at a time.
+    private let liveGate = SerialAsyncGate()
     private var pinnedWindows: [NSWindow] = []
     private var countdown: CaptureCountdown?
     /// Frames taken just before a timed overlay appeared, keyed by display.
@@ -249,7 +252,10 @@ final class ScreenshotCoordinator {
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
                 return self.frozenScreens[id]
             },
-            finishOnSelect: finishOnSelect
+            finishOnSelect: finishOnSelect,
+            captureLive: { [weak self] rect, screen in
+                await self?.captureLiveRegion(rect, screen)
+            }
         )
     }
 
@@ -267,10 +273,10 @@ final class ScreenshotCoordinator {
         return frames
     }
 
-    private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+    private func captureRegion(_ rect: CGRect, _ screen: NSScreen, live: Bool = false) async -> CGImage? {
         guard let displayID = Self.displayID(for: screen) else { return nil }
 
-        if let frozen = frozenScreens[displayID] {
+        if !live, let frozen = frozenScreens[displayID] {
             return ScreenCaptureService.crop(image: frozen, to: rect, screenFrame: screen.frame)
         }
 
@@ -280,6 +286,15 @@ final class ScreenshotCoordinator {
             screenFrame: screen.frame,
             excludingWindowIDs: SelectionController.overlayWindowIDs
         )
+    }
+
+    /// A frame from the live screen for an extension, never the frozen one a
+    /// timed capture keeps. Runs through `liveGate`, and reads the exclusion
+    /// set there too, so a window attached while the call waited is left out.
+    private func captureLiveRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+        await liveGate.run {
+            await self.captureRegion(rect, screen, live: true)
+        }
     }
 
     /// Captures each picked window on its own, then lays them out at their

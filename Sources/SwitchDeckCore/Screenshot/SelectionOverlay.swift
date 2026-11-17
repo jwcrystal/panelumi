@@ -17,6 +17,9 @@ final class SelectionController {
     private var beginningTakeover = false
     /// Watches for display reconfiguration only while a takeover is active.
     private var displayObserver: NSObjectProtocol?
+    /// The host's live-capture handler, as handed to `begin`. Defaults to
+    /// failing so a caller that does not offer live capture still compiles.
+    private var captureLive: @MainActor (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
 
     let session = CaptureSession()
     private(set) var isActive = false
@@ -57,12 +60,14 @@ final class SelectionController {
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil,
         frozen: @escaping (NSScreen) -> CGImage? = { _ in nil },
-        finishOnSelect: CaptureSession.Output? = nil
+        finishOnSelect: CaptureSession.Output? = nil,
+        captureLive: @escaping @MainActor (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
     ) {
         guard !isActive else { return }
         isActive = true
         captureHandler = onCapture
         cancelHandler = onCancel
+        self.captureLive = captureLive
         session.annotations = []
         session.resetHistory()
 
@@ -181,6 +186,10 @@ final class SelectionController {
                 }
                 run.attached.append(window)
                 Self.attachedWindows.add(window)
+            },
+            live: { [box, weak self] in
+                guard let self, let run = box.run else { return nil }
+                return await self.captureLive(run.context.region, run.context.screen)
             }
         )
         box.run = run

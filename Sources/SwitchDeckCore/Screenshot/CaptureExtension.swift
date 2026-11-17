@@ -175,7 +175,7 @@ public extension CaptureTakeover {
 
 /// The extension's handle on the capture. Main-actor only. Once the takeover
 /// has ended (any reason) the context is inactive and `cancel()`, `deliver`,
-/// `showMessage` and `attach` do nothing.
+/// `showMessage` and `attach` do nothing, and `captureLive` returns nil.
 ///
 /// Coordinate system: `region` is in global AppKit screen coordinates, in
 /// points, origin at the bottom-left of the primary display (the same space as
@@ -236,11 +236,32 @@ public final class CaptureContext {
         onAttach(window)
     }
 
+    /// Captures the region from the live screen as it is now, ignoring any
+    /// frame frozen before the overlay appeared. The host's overlay windows,
+    /// every window passed to `attach` and the host's message toasts are left
+    /// out of the image.
+    ///
+    /// The image is `region.size * screen.backingScaleFactor` pixels, each side
+    /// rounded to a whole pixel. The host reads the scale from the region's own
+    /// display, so a mixed-resolution setup does not change the size.
+    ///
+    /// Returns nil when Screen Recording is not allowed, when the context is
+    /// inactive (also when the takeover ended while the capture was running),
+    /// or when the capture failed. Calls are serialised by the host: a call
+    /// made while another one is in flight waits for it.
+    public func captureLive() async -> CGImage? {
+        guard active else { return nil }
+        let image = await onLive()
+        guard active else { return nil }
+        return image
+    }
+
     private var active = true
     private let onCancel: () -> Void
     private let onDeliver: (CGImage, Set<CaptureOutput>) -> Void
     private let onMessage: (String) -> Void
     private let onAttach: (NSWindow) -> Void
+    private let onLive: @MainActor () async -> CGImage?
 
     /// Created by the host only.
     init(
@@ -249,7 +270,8 @@ public final class CaptureContext {
         cancel: @escaping () -> Void,
         deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
         message: @escaping (String) -> Void = { _ in },
-        attach: @escaping (NSWindow) -> Void = { _ in }
+        attach: @escaping (NSWindow) -> Void = { _ in },
+        live: @escaping @MainActor () async -> CGImage? = { nil }
     ) {
         self.region = region
         self.screen = screen
@@ -257,6 +279,7 @@ public final class CaptureContext {
         self.onDeliver = deliver
         self.onMessage = message
         self.onAttach = attach
+        self.onLive = live
     }
 
     /// Marks the context inactive; later `cancel()` calls do nothing.
