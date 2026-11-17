@@ -676,7 +676,7 @@ struct CaptureToolbarView: View {
         .accessibilityLabel(Text(verbatim: item.accessibilityLabel ?? item.title))
     }
 
-    /// The image shared by the button and menu label, sized like `icon(...)`.
+    /// The image shared by the button and the popover trigger, sized like `icon(...)`.
     private func captureActionImage(_ item: CaptureToolbarItem) -> some View {
         Image(systemName: item.systemImage)
             .font(.system(size: 12.5, weight: .medium))

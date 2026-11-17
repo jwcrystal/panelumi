@@ -17,6 +17,9 @@ final class SelectionController {
     private var beginningTakeover = false
     /// Watches for display reconfiguration only while a takeover is active.
     private var displayObserver: NSObjectProtocol?
+    /// The host's live-capture handler, as handed to `begin`. Defaults to
+    /// failing so a caller that does not offer live capture still compiles.
+    private var captureLive: @MainActor (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
 
     let session = CaptureSession()
     private(set) var isActive = false
@@ -28,13 +31,34 @@ final class SelectionController {
         session.captureExtensions = captureExtensions.filter { seen.insert($0.identifier).inserted }
     }
 
-    /// Exclude only capture overlays, not Settings or other app windows.
+    /// Exclude only capture overlays and the helper windows a takeover
+    /// attached, not Settings or other app windows. Also excludes the visible
+    /// message toasts a takeover showed, so a message never lands in a live
+    /// capture. The colour-copy toast stays out: it was always part of the
+    /// captured pixels.
     static var overlayWindowIDs: Set<CGWindowID> {
-        Set(NSApp.windows.compactMap { window in
+        var ids = Set(NSApp.windows.compactMap { window -> CGWindowID? in
             guard window.contentView is SelectionView, window.windowNumber > 0 else { return nil }
             return CGWindowID(window.windowNumber)
         })
+        // Visible only: a window that is not on screen yet has a window number
+        // the shared content cache does not know, which would make every frame
+        // refetch that cache.
+        for window in attachedWindows.allObjects + messageToasts.allObjects
+        where window.isVisible && window.windowNumber > 0 {
+            ids.insert(CGWindowID(window.windowNumber))
+        }
+        return ids
     }
+
+    /// Every window an extension attached during any takeover. Weak, so it
+    /// never keeps a window alive.
+    private static let attachedWindows = NSHashTable<NSWindow>.weakObjects()
+
+    /// The message toasts a takeover showed, and only those. Weak, so a toast
+    /// that has gone never stays in the set. The colour-copy toast is
+    /// deliberately absent because captures have always included it.
+    private static let messageToasts = NSHashTable<NSWindow>.weakObjects()
 
     func begin(
         onCapture: @escaping (CapturePayload, CaptureSession.Output) -> Void,
@@ -43,12 +67,14 @@ final class SelectionController {
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil,
         frozen: @escaping (NSScreen) -> CGImage? = { _ in nil },
-        finishOnSelect: CaptureSession.Output? = nil
+        finishOnSelect: CaptureSession.Output? = nil,
+        captureLive: @escaping @MainActor (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
     ) {
         guard !isActive else { return }
         isActive = true
         captureHandler = onCapture
         cancelHandler = onCancel
+        self.captureLive = captureLive
         session.annotations = []
         session.resetHistory()
 
@@ -107,6 +133,10 @@ final class SelectionController {
     /// Starts a takeover for an extension entry. Declines when the overlay is
     /// not live, another takeover is already running, or no extension has that
     /// identifier.
+    ///
+    /// A `cancel()` or `deliver` made inside `begin` is applied right after
+    /// this method installs the takeover; the first deliver wins, and a cancel
+    /// wins over deliver. Both are dropped when `begin` returns nil.
     func beginTakeover(
         _ extensionID: String,
         _ entryID: String,
@@ -118,22 +148,61 @@ final class SelectionController {
             .first(where: { $0.identifier == extensionID })
         else { return }
 
-        // The context's cancel closure needs the run that owns it. The box is
-        // created first and holds the run weakly, so the run and its context
-        // never form a retain cycle.
+        // The context's closures need the run that owns it. The box is created
+        // first and holds the run weakly, so the run and its context never form
+        // a retain cycle.
         let box = TakeoverRunBox()
         let run = TakeoverRun(
             view: view,
             region: region,
-            screen: view.screen
-        ) { [box, weak self] in
-            guard let run = box.run else { return }
-            if run.beginning {
-                run.pendingCancel = true
-                return
+            screen: view.screen,
+            cancel: { [box, weak self] in
+                guard let run = box.run else { return }
+                if run.beginning {
+                    run.pendingCancel = true
+                    return
+                }
+                self?.endTakeover(.cancelled) { self?.finish(nil, .copy) }
+            },
+            deliver: { [box, weak self] image, outputs in
+                guard let run = box.run else { return }
+                if run.beginning {
+                    // Two delivers inside `begin`: the first one wins.
+                    if run.pendingDeliver == nil {
+                        run.pendingDeliver = (image, outputs)
+                    }
+                    return
+                }
+                self?.endTakeover(.delivered) {
+                    self?.deliverExternal(run, image, outputs)
+                }
+            },
+            message: { [box] text in
+                guard let run = box.run else { return }
+                let toast = ColorToast.show(
+                    text,
+                    level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1),
+                    screen: run.context.screen
+                )
+                Self.messageToasts.add(toast)
+            },
+            attach: { [box, weak self] window in
+                guard let self, let run = box.run, run.endedReason == nil, self.isActive else { return }
+                window.isReleasedWhenClosed = false
+                // Raise only a window that is at or below the overlay's level;
+                // never lower one the extension already placed higher.
+                let overlayLevel = NSWindow.Level.screenSaver
+                if window.level.rawValue <= overlayLevel.rawValue {
+                    window.level = NSWindow.Level(rawValue: overlayLevel.rawValue + 1)
+                }
+                run.attached.append(window)
+                Self.attachedWindows.add(window)
+            },
+            live: { [box, weak self] in
+                guard let self, let run = box.run else { return nil }
+                return await self.captureLive(run.context.region, run.context.screen)
             }
-            self?.endTakeover(.cancelled) { self?.finish(nil, .copy) }
-        }
+        )
         box.run = run
 
         beginningTakeover = true
@@ -142,6 +211,7 @@ final class SelectionController {
 
         guard let takeover = takingOver else {
             run.context.invalidate()
+            closeAttached(run)
             return
         }
         // `begin` may have closed the overlay (for example through the view's
@@ -150,6 +220,7 @@ final class SelectionController {
         guard isActive else {
             run.beginning = false
             run.context.invalidate()
+            closeAttached(run)
             takeover.takeoverDidEnd(reason: .dismissed)
             return
         }
@@ -177,6 +248,11 @@ final class SelectionController {
 
         if run.pendingCancel {
             endTakeover(.cancelled) { self.finish(nil, .copy) }
+        } else if let pending = run.pendingDeliver {
+            run.pendingDeliver = nil
+            endTakeover(.delivered) {
+                self.deliverExternal(run, pending.image, pending.outputs)
+            }
         }
     }
 
@@ -200,9 +276,21 @@ final class SelectionController {
             NotificationCenter.default.removeObserver(displayObserver)
             self.displayObserver = nil
         }
+        closeAttached(run)
 
         then?()
         run.takeover?.takeoverDidEnd(reason: reason)
+    }
+
+    /// Closes every window an extension attached during `run`, used by every
+    /// exit path. The shared table and the run hold nothing afterwards.
+    private func closeAttached(_ run: TakeoverRun) {
+        for window in run.attached {
+            window.orderOut(nil)
+            window.close()
+            Self.attachedWindows.remove(window)
+        }
+        run.attached.removeAll()
     }
 
     /// Sends a key to the active takeover. An Escape the takeover does not
@@ -214,15 +302,46 @@ final class SelectionController {
         // calling `cancel()`). The key must never reach the closed view.
         if activeTakeover !== run { return true }
         if !handled, key.isEscape {
-            if activeTakeover === run {
-                endTakeover(.dismissed) { self.finish(nil, .copy) }
-            }
+            endTakeover(.dismissed) { self.finish(nil, .copy) }
             return true
         }
         return handled
     }
 
+    /// Hands an image an extension delivered to the same end path the overlay's
+    /// own `deliver(_:)` uses. The payload is built here from the run's region,
+    /// its screen and the shared session, so watermark settings and the pixel
+    /// size behave as they do for a normal capture.
+    private func deliverExternal(
+        _ run: TakeoverRun,
+        _ image: CGImage,
+        _ outputs: Set<CaptureOutput>
+    ) {
+        let payload = CapturePayload(
+            rect: run.context.region,
+            screen: run.context.screen,
+            annotations: [],
+            base: image,
+            watermark: session.watermarkOptions,
+            watermarkVisible: !session.watermarkHidden
+        )
+        run.view?.prepareForExternalDelivery()
+        finish(payload, outputs: Self.sortedOutputs(outputs))
+    }
+
+    /// The pipeline order: copy, save, pin. Every output the extension asked
+    /// for appears once.
+    private static func sortedOutputs(_ outputs: Set<CaptureOutput>) -> [CaptureSession.Output] {
+        [CaptureOutput.copy, .save, .pin]
+            .filter(outputs.contains)
+            .map(\.sessionOutput)
+    }
+
     private func finish(_ payload: CapturePayload?, _ output: CaptureSession.Output) {
+        finish(payload, outputs: [output])
+    }
+
+    private func finish(_ payload: CapturePayload?, outputs: [CaptureSession.Output]) {
         guard isActive else { return }
         endTakeover(.dismissed)
         isActive = false
@@ -233,7 +352,9 @@ final class SelectionController {
         windows.removeAll()
 
         if let payload {
-            captureHandler?(payload, output)
+            for output in outputs {
+                captureHandler?(payload, output)
+            }
         } else {
             cancelHandler?()
         }
@@ -1007,6 +1128,13 @@ final class SelectionView: NSView {
         }
     }
 
+    /// Removes this view from the input path before the controller hands an
+    /// extension's image to the output pipeline. Does what `deliver(_:)` does
+    /// before it calls `onCapture`.
+    func prepareForExternalDelivery() {
+        teardown()
+    }
+
     private func deliver(_ output: CaptureSession.Output) {
         guard let selection else { return }
         guard windowTargets.isEmpty || baseImage != nil else {
@@ -1724,12 +1852,26 @@ extension SelectionView: NSTextFieldDelegate {
     }
 }
 
-/// Small non-activating toast used when a colour is copied.
+/// Small non-activating toast used for the colour copy and for messages an
+/// extension shows during a takeover.
 @MainActor
 enum ColorToast {
     private static var windows: [NSWindow] = []
 
-    static func show(_ text: String) {
+    /// The toasts still on screen, oldest first. Internal so tests can inspect
+    /// and close them without waiting for the timer.
+    static var currentWindows: [NSWindow] { windows }
+
+    /// Shows `text` next to the mouse, on the screen that holds it. A caller
+    /// that names a screen the mouse is not on gets the toast centred there
+    /// instead. The default placement, used by the colour-copy toast, keeps the
+    /// mouse position and the screen that holds it.
+    @discardableResult
+    static func show(
+        _ text: String,
+        level: NSWindow.Level = .statusBar,
+        screen: NSScreen? = nil
+    ) -> NSWindow {
         let label = NSTextField(labelWithString: text)
         label.font = .systemFont(ofSize: 13, weight: .medium)
         label.textColor = .white
@@ -1747,7 +1889,7 @@ enum ColorToast {
             backing: .buffered,
             defer: false
         )
-        window.level = .statusBar
+        window.level = level
         window.isOpaque = false
         window.backgroundColor = .clear
         window.ignoresMouseEvents = true
@@ -1762,12 +1904,27 @@ enum ColorToast {
         window.contentView = container
 
         let mouse = NSEvent.mouseLocation
-        let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
-        let visible = screen?.visibleFrame ?? .zero
-        var origin = NSPoint(x: mouse.x + 18, y: mouse.y - size.height - 18)
-        origin.x = min(max(visible.minX + 8, origin.x), visible.maxX - size.width - 8)
-        origin.y = min(max(visible.minY + 8, origin.y), visible.maxY - size.height - 8)
-        window.setFrameOrigin(origin)
+        let origin: NSPoint
+        let visible: NSRect
+        if let screen, !screen.frame.contains(mouse) {
+            // The caller named a screen the pointer is not on: centre there.
+            visible = screen.visibleFrame
+            origin = NSPoint(
+                x: visible.midX - size.width / 2,
+                y: visible.midY - size.height / 2
+            )
+        } else {
+            // Next to the pointer, on the screen that holds it. With no screen
+            // passed this is exactly the placement the colour-copy toast has
+            // always used.
+            let target = NSScreen.screens.first { $0.frame.contains(mouse) } ?? NSScreen.main
+            visible = target?.visibleFrame ?? .zero
+            origin = NSPoint(x: mouse.x + 18, y: mouse.y - size.height - 18)
+        }
+        window.setFrameOrigin(NSPoint(
+            x: min(max(visible.minX + 8, origin.x), visible.maxX - size.width - 8),
+            y: min(max(visible.minY + 8, origin.y), visible.maxY - size.height - 8)
+        ))
 
         window.orderFrontRegardless()
         windows.append(window)
@@ -1777,5 +1934,15 @@ enum ColorToast {
             window.orderOut(nil)
             windows.removeAll { $0 === window }
         }
+        return window
+    }
+
+    /// Closes every toast now. Tests use it so a timer from one case cannot
+    /// linger into the next.
+    static func closeAll() {
+        for window in windows {
+            window.orderOut(nil)
+        }
+        windows.removeAll()
     }
 }

@@ -9,10 +9,18 @@ import UniformTypeIdentifiers
 final class ScreenshotCoordinator {
     private let selections: SelectionController
     private let capture = ScreenCaptureService()
+    /// Base-region and live captures share the capture service's content
+    /// cache, so they run one at a time. Window captures are not serialised.
+    private let captureGate = SerialAsyncGate()
+    /// Replaces the service call behind a region capture. Tests set it to see
+    /// which path a capture takes without Screen Recording; nil uses the real
+    /// service.
+    var regionCaptureHook: (@MainActor (CGRect, NSScreen) async -> CGImage?)?
     private var pinnedWindows: [NSWindow] = []
     private var countdown: CaptureCountdown?
     /// Frames taken just before a timed overlay appeared, keyed by display.
-    private var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
+    /// Internal so a capture can be checked against a seeded frame.
+    var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
     private let recognitionWindow = TextRecognitionWindowController()
 
     /// Creates the coordinator; extensions are offered to the capture toolbar.
@@ -249,7 +257,10 @@ final class ScreenshotCoordinator {
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
                 return self.frozenScreens[id]
             },
-            finishOnSelect: finishOnSelect
+            finishOnSelect: finishOnSelect,
+            captureLive: { [weak self] rect, screen in
+                await self?.captureLiveRegion(rect, screen)
+            }
         )
     }
 
@@ -267,19 +278,45 @@ final class ScreenshotCoordinator {
         return frames
     }
 
-    private func captureRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+    /// A frame of one region, in screen points. A frozen frame is cropped
+    /// directly for a non-live capture; every other capture runs the service
+    /// through `captureGate`.
+    func captureRegion(_ rect: CGRect, _ screen: NSScreen, live: Bool = false) async -> CGImage? {
         guard let displayID = Self.displayID(for: screen) else { return nil }
 
-        if let frozen = frozenScreens[displayID] {
+        if !live, let frozen = frozenScreens[displayID] {
             return ScreenCaptureService.crop(image: frozen, to: rect, screenFrame: screen.frame)
         }
 
+        return await captureGate.run {
+            if Task.isCancelled { return nil }
+            if let hook = self.regionCaptureHook {
+                return await hook(rect, screen)
+            }
+            return await self.captureRegionFromService(displayID, rect, screen)
+        }
+    }
+
+    /// The service call behind a base or live capture. Kept in its own method so
+    /// its call shape matches the capture it replaces.
+    private func captureRegionFromService(
+        _ displayID: CGDirectDisplayID,
+        _ rect: CGRect,
+        _ screen: NSScreen
+    ) async -> CGImage? {
         return try? await capture.captureRegion(
             displayID: displayID,
             rect: rect,
             screenFrame: screen.frame,
             excludingWindowIDs: SelectionController.overlayWindowIDs
         )
+    }
+
+    /// A frame from the live screen for an extension, never the frozen one a
+    /// timed capture keeps. The exclusion set is read inside the gate, so a
+    /// window attached while the call waited is left out.
+    private func captureLiveRegion(_ rect: CGRect, _ screen: NSScreen) async -> CGImage? {
+        await captureRegion(rect, screen, live: true)
     }
 
     /// Captures each picked window on its own, then lays them out at their
