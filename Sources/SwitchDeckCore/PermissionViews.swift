@@ -39,7 +39,7 @@ struct PermissionStatusRow: View {
                 if let onRelaunch {
                     Button(t("Relaunch"), action: onRelaunch)
                         .controlSize(.small)
-                        .help(t("macOS applies the Screen Recording grant after SwitchDeck relaunches."))
+                        .help(t("macOS applies the Screen Recording grant after Panelumi relaunches."))
                 }
                 Button(grantTitle, action: onGrant)
                     .controlSize(.small)
@@ -69,7 +69,7 @@ struct SetupView: View {
                     .frame(width: 56, height: 56)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(t("Set up SwitchDeck"))
+                    Text(t("Set up Panelumi"))
                         .font(.title2.weight(.semibold))
                     Text(t("macOS only asks here. The menu never prompts while you use a switch."))
                         .font(.callout)
