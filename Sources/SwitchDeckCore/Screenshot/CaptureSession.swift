@@ -877,14 +877,9 @@ struct CaptureToolbarView: View {
         return Button {
             session.showsWatermarkBar.toggle()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "signature")
-                    .font(.system(size: 12.5, weight: .medium))
-                Text(t("Watermark"))
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .padding(.horizontal, 6)
-            .frame(height: 26)
+            Image(systemName: "signature")
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 26, height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(watermarkChipFill(open: open))
