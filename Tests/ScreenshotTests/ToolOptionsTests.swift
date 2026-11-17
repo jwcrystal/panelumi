@@ -57,6 +57,47 @@ final class ToolOptionsTests: XCTestCase {
         }
     }
 
+    @MainActor
+    func testSelectWithoutSelectionShowsTheColorSwatch() {
+        _ = NSApplication.shared
+        let session = CaptureSession()
+        session.tool = .select
+
+        XCTAssertTrue(CaptureToolbarView(session: session).showsColorSwatch,
+                      "the colour button sets the default for the next annotation")
+
+        session.tool = .mosaic
+        XCTAssertFalse(CaptureToolbarView(session: session).showsColorSwatch)
+        session.tool = .blur
+        XCTAssertFalse(CaptureToolbarView(session: session).showsColorSwatch)
+
+        for tool in CaptureSession.Tool.allCases where tool != .select && tool != .mosaic && tool != .blur {
+            session.tool = tool
+            XCTAssertTrue(CaptureToolbarView(session: session).showsColorSwatch, "\(tool)")
+        }
+
+        session.tool = .select
+        session.annotations = [Annotation(shape: .mosaic(from: .zero, to: .zero), color: .red)]
+        session.selectionIndex = 0
+        XCTAssertFalse(CaptureToolbarView(session: session).showsColorSwatch,
+                       "a selected mosaic has no colour")
+        session.annotations = [Annotation(shape: .rectangle(from: .zero, to: .zero), color: .red)]
+        XCTAssertTrue(CaptureToolbarView(session: session).showsColorSwatch)
+    }
+
+    @MainActor
+    func testEmptySelectOptionsRowKeepsTheToolbarHeight() {
+        _ = NSApplication.shared
+        func size(_ tool: CaptureSession.Tool) -> NSSize {
+            let session = CaptureSession()
+            session.tool = tool
+            return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
+        }
+        let emptySelect = size(.select)
+        XCTAssertEqual(emptySelect.height, size(.rectangle).height, accuracy: 0.5)
+        XCTAssertEqual(emptySelect.height, size(.mosaic).height, accuracy: 0.5)
+    }
+
     func testEveryToolHasATitleAndAUniqueShortcut() {
         let tools = CaptureSession.Tool.allCases
         XCTAssertTrue(tools.allSatisfy { !$0.title.isEmpty })

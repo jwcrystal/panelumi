@@ -18,6 +18,9 @@ enum ScreenshotPreferences {
     static let colorFormatKey = "ScreenshotColorFormat"
     static let watermarkTextKey = "ScreenshotWatermarkText"
     static let watermarkDefaultKey = "ScreenshotWatermarkDefault"
+    static let annotationColorKey = "ScreenshotAnnotationColor"
+    static let annotationLineWidthKey = "ScreenshotAnnotationLineWidth"
+    static let recentAnnotationColorsKey = "ScreenshotRecentAnnotationColors"
     static let silentRecognitionKey = "TextRecognitionSilent"
     static let autoCopyRecognitionKey = "TextRecognitionAutoCopy"
     static let qrLinkActionKey = "TextRecognitionQRLinkAction"
@@ -201,5 +204,58 @@ enum ScreenshotPreferences {
 
     static var watermarkOnByDefault: Bool {
         UserDefaults.standard.bool(forKey: watermarkDefaultKey)
+    }
+
+    // MARK: - Annotation
+
+    static let defaultAnnotationColor = "#FF3B30"
+    static let defaultAnnotationLineWidth: CGFloat = 0.004
+    static let annotationLineWidthRange: ClosedRange<CGFloat> = 0.0015...0.016
+
+    static var annotationColor: String {
+        get {
+            AnnotationPalette.canonicalHex(
+                UserDefaults.standard.string(forKey: annotationColorKey) ?? ""
+            ) ?? defaultAnnotationColor
+        }
+        set {
+            UserDefaults.standard.set(
+                AnnotationPalette.canonicalHex(newValue) ?? defaultAnnotationColor,
+                forKey: annotationColorKey
+            )
+        }
+    }
+
+    /// Width relative to the image, kept inside the slider's range. A value
+    /// that is not a number falls back to the default.
+    static var annotationLineWidth: CGFloat {
+        get {
+            guard let stored = UserDefaults.standard.object(forKey: annotationLineWidthKey) as? NSNumber
+            else { return defaultAnnotationLineWidth }
+            let value = CGFloat(stored.doubleValue)
+            guard value.isFinite else { return defaultAnnotationLineWidth }
+            return min(max(value, annotationLineWidthRange.lowerBound), annotationLineWidthRange.upperBound)
+        }
+        set {
+            let value = newValue.isFinite ? newValue : defaultAnnotationLineWidth
+            UserDefaults.standard.set(
+                Double(min(max(value, annotationLineWidthRange.lowerBound), annotationLineWidthRange.upperBound)),
+                forKey: annotationLineWidthKey
+            )
+        }
+    }
+
+    static var recentAnnotationColors: [String] {
+        get {
+            AnnotationPalette.sanitizedRecent(
+                UserDefaults.standard.stringArray(forKey: recentAnnotationColorsKey) ?? []
+            )
+        }
+        set {
+            UserDefaults.standard.set(
+                AnnotationPalette.sanitizedRecent(newValue),
+                forKey: recentAnnotationColorsKey
+            )
+        }
     }
 }

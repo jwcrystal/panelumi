@@ -98,7 +98,16 @@ final class CaptureSession: ObservableObject {
     /// False while the selection is a set of windows: the toolbar actions need a
     /// region, and a window composite is not one.
     @Published var captureActionsAllowed = true
-    @Published var defaultStyle = AnnotationStyle()
+    @Published var defaultStyle = AnnotationStyle() {
+        didSet { persistDefaultStyle(from: oldValue) }
+    }
+    @Published private(set) var recentAnnotationColors: [String] = []
+    /// True while a click on the screenshot samples a colour instead of
+    /// drawing. Reset with every capture.
+    @Published var isPickingColor = false
+    /// True while the text tool's field is open. The eyedropper is inert then:
+    /// a click belongs to the field, not the screenshot.
+    @Published var isTextEditing = false
     @Published var annotations: [Annotation] = [] {
         didSet { refreshHistoryAvailability() }
     }
@@ -120,6 +129,46 @@ final class CaptureSession: ObservableObject {
         watermarkText = stored.isEmpty ? ScreenshotPreferences.defaultWatermarkText : stored
         watermarkHidden = false
         toolbarVisible = true
+        isPickingColor = false
+        isTextEditing = false
+        if let color = AnnotationPalette.color(fromHex: ScreenshotPreferences.annotationColor) {
+            defaultStyle.color = color
+        }
+        defaultStyle.lineWidth = ScreenshotPreferences.annotationLineWidth
+        recentAnnotationColors = ScreenshotPreferences.recentAnnotationColors
+        hasLoadedPreferences = true
+    }
+
+    /// True once the defaults came from Settings. Before that, writes come from
+    /// tests or a preview and must not reach the real preferences.
+    private var hasLoadedPreferences = false
+
+    private func persistDefaultStyle(from previous: AnnotationStyle) {
+        guard hasLoadedPreferences else { return }
+        if previous.color != defaultStyle.color,
+           let hex = AnnotationPalette.hex(for: defaultStyle.color) {
+            ScreenshotPreferences.annotationColor = hex
+        }
+        if previous.lineWidth != defaultStyle.lineWidth {
+            ScreenshotPreferences.annotationLineWidth = defaultStyle.lineWidth
+        }
+    }
+
+    /// Adds a colour the user confirmed to the recent list, newest first.
+    func rememberRecentColor(_ hex: String) {
+        let updated = AnnotationPalette.addingRecent(hex, to: recentAnnotationColors)
+        guard updated != recentAnnotationColors else { return }
+        recentAnnotationColors = updated
+        ScreenshotPreferences.recentAnnotationColors = updated
+    }
+
+    /// True while the active tool draws with a colour. Mosaic and blur repaint
+    /// pixels instead, so they hide the colour button and the eyedropper.
+    var allowsColorStyles: Bool {
+        switch displayTool {
+        case .mosaic, .blur: return false
+        default: return true
+        }
     }
 
     /// Builds the toolbar snapshot for one capture: one entry per extension
@@ -364,6 +413,7 @@ struct CaptureToolbarView: View {
     var onCaptureAction: (String, String) -> Void = { _, _ in }
     @State private var showWatermarkSettings = false
     @State private var showColors = false
+    @State private var colorTab: ColorTab = .swatches
     @State private var hovered: HoverItem?
 
     /// Height of the strip above the pill that names what the pointer is on.
@@ -373,6 +423,11 @@ struct CaptureToolbarView: View {
     private enum HoverItem: Equatable {
         case tool(CaptureSession.Tool)
         case action(String)
+    }
+
+    private enum ColorTab: Hashable {
+        case swatches
+        case custom
     }
 
     /// The extension whose entry popover is open, by identifier.
@@ -391,7 +446,11 @@ struct CaptureToolbarView: View {
         switch hovered {
         case .tool(let tool): return "\(tool.title)  \(tool.shortcut)"
         case .action(let text): return text
-        case nil: return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close")
+        case nil:
+            if session.isPickingColor {
+                return t("Click the screenshot to pick a colour · Esc cancels")
+            }
+            return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close")
         }
     }
 
@@ -464,6 +523,7 @@ struct CaptureToolbarView: View {
         let active = session.tool == tool
         return Button {
             session.tool = tool
+            session.isPickingColor = false
             showColors = false
         } label: {
             toolGlyph(tool)
@@ -501,7 +561,7 @@ struct CaptureToolbarView: View {
     private var optionsRow: some View {
         HStack(spacing: 5) {
             if showsColorSwatch {
-                colorButton
+                colorControls
                 Divider().frame(height: 18)
             }
             toolOptions
@@ -514,16 +574,27 @@ struct CaptureToolbarView: View {
         .shadow(color: .black.opacity(0.15), radius: 7, y: 3)
     }
 
-    private var showsColorSwatch: Bool {
-        switch session.displayTool {
-        case .select, .mosaic, .blur: return false
-        default: return true
+    var showsColorSwatch: Bool { session.allowsColorStyles }
+
+    /// The colour well and the eyedropper read as one control: both set the
+    /// same colour, one from the palette and one from the picture.
+    private var colorControls: some View {
+        HStack(spacing: 0) {
+            colorButton
+            Rectangle()
+                .fill(Color.primary.opacity(0.12))
+                .frame(width: 1, height: 16)
+            colorPickButton
         }
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(Color.primary.opacity(0.05))
+        )
     }
 
     private var colorButton: some View {
         Button { showColors.toggle() } label: {
-            Circle().fill(session.activeStyle.color).frame(width: 16, height: 16)
+            Circle().fill(session.activeStyle.color).frame(width: 18, height: 18)
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.2)))
                 .frame(width: 26, height: 26)
         }
@@ -531,17 +602,98 @@ struct CaptureToolbarView: View {
         .accessibilityLabel(t("Annotation color"))
         .onHover { hover(.action(t("Color")), inside: $0) }
         .popover(isPresented: $showColors, arrowEdge: .bottom) {
-            HStack(spacing: 9) {
-                ForEach(Annotation.palette, id: \.self) { color in
-                    Button { session.activeStyle.color = color; showColors = false } label: {
-                        Circle().fill(color).frame(width: 20, height: 20)
-                            .overlay(Circle().strokeBorder(Color.primary.opacity(session.activeStyle.color == color ? 0.7 : 0.15), lineWidth: 2))
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(color.description)
-                }
-            }.padding(12)
+            colorPopover
         }
+    }
+
+    private var colorPickButton: some View {
+        optionButton(
+            t("Pick a colour from the screenshot"),
+            hoverText: "\(t("Pick a colour from the screenshot"))  I",
+            selected: session.isPickingColor
+        ) {
+            guard !session.isTextEditing else { return }
+            session.isPickingColor.toggle()
+        } label: {
+            Image(systemName: "eyedropper").font(.system(size: 13, weight: .medium))
+        }
+    }
+
+    private var colorPopover: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            switch colorTab {
+            case .swatches: swatchGrid
+            case .custom: ColorCustomTab(session: session)
+            }
+
+            Divider()
+
+            Picker("", selection: $colorTab) {
+                Text(t("Swatches")).tag(ColorTab.swatches)
+                Text(t("Custom")).tag(ColorTab.custom)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
+        .frame(width: 142)
+        .padding(12)
+    }
+
+    @ViewBuilder private var swatchGrid: some View {
+        LazyVGrid(
+            columns: Array(repeating: GridItem(.fixed(22), spacing: 8), count: 5),
+            alignment: .leading,
+            spacing: 8
+        ) {
+            ForEach(AnnotationPalette.presets) { swatch in
+                colorSwatch(swatch, diameter: 22) { showColors = false }
+            }
+        }
+
+        if !session.recentAnnotationColors.isEmpty {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(t("Recently Used"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    ForEach(session.recentAnnotationColors, id: \.self) { hex in
+                        recentSwatch(hex)
+                    }
+                }
+            }
+        }
+    }
+
+    private func colorSwatch(
+        _ swatch: AnnotationPalette.Swatch,
+        diameter: CGFloat,
+        onPick: @escaping () -> Void
+    ) -> some View {
+        AnnotationColorSwatch(
+            color: swatch.color,
+            name: swatch.name,
+            selected: AnnotationPalette.hex(for: session.activeStyle.color) == swatch.hex,
+            diameter: diameter
+        ) {
+            session.activeStyle.color = swatch.color
+            onPick()
+        }
+        .onHover { hover(.action(swatch.name), inside: $0) }
+    }
+
+    private func recentSwatch(_ hex: String) -> some View {
+        let color = AnnotationPalette.color(fromHex: hex) ?? .black
+        return AnnotationColorSwatch(
+            color: color,
+            name: hex,
+            selected: AnnotationPalette.hex(for: session.activeStyle.color) == hex,
+            diameter: 22
+        ) {
+            session.activeStyle.color = color
+            session.rememberRecentColor(hex)
+            showColors = false
+        }
+        .onHover { hover(.action(hex), inside: $0) }
     }
 
     @ViewBuilder private var toolOptions: some View {
@@ -836,6 +988,259 @@ struct CaptureToolbarView: View {
     }
 }
 
+/// The popover's custom page: preview, hex field and one slider per channel.
+/// Edits apply while dragging; a slider drag is one undo step, and the recent
+/// list is only written once the value is final.
+private struct ColorCustomTab: View {
+    @ObservedObject var session: CaptureSession
+    @State private var hexText = ""
+    @FocusState private var hexFocused: Bool
+    @State private var hexEdited = false
+    @State private var copied = false
+    @State private var copyTask: Task<Void, Never>?
+
+    private var currentHex: String {
+        AnnotationPalette.hex(for: session.activeStyle.color) ?? "#000000"
+    }
+
+    private var components: AnnotationPalette.RGB {
+        AnnotationPalette.rgb(for: session.activeStyle.color) ?? .init(red: 0, green: 0, blue: 0)
+    }
+
+    /// The card is both the preview and the hex field: the value appears once,
+    /// on the colour it describes.
+    private var ink: Color {
+        AnnotationPalette.prefersDarkText(on: session.activeStyle.color) ? .black : .white
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            hexCard
+            ChannelSlider(
+                label: "R",
+                tint: .red,
+                value: channelBinding(\.red),
+                valueText: "\(components.red)",
+                onEditingChanged: channelEditingChanged
+            )
+            ChannelSlider(
+                label: "G",
+                tint: .green,
+                value: channelBinding(\.green),
+                valueText: "\(components.green)",
+                onEditingChanged: channelEditingChanged
+            )
+            ChannelSlider(
+                label: "B",
+                tint: .blue,
+                value: channelBinding(\.blue),
+                valueText: "\(components.blue)",
+                onEditingChanged: channelEditingChanged
+            )
+        }
+        .onAppear { hexText = currentHex }
+        .onDisappear { copyTask?.cancel() }
+    }
+
+    private var hexCard: some View {
+        TextField("", text: $hexText)
+            .textFieldStyle(.plain)
+            .multilineTextAlignment(.center)
+            .font(.system(size: 12.5, weight: .semibold, design: .monospaced))
+            .foregroundStyle(ink)
+            .tint(ink)
+            .padding(.horizontal, 30)
+            .frame(height: 44)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(session.activeStyle.color)
+            )
+            .overlay {
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(
+                        hexFocused ? Color.accentColor : Color.primary.opacity(0.15),
+                        lineWidth: hexFocused ? 2 : 1
+                    )
+            }
+            .overlay(alignment: .trailing) {
+                copyButton.padding(.trailing, 6)
+            }
+            .focused($hexFocused)
+            .onSubmit { commitHex() }
+            .onChange(of: hexText) { _, text in
+                guard hexFocused,
+                      let canonical = AnnotationPalette.canonicalHex(text),
+                      let color = AnnotationPalette.color(fromHex: canonical)
+                else { return }
+                hexEdited = canonical != currentHex
+                session.activeStyle.color = color
+            }
+            .onChange(of: hexFocused) { _, focused in
+                if focused {
+                    hexText = currentHex
+                    hexEdited = false
+                } else {
+                    commitHex()
+                }
+            }
+            .onChange(of: currentHex) { _, hex in
+                guard !hexFocused else { return }
+                hexText = hex
+            }
+            .accessibilityLabel(t("Hex colour"))
+    }
+
+    /// Copies without touching the field: selecting the code to copy left the
+    /// whole card highlighted, which read as editing rather than copying.
+    private var copyButton: some View {
+        Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(currentHex, forType: .string)
+            copied = true
+            copyTask?.cancel()
+            copyTask = Task {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                guard !Task.isCancelled else { return }
+                copied = false
+            }
+        } label: {
+            Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(ink.opacity(0.9))
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(t("Copy hex colour"))
+        .accessibilityLabel(t("Copy hex colour"))
+    }
+
+    /// An incomplete or malformed hex applies nothing and shows no error; on
+    /// leaving the field the text goes back to the colour in use.
+    private func commitHex() {
+        if hexEdited, let color = AnnotationPalette.color(fromHex: hexText) {
+            session.activeStyle.color = color
+            if let hex = AnnotationPalette.hex(for: color) {
+                session.rememberRecentColor(hex)
+            }
+        }
+        hexEdited = false
+        hexText = currentHex
+    }
+
+    private func channelEditingChanged(_ editing: Bool) {
+        if editing {
+            // The drag does not take focus from the field. Left focused, it
+            // stops following the sliders and its stale text is replayed on the
+            // next submit or blur, undoing the drag.
+            if hexFocused {
+                commitHex()
+                hexFocused = false
+            }
+            session.beginInteractiveChange()
+        } else {
+            session.endInteractiveChange()
+            if let hex = AnnotationPalette.hex(for: session.activeStyle.color) {
+                session.rememberRecentColor(hex)
+            }
+        }
+    }
+
+    private func channelBinding(
+        _ keyPath: WritableKeyPath<AnnotationPalette.RGB, Int>
+    ) -> Binding<Double> {
+        Binding(
+            get: { Double(components[keyPath: keyPath]) },
+            set: { value in
+                var updated = components
+                updated[keyPath: keyPath] = min(255, max(0, Int(value.rounded())))
+                session.activeStyle.color = AnnotationPalette.color(updated)
+            }
+        )
+    }
+}
+
+/// A one-channel slider whose track shows the channel ramp. A native mini
+/// Slider draws a monochrome track, so its tint never reached the popover.
+private struct ChannelSlider: View {
+    let label: String
+    let tint: Color
+    @Binding var value: Double
+    let valueText: String
+    let onEditingChanged: (Bool) -> Void
+
+    @State private var dragging = false
+
+    private let knob: CGFloat = 12
+    private let trackHeight: CGFloat = 4
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 10, alignment: .leading)
+
+            GeometryReader { proxy in
+                let travel = max(1, proxy.size.width - knob)
+                let fraction = min(1, max(0, value / 255))
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [.black, tint],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .frame(height: trackHeight)
+                    Circle()
+                        .fill(.white)
+                        .overlay(Circle().strokeBorder(.black.opacity(0.22)))
+                        .frame(width: knob, height: knob)
+                        .shadow(color: .black.opacity(0.25), radius: 1.5, y: 0.5)
+                        .offset(x: travel * fraction)
+                }
+                .frame(maxHeight: .infinity)
+                .contentShape(Rectangle())
+                .gesture(
+                    DragGesture(minimumDistance: 0)
+                        .onChanged { gesture in
+                            if !dragging {
+                                dragging = true
+                                onEditingChanged(true)
+                            }
+                            let x = min(travel, max(0, gesture.location.x - knob / 2))
+                            value = (x / travel * 255).rounded()
+                        }
+                        .onEnded { _ in
+                            dragging = false
+                            onEditingChanged(false)
+                        }
+                )
+            }
+            .frame(height: 16)
+
+            Text(valueText)
+                .font(.system(size: 10.5, weight: .medium))
+                .monospacedDigit()
+                .foregroundStyle(.secondary)
+                .frame(width: 26, alignment: .trailing)
+                .accessibilityHidden(true)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(label)
+        .accessibilityValue(valueText)
+        .accessibilityAdjustableAction { direction in
+            switch direction {
+            case .increment: value = min(255, value + 5)
+            case .decrement: value = max(0, value - 5)
+            @unknown default: break
+            }
+        }
+    }
+}
+
 /// The hint band is decoration: clicks and drags there belong to the selection
 /// view underneath, so the hosting view drops them before any SwiftUI button
 /// could claim them.
@@ -914,32 +1319,50 @@ private struct WatermarkSettingsView: View {
                 text: "\(Int(session.watermarkOpacity * 100))%"
             )
 
-            HStack(spacing: 8) {
+            HStack(alignment: .top, spacing: 8) {
                 Text(t("Color"))
                     .frame(width: 54, alignment: .leading)
                     .foregroundStyle(.secondary)
 
-                ForEach(Self.palette, id: \.self) { color in
-                    Circle()
-                        .fill(color)
-                        .frame(width: 14, height: 14)
-                        .overlay {
-                            Circle().strokeBorder(
-                                Color.primary.opacity(session.watermarkColor == color ? 0.6 : 0.12),
-                                lineWidth: 2
-                            )
+                VStack(alignment: .leading, spacing: 6) {
+                    LazyVGrid(
+                        columns: Array(repeating: GridItem(.fixed(16), spacing: 6), count: 5),
+                        alignment: .leading,
+                        spacing: 6
+                    ) {
+                        ForEach(AnnotationPalette.presets) { swatch in
+                            AnnotationColorSwatch(
+                                color: swatch.color,
+                                name: swatch.name,
+                                selected: AnnotationPalette.hex(for: session.watermarkColor) == swatch.hex,
+                                diameter: 16
+                            ) {
+                                session.watermarkColor = swatch.color
+                            }
                         }
-                        .padding(2)
-                        .contentShape(Circle())
-                        .onTapGesture { session.watermarkColor = color }
+                    }
+
+                    if !session.recentAnnotationColors.isEmpty {
+                        HStack(spacing: 6) {
+                            ForEach(session.recentAnnotationColors, id: \.self) { hex in
+                                let color = AnnotationPalette.color(fromHex: hex) ?? .black
+                                AnnotationColorSwatch(
+                                    color: color,
+                                    name: hex,
+                                    selected: AnnotationPalette.hex(for: session.watermarkColor) == hex,
+                                    diameter: 16
+                                ) {
+                                    session.watermarkColor = color
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
         .padding(14)
         .frame(width: 290)
     }
-
-    private static let palette: [Color] = [.white, .black, .red, .yellow, .blue]
 
     private func sizeButton(_ scale: CGFloat, _ title: String) -> some View {
         Button(title) {
