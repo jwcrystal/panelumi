@@ -99,8 +99,6 @@ struct Annotation: Equatable {
     /// Highlighter opacity (0…1).
     var highlighterAlpha: CGFloat = 0.32
 
-    static let palette: [Color] = [.red, .yellow, .blue, .white, .black]
-
     /// Normalised bounding box, used for selection and hit testing.
     var bounds: CGRect {
         switch shape {

@@ -921,6 +921,8 @@ final class SelectionView: NSView {
 
     var hasSelectionForDebug: Bool { selection != nil }
 
+    var hasBaseImageForDebug: Bool { baseImage != nil }
+
     var pendingTextFieldForDebug: NSTextField? { textField }
 
     func annotationFrameForDebug(_ index: Int) -> CGRect? {
@@ -999,6 +1001,50 @@ final class SelectionView: NSView {
         }
     }
 
+    /// Samples the frozen base image, which is only the selected region and
+    /// carries no annotations or toolbar. The view point is brought into the
+    /// selection, then scaled to the image's own pixel grid: a Retina capture
+    /// has twice the pixels of the rect it is drawn in. The pixel is drawn into
+    /// a 1×1 sRGB context instead of read through `NSBitmapImageRep`, whose
+    /// calibrated colour space shifts the components it reports.
+    private func pickColor(at point: CGPoint) {
+        guard let selection, let baseImage,
+              let srgb = CGColorSpace(name: CGColorSpace.sRGB)
+        else { return }
+        let scaleX = CGFloat(baseImage.width) / max(1, selection.width)
+        let scaleY = CGFloat(baseImage.height) / max(1, selection.height)
+        let column = min(baseImage.width - 1, max(0, Int((point.x - selection.minX) * scaleX)))
+        let row = min(baseImage.height - 1, max(0, Int((selection.maxY - point.y) * scaleY)))
+
+        var pixel = [UInt8](repeating: 0, count: 4)
+        guard let context = CGContext(
+            data: &pixel, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: srgb, bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return }
+        context.interpolationQuality = .none
+        context.draw(
+            baseImage,
+            in: CGRect(
+                x: -CGFloat(column),
+                y: CGFloat(row) + 1 - CGFloat(baseImage.height),
+                width: CGFloat(baseImage.width),
+                height: CGFloat(baseImage.height)
+            )
+        )
+
+        let color = Color(
+            .sRGB,
+            red: CGFloat(pixel[0]) / 255,
+            green: CGFloat(pixel[1]) / 255,
+            blue: CGFloat(pixel[2]) / 255,
+            opacity: 1
+        )
+        session.activeStyle.color = color
+        if let hex = AnnotationPalette.hex(for: color) {
+            session.rememberRecentColor(hex)
+        }
+    }
+
     /// Enter/Space/P work even when the toolbar has focus, because the local
     /// monitor sees the keys before SwiftUI does.
     private func installKeyMonitor() {
@@ -1044,6 +1090,13 @@ final class SelectionView: NSView {
         }
 
         if applyEditingShortcut(event) { return nil }
+
+        // Picking a colour is cancelled before Esc closes the capture.
+        if event.keyCode == 53, session.isPickingColor {
+            session.isPickingColor = false
+            needsDisplay = true
+            return nil
+        }
 
         switch event.keyCode {
         case 53: // Esc
@@ -1263,6 +1316,17 @@ final class SelectionView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         commitTextFieldIfNeeded()
 
+        if editing, session.isPickingColor {
+            // One click samples or gives up. No interaction starts, so the
+            // following drag and release cannot commit an annotation.
+            if let selection, selection.contains(point) {
+                pickColor(at: point)
+            }
+            session.isPickingColor = false
+            needsDisplay = true
+            return
+        }
+
         if editing {
             if windowTargets.isEmpty, let selection, let handle = handle(at: point, in: selection) {
                 interaction = .resizing(handle: handle, rect: selection)
@@ -1465,6 +1529,7 @@ final class SelectionView: NSView {
         removeTextField()
         textClickPoint = point
         textAnchor = point
+        session.isTextEditing = true
 
         let field = NSTextField(frame: NSRect(x: point.x, y: point.y - 12, width: 200, height: 24))
         field.placeholderString = t("Text")
@@ -1591,6 +1656,7 @@ final class SelectionView: NSView {
     private func removeTextField(refocus: Bool = true) {
         guard let field = textField else { return }
         textField = nil
+        session.isTextEditing = false
         let editor = field.currentEditor()
         if refocus, let responder = window?.firstResponder, responder === field || responder === editor {
             window?.makeFirstResponder(self)
@@ -1622,6 +1688,13 @@ final class SelectionView: NSView {
             }
 
             if applyEditingShortcut(event) { return }
+
+            // Picking a colour is cancelled before Esc closes the capture.
+            if event.keyCode == 53, session.isPickingColor {
+                session.isPickingColor = false
+                needsDisplay = true
+                return
+            }
 
             switch event.keyCode {
             case 53: onCancel?()                                  // Esc
@@ -1667,10 +1740,11 @@ final class SelectionView: NSView {
         }
     }
 
-    /// Tool letters and the Tab toggle only work once the toolbar is up, no
-    /// text field (including an input-method composition) owns the keys, and
-    /// no ⌘/⌃/⌥ shortcut is meant. `charactersIgnoringModifiers` keeps this
-    /// right on layouts such as Dvorak.
+    /// Tool letters, the Tab toggle and the colour eyedropper only work once
+    /// the toolbar is up, no text field (including an input-method composition)
+    /// owns the keys, and no ⌘/⌃/⌥ shortcut is meant.
+    /// `charactersIgnoringModifiers` keeps this right on layouts such as
+    /// Dvorak.
     private func applyEditingShortcut(_ event: NSEvent) -> Bool {
         guard textField == nil,
               event.modifierFlags.intersection([.command, .control, .option]).isEmpty
@@ -1681,12 +1755,25 @@ final class SelectionView: NSView {
             return true
         }
 
-        guard let character = event.charactersIgnoringModifiers?.lowercased().first,
-              let tool = CaptureSession.Tool.tool(forShortcut: character)
-        else { return false }
+        guard let character = event.charactersIgnoringModifiers?.lowercased().first else {
+            return false
+        }
+
+        // I is the eyedropper. It has no meaning where the colour button is
+        // hidden, so those tools keep their keys.
+        if character == "i" {
+            guard session.allowsColorStyles else { return false }
+            if interaction.isIdle {
+                session.isPickingColor.toggle()
+            }
+            return true
+        }
+
+        guard let tool = CaptureSession.Tool.tool(forShortcut: character) else { return false }
         // A drag is finished by the tool that started it; switching mid-drag
         // would commit it as another shape or drop it.
         if interaction.isIdle {
+            session.isPickingColor = false
             session.tool = tool
         }
         return true
