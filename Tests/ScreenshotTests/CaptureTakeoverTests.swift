@@ -83,6 +83,19 @@ final class CaptureTakeoverTests: XCTestCase {
     // MARK: - Declined and ended
 
     @MainActor
+    func testADeclinedActionKeepsTheSelectedTool() throws {
+        let harness = try Harness(returnsTakeover: false)
+        defer { harness.cleanup() }
+        let view = try XCTUnwrap(harness.view)
+        harness.controller.session.tool = .rectangle
+
+        view.requestCaptureAction(harness.fake.identifier, "entry")
+
+        XCTAssertEqual(harness.fake.beginCalls, ["entry"])
+        XCTAssertEqual(harness.controller.session.tool, .rectangle, "A declined action changes nothing")
+    }
+
+    @MainActor
     func testBeginReturningNilLeavesEverythingUntouched() throws {
         let harness = try Harness(returnsTakeover: false)
         defer { harness.cleanup() }

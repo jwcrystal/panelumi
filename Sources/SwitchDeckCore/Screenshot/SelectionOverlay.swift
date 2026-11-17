@@ -1053,6 +1053,7 @@ final class SelectionView: NSView {
         guard windowTargets.isEmpty else { return }
         commitTextFieldIfNeeded()
         guard session.annotations.isEmpty else { return }
+        let previousTool = session.tool
         session.tool = .select
         cancelCanvasInteractionForHistory()
         interaction = .none
@@ -1062,6 +1063,11 @@ final class SelectionView: NSView {
             entryID,
             selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
         )
+        // An extension that declines (or ends at once) leaves the selection as the
+        // user had it, so the tool they picked comes back.
+        if editing, !isFinishing, !session.takeoverActive {
+            session.tool = previousTool
+        }
     }
 
     private func layoutToolbar() {
