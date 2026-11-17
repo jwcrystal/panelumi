@@ -136,7 +136,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let hosting = NSHostingController(rootView: view)
         let window = NSWindow(contentViewController: hosting)
-        window.title = t("Set up SwitchDeck")
+        window.title = t("Set up Panelumi")
         window.styleMask = [.titled, .closable]
         window.isReleasedWhenClosed = false
         window.center()
@@ -184,7 +184,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             initialPane: paneArgument()
         ))
         let window = NSWindow(contentViewController: hosting)
-        window.title = "SwitchDeck"
+        window.title = "Panelumi"
         window.styleMask = [.titled, .closable, .miniaturizable]
         window.isReleasedWhenClosed = false
         window.center()
