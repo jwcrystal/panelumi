@@ -36,10 +36,10 @@ final class MenuController: NSObject, NSMenuDelegate {
         let button = statusItem.button
         button?.image = NSImage(
             systemSymbolName: "switch.2",
-            accessibilityDescription: "SwitchDeck"
-        ) ?? NSImage(systemSymbolName: "power", accessibilityDescription: "SwitchDeck")
+            accessibilityDescription: "Panelumi"
+        ) ?? NSImage(systemSymbolName: "power", accessibilityDescription: "Panelumi")
         button?.image?.isTemplate = true
-        button?.toolTip = "SwitchDeck"
+        button?.toolTip = "Panelumi"
 
         let menu = NSMenu()
         menu.delegate = self
@@ -123,7 +123,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         settings.image = symbol("gearshape")
         menu.addItem(settings)
 
-        let quit = NSMenuItem(title: t("Quit SwitchDeck"), action: #selector(quit), keyEquivalent: "")
+        let quit = NSMenuItem(title: t("Quit Panelumi"), action: #selector(quit), keyEquivalent: "")
         quit.target = self
         menu.addItem(quit)
 
@@ -228,7 +228,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
-        alert.messageText = tf("SwitchDeck %@ is available", release.version)
+        alert.messageText = tf("Panelumi %@ is available", release.version)
         alert.informativeText = tf("You have %@.", currentVersion)
         alert.addButton(withTitle: t("Download"))
         alert.addButton(withTitle: t("Later"))
@@ -242,7 +242,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
-        alert.messageText = t("SwitchDeck is up to date")
+        alert.messageText = t("Panelumi is up to date")
         alert.informativeText = tf("Version %@ is the latest.", currentVersion)
         alert.addButton(withTitle: t("OK"))
         alert.runModal()
@@ -284,7 +284,7 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let alert = NSAlert()
         alert.alertStyle = .warning
-        alert.messageText = t("SwitchDeck")
+        alert.messageText = t("Panelumi")
         var text = error.localizedDescription
         if let hint = (error as? SwitchDeckError)?.recoveryHint {
             text += "\n\n" + hint
