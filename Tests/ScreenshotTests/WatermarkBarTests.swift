@@ -3,39 +3,46 @@ import SwiftUI
 import XCTest
 @testable import SwitchDeckCore
 
-final class WatermarkModeTests: XCTestCase {
+final class WatermarkToggleTests: XCTestCase {
     @MainActor
-    func testModeWritesTheTwoFlags() {
+    func testTurningOffClearsTheHiddenFlag() {
         let session = CaptureSession()
+        session.watermarkEnabled = true
+        session.watermarkHidden = true
 
-        session.watermarkMode = .shown
-        XCTAssertTrue(session.watermarkEnabled)
-        XCTAssertFalse(session.watermarkHidden)
-
-        session.watermarkMode = .hidden
-        XCTAssertTrue(session.watermarkEnabled)
-        XCTAssertTrue(session.watermarkHidden)
-        XCTAssertNotNil(session.watermarkOptions, "hidden still keeps the watermark in the payload")
-
-        session.watermarkMode = .off
+        session.setWatermarkEnabled(false)
         XCTAssertFalse(session.watermarkEnabled)
         XCTAssertFalse(session.watermarkHidden)
         XCTAssertNil(session.watermarkOptions)
+
+        session.setWatermarkEnabled(true)
+        XCTAssertTrue(session.watermarkEnabled)
+        XCTAssertFalse(session.watermarkHidden)
+        XCTAssertNotNil(session.watermarkOptions)
     }
 
     @MainActor
-    func testFlagsReadBackAsTheirMode() {
+    func testTurningOnLeavesTheHiddenFlagAlone() {
         let session = CaptureSession()
-
-        session.watermarkEnabled = false
-        session.watermarkHidden = false
-        XCTAssertEqual(session.watermarkMode, .off)
-
         session.watermarkEnabled = true
-        XCTAssertEqual(session.watermarkMode, .shown)
-
         session.watermarkHidden = true
-        XCTAssertEqual(session.watermarkMode, .hidden)
+        XCTAssertNotNil(session.watermarkOptions, "hidden still keeps the watermark in the payload")
+
+        session.setWatermarkEnabled(true)
+        XCTAssertTrue(session.watermarkEnabled)
+        XCTAssertTrue(session.watermarkHidden, "only the More… sheet changes the hidden flag")
+    }
+
+    @MainActor
+    func testTheToggleBindingUsesTheSamePath() {
+        let session = CaptureSession()
+        session.watermarkEnabled = true
+        session.watermarkHidden = true
+
+        session.watermarkEnabledBinding.wrappedValue = false
+
+        XCTAssertFalse(session.watermarkEnabled)
+        XCTAssertFalse(session.watermarkHidden)
     }
 }
 
