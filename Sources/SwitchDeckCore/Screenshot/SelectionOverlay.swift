@@ -167,6 +167,10 @@ final class SelectionView: NSView {
 
     var onCapture: ((CapturePayload, CaptureSession.Output) -> Void)?
     var onCancel: (() -> Void)?
+    /// Called when the user picks an extension's toolbar entry, with the
+    /// extension identifier, the entry id and the region in global screen
+    /// coordinates.
+    var onCaptureAction: ((String, String, CGRect) -> Void)?
     /// Set for captures that skip the editor (text recognition): choosing a
     /// region or a window delivers it straight away with this output.
     var finishOnSelect: CaptureSession.Output?
@@ -675,6 +679,8 @@ final class SelectionView: NSView {
             return
         }
         session.annotations = []
+        session.extensionToolbarItems = CaptureSession.toolbarEntries(for: session.captureExtensions)
+        session.captureActionsAllowed = windowTargets.isEmpty
         session.onUndo = { [weak self] in self?.performHistory(.undo) }
         session.onRedo = { [weak self] in self?.performHistory(.redo) }
         session.onCopy = { [weak self] in self?.finish(.copy) }
@@ -850,12 +856,32 @@ final class SelectionView: NSView {
 
     private func installToolbar() {
         guard toolbarHost == nil else { return }
-        let host = NSHostingView(rootView: CaptureToolbarView(session: session))
+        let host = NSHostingView(rootView: CaptureToolbarView(
+            session: session,
+            onCaptureAction: { [weak self] extensionID, entryID in
+                self?.requestCaptureAction(extensionID, entryID)
+            }
+        ))
         host.frame.size = host.fittingSize
         addSubview(host)
         toolbarHost = host
 
         layoutToolbar()
+    }
+
+    /// A toolbar entry picked by the user. Only a picked region can start an
+    /// action: window composites have no region of their own, and annotations
+    /// keep the toolbar inactive. The region is converted to global screen
+    /// coordinates because the handler sits above the per-screen overlay.
+    func requestCaptureAction(_ extensionID: String, _ entryID: String) {
+        guard editing, session.annotations.isEmpty else { return }
+        guard let selection, selection.width >= 4, selection.height >= 4 else { return }
+        guard windowTargets.isEmpty else { return }
+        onCaptureAction?(
+            extensionID,
+            entryID,
+            selection.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        )
     }
 
     private func layoutToolbar() {
