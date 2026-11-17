@@ -791,7 +791,7 @@ private struct ScreenshotPane: View {
                         .padding(.vertical, 6)
                     }
 
-                    Text(t("In the editor: Return copies, Space saves, P pins, Esc cancels. Tool letters show when you hover the toolbar; I picks a colour, ⇥ hides the toolbar."))
+                    Text(t("In the editor: Return copies, Space saves, P pins, Esc cancels.\nHover the toolbar to see tool letters; I picks a colour, ⇥ hides the toolbar."))
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)

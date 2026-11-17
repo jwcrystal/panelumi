@@ -43,6 +43,12 @@ final class CaptureSession: ObservableObject {
             }
         }
 
+        /// What the hint band says for the tool: Select also has a key that
+        /// only applies to it.
+        var hint: String {
+            self == .select ? t("Select and move (⌫ deletes)") : title
+        }
+
         var shortcut: Character {
             switch self {
             case .select: return "V"
@@ -515,7 +521,7 @@ struct CaptureToolbarView: View {
 
     private var hintText: String {
         switch hovered {
-        case .tool(let tool): return "\(tool.title)  \(tool.shortcut)"
+        case .tool(let tool): return "\(tool.hint)  \(tool.shortcut)"
         case .action(let text): return text
         case nil:
             if session.isPickingColor {
@@ -871,14 +877,9 @@ struct CaptureToolbarView: View {
         return Button {
             session.showsWatermarkBar.toggle()
         } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "signature")
-                    .font(.system(size: 12.5, weight: .medium))
-                Text(t("Watermark"))
-                    .font(.system(size: 11, weight: .medium))
-            }
-            .padding(.horizontal, 6)
-            .frame(height: 26)
+            Image(systemName: "signature")
+                .font(.system(size: 12.5, weight: .medium))
+                .frame(width: 26, height: 26)
             .background(
                 RoundedRectangle(cornerRadius: 6, style: .continuous)
                     .fill(watermarkChipFill(open: open))
