@@ -157,7 +157,8 @@ public protocol CaptureTakeover: AnyObject {
     /// that an unhandled Escape ends the takeover with `.dismissed` (so the user
     /// can never be stuck). Keys arrive only while the capture window is key; if
     /// the user clicks into another app the keys stop, so an extension must also
-    /// call `cancel()` from its own UI or state.
+    /// offer on-screen controls (for example in a window attached with
+    /// `CaptureContext.attach`) or otherwise call `cancel()` from its own state.
     @MainActor func handleKey(_ key: CaptureKey) -> Bool
 
     /// Called exactly once, on every end path, after the host has restored the
@@ -173,8 +174,8 @@ public extension CaptureTakeover {
 }
 
 /// The extension's handle on the capture. Main-actor only. Once the takeover
-/// has ended (any reason) the context is inactive and `cancel()`, `deliver`
-/// and `showMessage` do nothing.
+/// has ended (any reason) the context is inactive and `cancel()`, `deliver`,
+/// `showMessage` and `attach` do nothing.
 ///
 /// Coordinate system: `region` is in global AppKit screen coordinates, in
 /// points, origin at the bottom-left of the primary display (the same space as
@@ -222,10 +223,24 @@ public final class CaptureContext {
         onCancel()
     }
 
+    /// Hands a helper window to the host: it is raised above the overlay, kept
+    /// out of live captures and window picking, and closed when the takeover
+    /// ends. The window should not become key (use a non-activating panel).
+    ///
+    /// May be called any time while active, also before the window is ordered
+    /// front. The host sets `isReleasedWhenClosed` to false. Does nothing when
+    /// inactive, so a window attached after the end is neither tracked nor
+    /// closed.
+    public func attach(_ window: NSWindow) {
+        guard active else { return }
+        onAttach(window)
+    }
+
     private var active = true
     private let onCancel: () -> Void
     private let onDeliver: (CGImage, Set<CaptureOutput>) -> Void
     private let onMessage: (String) -> Void
+    private let onAttach: (NSWindow) -> Void
 
     /// Created by the host only.
     init(
@@ -233,13 +248,15 @@ public final class CaptureContext {
         screen: NSScreen,
         cancel: @escaping () -> Void,
         deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
-        message: @escaping (String) -> Void = { _ in }
+        message: @escaping (String) -> Void = { _ in },
+        attach: @escaping (NSWindow) -> Void = { _ in }
     ) {
         self.region = region
         self.screen = screen
         self.onCancel = cancel
         self.onDeliver = deliver
         self.onMessage = message
+        self.onAttach = attach
     }
 
     /// Marks the context inactive; later `cancel()` calls do nothing.

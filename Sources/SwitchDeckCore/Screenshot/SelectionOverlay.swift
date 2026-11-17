@@ -28,13 +28,27 @@ final class SelectionController {
         session.captureExtensions = captureExtensions.filter { seen.insert($0.identifier).inserted }
     }
 
-    /// Exclude only capture overlays, not Settings or other app windows.
+    /// Exclude only capture overlays and the helper windows a takeover
+    /// attached, not Settings or other app windows. Also excludes the visible
+    /// message toasts, so a message never lands in a live capture.
     static var overlayWindowIDs: Set<CGWindowID> {
-        Set(NSApp.windows.compactMap { window in
+        var ids = Set(NSApp.windows.compactMap { window -> CGWindowID? in
             guard window.contentView is SelectionView, window.windowNumber > 0 else { return nil }
             return CGWindowID(window.windowNumber)
         })
+        // Visible only: a window that is not on screen yet has a window number
+        // the shared content cache does not know, which would make every frame
+        // refetch that cache.
+        for window in attachedWindows.allObjects + ColorToast.currentWindows
+        where window.isVisible && window.windowNumber > 0 {
+            ids.insert(CGWindowID(window.windowNumber))
+        }
+        return ids
     }
+
+    /// Every window an extension attached during any takeover. Weak, so it
+    /// never keeps a window alive.
+    private static let attachedWindows = NSHashTable<NSWindow>.weakObjects()
 
     func begin(
         onCapture: @escaping (CapturePayload, CaptureSession.Output) -> Void,
@@ -155,6 +169,18 @@ final class SelectionController {
                     level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1),
                     screen: run.context.screen
                 )
+            },
+            attach: { [box, weak self] window in
+                guard let self, let run = box.run, run.endedReason == nil, self.isActive else { return }
+                window.isReleasedWhenClosed = false
+                // Raise only a window that is at or below the overlay's level;
+                // never lower one the extension already placed higher.
+                let overlayLevel = NSWindow.Level.screenSaver
+                if window.level.rawValue <= overlayLevel.rawValue {
+                    window.level = NSWindow.Level(rawValue: overlayLevel.rawValue + 1)
+                }
+                run.attached.append(window)
+                Self.attachedWindows.add(window)
             }
         )
         box.run = run
@@ -165,6 +191,7 @@ final class SelectionController {
 
         guard let takeover = takingOver else {
             run.context.invalidate()
+            closeAttached(run)
             return
         }
         // `begin` may have closed the overlay (for example through the view's
@@ -173,6 +200,7 @@ final class SelectionController {
         guard isActive else {
             run.beginning = false
             run.context.invalidate()
+            closeAttached(run)
             takeover.takeoverDidEnd(reason: .dismissed)
             return
         }
@@ -228,9 +256,21 @@ final class SelectionController {
             NotificationCenter.default.removeObserver(displayObserver)
             self.displayObserver = nil
         }
+        closeAttached(run)
 
         then?()
         run.takeover?.takeoverDidEnd(reason: reason)
+    }
+
+    /// Closes every window an extension attached during `run`, used by every
+    /// exit path. The shared table and the run hold nothing afterwards.
+    private func closeAttached(_ run: TakeoverRun) {
+        for window in run.attached {
+            window.orderOut(nil)
+            window.close()
+            Self.attachedWindows.remove(window)
+        }
+        run.attached.removeAll()
     }
 
     /// Sends a key to the active takeover. An Escape the takeover does not

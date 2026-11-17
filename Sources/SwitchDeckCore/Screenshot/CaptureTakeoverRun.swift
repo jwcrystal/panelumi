@@ -21,6 +21,9 @@ final class TakeoverRun {
     var pendingCancel = false
     /// The extension called `deliver` synchronously inside `begin`.
     var pendingDeliver: (image: CGImage, outputs: Set<CaptureOutput>)?
+    /// Windows the extension handed to `attach`. The run owns what it must
+    /// close at the end.
+    var attached: [NSWindow] = []
 
     init(
         view: SelectionView,
@@ -28,7 +31,8 @@ final class TakeoverRun {
         screen: NSScreen,
         cancel: @escaping () -> Void,
         deliver: @escaping (CGImage, Set<CaptureOutput>) -> Void = { _, _ in },
-        message: @escaping (String) -> Void = { _ in }
+        message: @escaping (String) -> Void = { _ in },
+        attach: @escaping (NSWindow) -> Void = { _ in }
     ) {
         self.view = view
         self.context = CaptureContext(
@@ -36,7 +40,8 @@ final class TakeoverRun {
             screen: screen,
             cancel: cancel,
             deliver: deliver,
-            message: message
+            message: message,
+            attach: attach
         )
     }
 }
