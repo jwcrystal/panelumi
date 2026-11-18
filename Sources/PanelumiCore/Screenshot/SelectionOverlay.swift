@@ -15,6 +15,14 @@ final class SelectionController {
     private var activeTakeover: TakeoverRun?
     /// True while an extension's `begin` is running; refuses nested takeovers.
     private var beginningTakeover = false
+    /// The session's one local key monitor; the view it routes to decides.
+    private var keyMonitor: Any?
+    /// Watches for the keyboard leaving an overlay window, or coming back to
+    /// the app, while a capture is live.
+    private var focusObservers: [NSObjectProtocol] = []
+    /// The overlay the user last clicked in. It owns the keyboard when no
+    /// overlay window happens to be key.
+    private weak var focusView: SelectionView?
     /// Watches for display reconfiguration only while a takeover is active.
     private var displayObserver: NSObjectProtocol?
     /// The host's live-capture handler, as handed to `begin`. Defaults to
@@ -78,6 +86,12 @@ final class SelectionController {
         session.annotations = []
         session.resetHistory()
 
+        // Activate before any overlay exists. On macOS 14 activation is
+        // cooperative: a window ordered front into an inactive app is not
+        // guaranteed to become key, which left the overlay drawing its hints
+        // while the keyboard stayed with Settings or the recognition panel.
+        NSApplication.shared.activate(ignoringOtherApps: true)
+
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
             let view = SelectionView(
@@ -101,8 +115,12 @@ final class SelectionController {
             view.onTakeoverKey = { [weak self] key in
                 self?.routeKey(key) ?? false
             }
+            view.onInteract = { [weak self, weak view] in
+                guard let self, let view else { return }
+                self.focusView = view
+            }
             window.contentView = view
-            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
             windows.append(window)
             view.prepareSample()
 
@@ -117,7 +135,108 @@ final class SelectionController {
             }
         }
 
-        NSApp.activate(ignoringOtherApps: true)
+        installKeyMonitor()
+        observeFocusLoss()
+        claimFocus()
+        // Activation lands on a later run-loop turn; claim again once it has.
+        DispatchQueue.main.async { [weak self] in self?.claimFocus() }
+    }
+
+    // MARK: - Focus
+
+    private var focusPolicy: CaptureFocusPolicy {
+        CaptureFocusPolicy(
+            sessionActive: isActive,
+            appActive: NSApp.isActive,
+            takeoverActive: activeTakeover != nil
+        )
+    }
+
+    /// The overlay that should hold the keyboard when no overlay window is key:
+    /// the one the user last clicked in, else the one being edited, else the
+    /// one on the display under the pointer.
+    private var focusTarget: SelectionView? {
+        let views = windows.compactMap { $0.contentView as? SelectionView }
+        if let focusView, views.contains(where: { $0 === focusView }) {
+            return focusView
+        }
+        if let editing = views.first(where: { $0.isEditing }) {
+            return editing
+        }
+        let pointer = NSEvent.mouseLocation
+        return views.first { $0.screen.frame.contains(pointer) } ?? views.first
+    }
+
+    /// Puts the keyboard back on the overlay after AppKit gave it to another
+    /// window. Runs after activation, whenever an overlay window resigns key,
+    /// and when Panelumi becomes active again.
+    private func claimFocus() {
+        guard focusPolicy.claimsKeyboard, let target = focusTarget else { return }
+        guard target.window?.isKeyWindow != true else { return }
+        target.window?.makeKey()
+        // An annotation's text editor keeps the first responder: it is what
+        // was waiting for those keys.
+        if let window = target.window,
+           window.firstResponder == nil || window.firstResponder === window {
+            window.makeFirstResponder(target)
+        }
+    }
+
+    private func reclaimFocus() {
+        // After the transaction that took the keyboard away has finished;
+        // re-keying from inside it is ignored.
+        DispatchQueue.main.async { [weak self] in self?.claimFocus() }
+    }
+
+    private func observeFocusLoss() {
+        let center = NotificationCenter.default
+        for window in windows {
+            focusObservers.append(center.addObserver(
+                forName: NSWindow.didResignKeyNotification,
+                object: window,
+                queue: .main
+            ) { [weak self] _ in
+                MainActor.assumeIsolated { self?.reclaimFocus() }
+            })
+        }
+        focusObservers.append(center.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: NSApp,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.reclaimFocus() }
+        })
+    }
+
+    /// The session's one local monitor. It sees a key before the window AppKit
+    /// delivered it to, so an overlay that never became key still answers its
+    /// own shortcuts instead of sitting there inert.
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            guard let self, let view = self.keyTarget() else { return event }
+            return view.handleKeyEvent(event)
+        }
+    }
+
+    /// The view a key event belongs to, or nil to let AppKit deliver it.
+    func keyTarget() -> SelectionView? {
+        let keyWindow = NSApp.keyWindow
+        let overlayIsKey = keyWindow.map { key in windows.contains { $0 === key } } ?? false
+        guard focusPolicy.ownsKeyEvent(overlayIsKey: overlayIsKey) else { return nil }
+        if overlayIsKey, let view = keyWindow?.contentView as? SelectionView { return view }
+        return focusTarget
+    }
+
+    private func stopFocusTracking() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
+        for observer in focusObservers {
+            NotificationCenter.default.removeObserver(observer)
+        }
+        focusObservers.removeAll()
     }
 
     /// Debug helper: completes the current selection as if Enter was pressed.
@@ -280,6 +399,7 @@ final class SelectionController {
 
         then?()
         run.takeover?.takeoverDidEnd(reason: reason)
+        reclaimFocus()
     }
 
     /// Closes every window an extension attached during `run`, used by every
@@ -345,6 +465,8 @@ final class SelectionController {
         guard isActive else { return }
         endTakeover(.dismissed)
         isActive = false
+        stopFocusTracking()
+        focusView = nil
 
         for window in windows {
             window.orderOut(nil)
@@ -427,6 +549,9 @@ final class SelectionView: NSView {
     var onCaptureAction: ((String, String, CGRect) -> Void)?
     /// Routes a key press to the controller while a takeover is active.
     var onTakeoverKey: ((CaptureKey) -> Bool)?
+    /// Tells the controller the user worked with this overlay, so it can be
+    /// the keyboard's fallback owner if no overlay window is key.
+    var onInteract: (() -> Void)?
     /// True on the view that started the takeover; only it draws the border.
     var isTakeoverOwner = false
     /// Set for captures that skip the editor (text recognition): choosing a
@@ -435,6 +560,9 @@ final class SelectionView: NSView {
 
     private(set) var selection: CGRect?
     private var interaction: Interaction = .none
+    /// True once the overlay has a region to act on; used to pick the window
+    /// that should hold the keyboard.
+    var isEditing: Bool { editing }
     private(set) var hovered: (id: CGWindowID, rect: CGRect)?
     /// Windows picked with ⇧-click: composited together when editing starts.
     private var windowTargets: [CaptureWindowTarget] = []
@@ -460,7 +588,6 @@ final class SelectionView: NSView {
     /// Where the user clicked to start the text; the anchor is fitted to it.
     private var textClickPoint: CGPoint = .zero
     private var textAnchor: CGPoint = .zero
-    private var keyMonitor: Any?
     private var sessionCancellable: AnyCancellable?
 
     init(
@@ -844,7 +971,6 @@ final class SelectionView: NSView {
     }
 
     func prepareSample() {
-        installKeyMonitor()
         guard sampleImage == nil else { return }
         let frame = screen.frame
         Task { [weak self] in
@@ -958,7 +1084,6 @@ final class SelectionView: NSView {
         session.onClose = { [weak self] in self?.onCancel?() }
 
         installToolbar()
-        installKeyMonitor()
         sessionCancellable = session.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
                 self?.layoutToolbar()
@@ -1032,16 +1157,6 @@ final class SelectionView: NSView {
         context.draw(single, in: CGRect(x: 0, y: 0, width: 1, height: 1))
         func unit(_ value: UInt8) -> CGFloat { CGFloat(Double(value) / 255) }
         return NSColor(srgbRed: unit(bytes[0]), green: unit(bytes[1]), blue: unit(bytes[2]), alpha: 1)
-    }
-
-    /// Enter/Space/P work even when the toolbar has focus, because the local
-    /// monitor sees the keys before SwiftUI does.
-    private func installKeyMonitor() {
-        guard keyMonitor == nil else { return }
-        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self, self.window?.isKeyWindow == true else { return event }
-            return self.handleKeyEvent(event)
-        }
     }
 
     /// Shared by the local key monitor and the tests. Returns nil when the event was consumed,
@@ -1127,10 +1242,6 @@ final class SelectionView: NSView {
         baseTask?.cancel()
         outputTask?.cancel()
         outputTask = nil
-        if let keyMonitor {
-            NSEvent.removeMonitor(keyMonitor)
-        }
-        keyMonitor = nil
         sessionCancellable?.cancel()
         sessionCancellable = nil
         removeToolbar()
@@ -1316,6 +1427,7 @@ final class SelectionView: NSView {
 
     override func mouseDown(with event: NSEvent) {
         if session.takeoverActive { return }
+        onInteract?()
         window?.makeKey()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
