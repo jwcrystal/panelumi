@@ -42,10 +42,4 @@ final class PixelSamplingTests: XCTestCase {
         let red = try image(width: 2, height: 2) { _, _ in (255, 0, 0) }
         XCTAssertNil(SelectionView.srgbPixel(of: red, column: 5, row: 0))
     }
-
-    @MainActor
-    func testSelectHintMentionsDelete() {
-        XCTAssertTrue(CaptureSession.Tool.select.hint.contains("⌫"))
-        XCTAssertEqual(CaptureSession.Tool.rectangle.hint, CaptureSession.Tool.rectangle.title)
-    }
 }

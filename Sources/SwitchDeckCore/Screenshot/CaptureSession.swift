@@ -43,12 +43,6 @@ final class CaptureSession: ObservableObject {
             }
         }
 
-        /// What the hint band says for the tool: Select also has a key that
-        /// only applies to it.
-        var hint: String {
-            self == .select ? t("Select and move (⌫ deletes)") : title
-        }
-
         var shortcut: Character {
             switch self {
             case .select: return "V"
@@ -91,6 +85,11 @@ final class CaptureSession: ObservableObject {
             }
         }
     }
+
+    func toggleTool(_ tool: Tool) {
+        self.tool = (self.tool == tool && tool != .select) ? .select : tool
+    }
+
     @Published var selectionIndex: Int? {
         didSet {
             if selectionIndex != nil {
@@ -254,6 +253,10 @@ final class CaptureSession: ObservableObject {
     }
 
     var hasSelectedAnnotation: Bool { selectedAnnotation != nil }
+
+    var showsOptionsRow: Bool {
+        displayTool != .select || showsWatermarkBar
+    }
 
     /// The tool whose options describe what is being edited: the selected
     /// annotation's shape in Select, otherwise the active drawing tool.
@@ -501,6 +504,9 @@ struct CaptureToolbarView: View {
     /// Height of the strip above the pill that names what the pointer is on.
     /// The hosting view's hit test uses the same value.
     static let hintBandHeight: CGFloat = 24
+    static let optionsRowHeight: CGFloat = 36
+    static let optionsRowSpacing: CGFloat = 5
+    static var optionsRowReserve: CGFloat { optionsRowHeight + optionsRowSpacing }
 
     private enum HoverItem: Equatable {
         case tool(CaptureSession.Tool)
@@ -511,23 +517,35 @@ struct CaptureToolbarView: View {
     @State private var openExtensionPopover: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            hintBand
-            mainRow
-            optionsRow
+        VStack(alignment: .leading, spacing: Self.optionsRowSpacing) {
+            if popoverPlacement.edge == .top {
+                optionsRowIfShown
+                mainRow
+                hintBand
+            } else {
+                hintBand
+                mainRow
+                optionsRowIfShown
+            }
         }
         .fixedSize()
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: popoverPlacement.edge == .top ? .bottom : .top)
+        .onChange(of: session.showsOptionsRow) { _, shown in
+            if !shown {
+                showColors = false
+            }
+        }
     }
 
     private var hintText: String {
         switch hovered {
-        case .tool(let tool): return "\(tool.hint)  \(tool.shortcut)"
+        case .tool(let tool): return "\(tool.title)  \(tool.shortcut)"
         case .action(let text): return text
         case nil:
             if session.isPickingColor {
                 return t("Click the screenshot to pick a colour · Esc cancels")
             }
-            return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close")
+            return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close")
         }
     }
 
@@ -558,7 +576,7 @@ struct CaptureToolbarView: View {
 
     private var mainRow: some View {
         HStack(spacing: 5) {
-            ForEach(CaptureSession.Tool.allCases) { tool in
+            ForEach(CaptureSession.Tool.allCases.filter { $0 != .select }) { tool in
                 toolButton(tool)
             }
 
@@ -599,7 +617,7 @@ struct CaptureToolbarView: View {
     private func toolButton(_ tool: CaptureSession.Tool) -> some View {
         let active = session.tool == tool
         return Button {
-            session.tool = tool
+            session.toggleTool(tool)
             session.isPickingColor = false
             showColors = false
         } label: {
@@ -632,6 +650,13 @@ struct CaptureToolbarView: View {
             Text(verbatim: "A").font(.system(size: 14, weight: .medium))
         default:
             Image(systemName: tool.symbol).font(.system(size: 12.5, weight: .medium))
+        }
+    }
+
+    @ViewBuilder
+    private var optionsRowIfShown: some View {
+        if session.showsOptionsRow {
+            optionsRow
         }
     }
 
@@ -762,7 +787,7 @@ struct CaptureToolbarView: View {
             patternControls
             lineWidthSlider
         case .select:
-            Text(t("Select an annotation to adjust its style"))
+            Text(t("Click an annotation to adjust its style"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }
@@ -1489,9 +1514,10 @@ final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
 
     var hintBandRect: NSRect {
         let height = min(CaptureToolbarView.hintBandHeight, bounds.height)
+        let atBottom = rootView.popoverPlacement.edge == .top
         return isFlipped
-            ? NSRect(x: 0, y: 0, width: bounds.width, height: height)
-            : NSRect(x: 0, y: bounds.maxY - height, width: bounds.width, height: height)
+            ? NSRect(x: 0, y: atBottom ? bounds.maxY - height : 0, width: bounds.width, height: height)
+            : NSRect(x: 0, y: atBottom ? bounds.minY : bounds.maxY - height, width: bounds.width, height: height)
     }
 }
 

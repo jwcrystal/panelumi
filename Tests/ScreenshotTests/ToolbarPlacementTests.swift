@@ -47,6 +47,24 @@ final class ToolbarPlacementTests: XCTestCase {
         XCTAssertEqual(frame(for: CGRect(x: 1400, y: 400, width: 100, height: 300)).maxX, 1492)
     }
 
+    func testReservedOptionsRowKeepsTheToolbarOnTheSameSide() {
+        let selection = CGRect(x: 300, y: 140, width: 800, height: 400)
+        let reserve = CaptureToolbarView.optionsRowReserve
+
+        let hidden = CGRect(
+            origin: SelectionView.toolbarOrigin(selection: selection, size: size, bounds: bounds, reserve: reserve),
+            size: size
+        )
+        XCTAssertEqual(hidden.minY, selection.maxY + 10)
+
+        let expanded = CGSize(width: size.width, height: size.height + reserve)
+        let shown = CGRect(
+            origin: SelectionView.toolbarOrigin(selection: selection, size: expanded, bounds: bounds),
+            size: expanded
+        )
+        XCTAssertEqual(shown.minY, selection.maxY + 10)
+    }
+
     func testKeepsTheLeftEdgeVisibleOnAScreenNarrowerThanTheToolbar() {
         let narrow = CGRect(x: 0, y: 0, width: 500, height: 1000)
         XCTAssertEqual(frame(for: CGRect(x: 100, y: 400, width: 300, height: 300), bounds: narrow).minX, 8)

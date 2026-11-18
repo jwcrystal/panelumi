@@ -301,6 +301,82 @@ final class SelectionViewKeyTests: XCTestCase {
     }
 
     @MainActor
+    func testTogglingTheActiveToolPutsItDown() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.toggleTool(.rectangle)
+        XCTAssertEqual(session.tool, .rectangle)
+        session.toggleTool(.rectangle)
+        XCTAssertEqual(session.tool, .select)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .select)
+    }
+
+    @MainActor
+    func testEscapeClosesTheTextFieldBeforePuttingDownText() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Esc must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .text
+        view.mouseDown(with: try mouseEvent(.leftMouseDown, at: editingPoint(on: screen), in: view))
+        XCTAssertNotNil(view.pendingTextFieldForDebug)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertNil(view.pendingTextFieldForDebug)
+        XCTAssertEqual(session.tool, .text)
+        XCTAssertTrue(controller.isActive)
+    }
+
+    @MainActor
+    func testEscapePutsDownTheToolBeforeClosing() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        var cancels = 0
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Esc must not deliver a capture") },
+            onCancel: { cancels += 1 },
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertEqual(session.tool, .select)
+        XCTAssertEqual(cancels, 0)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertEqual(cancels, 1)
+    }
+
+    @MainActor
     func testToolLetterKeysAreIgnoredWithAShortcutModifier() throws {
         let screen = try requireScreen()
         let controller = SelectionController()
@@ -381,6 +457,77 @@ final class SelectionViewKeyTests: XCTestCase {
         XCTAssertFalse(session.toolbarVisible)
         XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view)))
         XCTAssertTrue(session.toolbarVisible)
+    }
+
+    @MainActor
+    func testHeldToolLetterLeavesTheToolAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view, isARepeat: true)))
+        XCTAssertEqual(session.tool, .select)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view, isARepeat: true)))
+        XCTAssertEqual(session.tool, .rectangle)
+    }
+
+    @MainActor
+    func testHeldColourKeyLeavesTheEyedropperAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        XCTAssertNil(view.handleKeyEvent(keyEvent(34, "i", in: view, isARepeat: true)))
+        XCTAssertFalse(session.isPickingColor)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(34, "i", in: view)))
+        XCTAssertTrue(session.isPickingColor)
+    }
+
+    @MainActor
+    func testHeldTabLeavesTheToolbarAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tab must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        XCTAssertTrue(session.toolbarVisible)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view, isARepeat: true)))
+        XCTAssertTrue(session.toolbarVisible)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view)))
+        XCTAssertFalse(session.toolbarVisible)
     }
 
     // MARK: - Helpers
@@ -479,7 +626,8 @@ final class SelectionViewKeyTests: XCTestCase {
 
     @MainActor
     private func keyEvent(_ keyCode: UInt16, _ characters: String, in view: SelectionView,
-                          modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+                          modifiers: NSEvent.ModifierFlags = [],
+                          isARepeat: Bool = false) -> NSEvent {
         NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -489,7 +637,7 @@ final class SelectionViewKeyTests: XCTestCase {
             context: nil,
             characters: characters,
             charactersIgnoringModifiers: characters,
-            isARepeat: false,
+            isARepeat: isARepeat,
             keyCode: keyCode
         )!
     }

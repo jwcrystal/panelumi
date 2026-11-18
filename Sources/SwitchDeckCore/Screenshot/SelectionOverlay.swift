@@ -1080,18 +1080,7 @@ final class SelectionView: NSView {
 
         if applyEditingShortcut(event) { return nil }
 
-        // Picking a colour is cancelled before Esc closes the capture.
-        if event.keyCode == 53, session.isPickingColor {
-            session.isPickingColor = false
-            needsDisplay = true
-            return nil
-        }
-
-        // The watermark submenu closes first; the capture stays open.
-        if event.keyCode == 53, session.showsWatermarkBar {
-            session.showsWatermarkBar = false
-            return nil
-        }
+        if event.keyCode == 53, dismissEscapeLayer() { return nil }
 
         switch event.keyCode {
         case 53: // Esc
@@ -1246,8 +1235,10 @@ final class SelectionView: NSView {
 
     private func layoutToolbar() {
         guard let toolbarHost, let selection else { return }
+        toolbarHost.layoutSubtreeIfNeeded()
         let size = toolbarHost.fittingSize
-        let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds)
+        let reserve = session.showsOptionsRow ? 0 : CaptureToolbarView.optionsRowReserve
+        let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds, reserve: reserve)
         toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible || session.takeoverActive
         let edge = Self.popoverEdge(toolbar: toolbarHost.frame, selection: selection, bounds: bounds)
@@ -1276,7 +1267,12 @@ final class SelectionView: NSView {
     /// selection's bottom edge on the inside: a selection that leaves no room
     /// on either side is mostly the screen, and its bottom strip is the least
     /// costly part to cover.
-    static func toolbarOrigin(selection: CGRect, size: CGSize, bounds: CGRect) -> CGPoint {
+    static func toolbarOrigin(
+        selection: CGRect,
+        size: CGSize,
+        bounds: CGRect,
+        reserve: CGFloat = 0
+    ) -> CGPoint {
         let gap: CGFloat = 10
         let margin: CGFloat = 8
 
@@ -1285,9 +1281,9 @@ final class SelectionView: NSView {
         let below = selection.minY - size.height - gap
         let above = selection.maxY + gap
         let y: CGFloat
-        if below >= margin {
+        if below - reserve >= margin {
             y = below
-        } else if above + size.height <= bounds.height - margin {
+        } else if above + size.height + reserve <= bounds.height - margin {
             y = above
         } else {
             y = max(margin, min(selection.minY + gap, bounds.height - size.height - margin))
@@ -1699,18 +1695,7 @@ final class SelectionView: NSView {
 
             if applyEditingShortcut(event) { return }
 
-            // Picking a colour is cancelled before Esc closes the capture.
-            if event.keyCode == 53, session.isPickingColor {
-                session.isPickingColor = false
-                needsDisplay = true
-                return
-            }
-
-            // The watermark submenu closes first; the capture stays open.
-            if event.keyCode == 53, session.showsWatermarkBar {
-                session.showsWatermarkBar = false
-                return
-            }
+            if event.keyCode == 53, dismissEscapeLayer() { return }
 
             switch event.keyCode {
             case 53: onCancel?()                                  // Esc
@@ -1756,6 +1741,25 @@ final class SelectionView: NSView {
         }
     }
 
+    private func dismissEscapeLayer() -> Bool {
+        if session.isPickingColor {
+            session.isPickingColor = false
+            needsDisplay = true
+            return true
+        }
+        if session.showsWatermarkBar {
+            session.showsWatermarkBar = false
+            return true
+        }
+        if session.tool != .select {
+            cancelCanvasInteractionForHistory()
+            session.tool = .select
+            needsDisplay = true
+            return true
+        }
+        return false
+    }
+
     /// Tool letters, the Tab toggle and the colour eyedropper only work once
     /// the toolbar is up, no text field (including an input-method composition)
     /// owns the keys, and no ⌘/⌃/⌥ shortcut is meant.
@@ -1767,6 +1771,7 @@ final class SelectionView: NSView {
         else { return false }
 
         if event.keyCode == 48 { // Tab
+            if event.isARepeat { return true }
             session.toolbarVisible.toggle()
             return true
         }
@@ -1778,7 +1783,8 @@ final class SelectionView: NSView {
         // I is the eyedropper. It has no meaning where the colour button is
         // hidden, so those tools keep their keys.
         if character == "i" {
-            guard session.allowsColorStyles else { return false }
+            guard session.showsOptionsRow, session.allowsColorStyles else { return false }
+            if event.isARepeat { return true }
             if interaction.isIdle {
                 session.isPickingColor.toggle()
             }
@@ -1788,9 +1794,10 @@ final class SelectionView: NSView {
         guard let tool = CaptureSession.Tool.tool(forShortcut: character) else { return false }
         // A drag is finished by the tool that started it; switching mid-drag
         // would commit it as another shape or drop it.
+        if event.isARepeat { return true }
         if interaction.isIdle {
             session.isPickingColor = false
-            session.tool = tool
+            session.toggleTool(tool)
         }
         return true
     }
