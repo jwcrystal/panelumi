@@ -21,6 +21,18 @@ if security find-identity -v -p codesigning | grep -q "$NAME"; then
   exit 0
 fi
 
+# A certificate with this name that is not a usable identity — a second copy
+# from an interrupted run, or one whose key is gone — makes codesign refuse with
+# "ambiguous" and build-app.sh quietly falls back to ad-hoc. Refuse instead.
+leftover="$(security find-certificate -a -c "$NAME" -Z 2>/dev/null | awk '/SHA-1 hash:/ {print $3}' || true)"
+if [ -n "$leftover" ]; then
+  echo "error: certificates named $NAME exist but are not usable signing identities:" >&2
+  echo "$leftover" | sed 's/^/  /' >&2
+  echo "Remove them before running this again:" >&2
+  echo "  security delete-identity -Z <hash>    # or: security delete-certificate -Z <hash>" >&2
+  exit 1
+fi
+
 echo "==> Creating certificate"
 openssl req -x509 -newkey rsa:2048 -nodes \
   -keyout "$TMP/key.pem" -out "$TMP/cert.pem" -days 3650 \
