@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class PixelSamplingTests: XCTestCase {
     private func image(width: Int, height: Int, fill: (Int, Int) -> (UInt8, UInt8, UInt8)) throws -> CGImage {

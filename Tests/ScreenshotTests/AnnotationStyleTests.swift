@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class AnnotationStyleTests: XCTestCase {
     @MainActor

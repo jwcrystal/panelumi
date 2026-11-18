@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
-import SwitchKit
+import PanelumiKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// Pins the overlay's structure and drawing without a key window, a real local
 /// monitor or Screen Recording permission.

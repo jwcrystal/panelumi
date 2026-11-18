@@ -1,5 +1,5 @@
 #!/usr/bin/env swift
-// Draws the SwitchDeck app icon and writes Resources/AppIcon.icns.
+// Draws the Panelumi app icon and writes Resources/AppIcon.icns.
 // Run from the repository root: `swift scripts/make-icon.swift`.
 import AppKit
 

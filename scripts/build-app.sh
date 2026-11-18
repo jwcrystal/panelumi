@@ -4,7 +4,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 CONFIGURATION="${1:-release}"
-APP="build/SwitchDeck.app"
+APP="build/Panelumi.app"
 
 # The version has one source, VERSION. scripts/check-version.sh holds the
 # rules. Both bundle keys take the same X.Y.Z string: Apple allows a version of
@@ -15,9 +15,9 @@ APP="build/SwitchDeck.app"
 VERSION="$(tr -d '[:space:]' < VERSION)"
 
 echo "==> Building ($CONFIGURATION)"
-swift build -c "$CONFIGURATION" --product SwitchDeck
+swift build -c "$CONFIGURATION" --product Panelumi
 
-BIN="$(swift build -c "$CONFIGURATION" --show-bin-path)/SwitchDeck"
+BIN="$(swift build -c "$CONFIGURATION" --show-bin-path)/Panelumi"
 if [ ! -x "$BIN" ]; then
   echo "error: binary not found at $BIN" >&2
   exit 1
@@ -26,7 +26,7 @@ fi
 echo "==> Assembling $APP"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp "$BIN" "$APP/Contents/MacOS/SwitchDeck"
+cp "$BIN" "$APP/Contents/MacOS/Panelumi"
 
 if [ -f Resources/AppIcon.icns ]; then
   cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
@@ -48,11 +48,11 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleDevelopmentRegion</key>
     <string>en</string>
     <key>CFBundleDisplayName</key>
-    <string>SwitchDeck</string>
+    <string>Panelumi</string>
     <key>CFBundleExecutable</key>
-    <string>SwitchDeck</string>
+    <string>Panelumi</string>
     <key>CFBundleIdentifier</key>
-    <string>io.github.jwcrystal.switchdeck</string>
+    <string>io.github.jwcrystal.panelumi</string>
     <key>CFBundleInfoDictionaryVersion</key>
     <string>6.0</string>
     <key>CFBundleLocalizations</key>
@@ -61,7 +61,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
         <string>zh-Hant</string>
     </array>
     <key>CFBundleName</key>
-    <string>SwitchDeck</string>
+    <string>Panelumi</string>
     <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleIconFile</key>
@@ -79,9 +79,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>LSMultipleInstancesProhibited</key>
     <true/>
     <key>NSAppleEventsUsageDescription</key>
-    <string>SwitchDeck uses System Events to change appearance and other system settings.</string>
+    <string>Panelumi uses System Events to change appearance and other system settings.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>SwitchDeck records audio when you start Recording from its menu.</string>
+    <string>Panelumi records audio when you start Recording from its menu.</string>
     <key>NSHighResolutionCapable</key>
     <true/>
     <key>NSPrincipalClass</key>
@@ -104,7 +104,7 @@ echo "==> Signing"
 # timestamp: set TIMESTAMP=1 (needs network) for release builds; local builds
 # skip it to stay fast and offline.
 SIGN_IDENTITY="${SIGN_IDENTITY:-SwitchDeck Local Signing}"
-ENTITLEMENTS="Resources/SwitchDeck.entitlements"
+ENTITLEMENTS="Resources/Panelumi.entitlements"
 SIGN_FLAGS=(--force --options runtime --entitlements "$ENTITLEMENTS")
 if [ "${TIMESTAMP:-0}" = "1" ]; then
   SIGN_FLAGS+=(--timestamp)

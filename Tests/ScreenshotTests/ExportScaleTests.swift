@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The editor draws in points; the export must draw in the same point space so
 /// minimum sizes (text, markers, line width) keep their proportions on Retina.
@@ -63,7 +63,7 @@ final class ExportScaleTests: XCTestCase {
 
     func testSavedCaptureIsTaggedAtTheScaleItWasTakenOn() throws {
         let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("switchdeck-dpi-\(UUID().uuidString)")
+            .appendingPathComponent("panelumi-dpi-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
         let base = try solidImage(CGSize(width: 600, height: 400))
 

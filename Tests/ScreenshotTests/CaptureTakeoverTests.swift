@@ -1,7 +1,7 @@
 import AppKit
-import SwitchKit
+import PanelumiKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The takeover lifecycle: starting one from a toolbar entry, the state it
 /// installs, every end path and the input it blocks. No real event delivery,

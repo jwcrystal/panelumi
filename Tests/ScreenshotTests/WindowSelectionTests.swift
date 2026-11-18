@@ -1,8 +1,8 @@
 import AppKit
 import SwiftUI
-import SwitchKit
+import PanelumiKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class WindowSelectionTests: XCTestCase {
     @MainActor
@@ -22,7 +22,7 @@ final class WindowSelectionTests: XCTestCase {
 
     @MainActor
     func testLiveSettingsPageCanBeSelectedCapturedAndDelivered() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SWITCHDECK_LIVE_CAPTURE_TESTS"] == "1")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PANELUMI_LIVE_CAPTURE_TESTS"] == "1")
         try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "Screen Recording permission is required")
         NSApplication.shared.setActivationPolicy(.accessory)
         NSApplication.shared.finishLaunching()
@@ -37,7 +37,7 @@ final class WindowSelectionTests: XCTestCase {
             model: model, permissions: PermissionCenter(), initialPane: .screenshot
         ))
         let settings = NSWindow(contentViewController: hosting)
-        settings.title = "SwitchDeck"
+        settings.title = "Panelumi"
         settings.styleMask = [.titled, .closable, .miniaturizable]
         settings.isReleasedWhenClosed = false
         settings.setContentSize(NSSize(width: 720, height: 540))
@@ -93,7 +93,7 @@ final class WindowSelectionTests: XCTestCase {
         XCTAssertEqual(image.height, Int((payload.rect.height * screen.backingScaleFactor).rounded()))
         XCTAssertFalse(controller.isActive)
 
-        if let directory = ProcessInfo.processInfo.environment["SWITCHDECK_CAPTURE_EVIDENCE_DIRECTORY"] {
+        if let directory = ProcessInfo.processInfo.environment["PANELUMI_CAPTURE_EVIDENCE_DIRECTORY"] {
             let rendered = AnnotationRenderer.render(base: image, annotations: payload.annotations)
             let cg = try XCTUnwrap(rendered.cgImage(forProposedRect: nil, context: nil, hints: nil))
             let png = try XCTUnwrap(NSBitmapImageRep(cgImage: cg).representation(using: .png, properties: [:]))
@@ -112,7 +112,7 @@ final class WindowSelectionTests: XCTestCase {
     /// Recording, neither of which is available on every CI runner.
     @MainActor
     func testLiveCaptureKeepsSettingsAndExcludesOnlyCaptureOverlay() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SWITCHDECK_LIVE_CAPTURE_TESTS"] == "1")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PANELUMI_LIVE_CAPTURE_TESTS"] == "1")
         try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "Screen Recording permission is required")
         NSApplication.shared.setActivationPolicy(.accessory)
         NSApplication.shared.finishLaunching()

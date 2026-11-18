@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class RecognitionLayoutTests: XCTestCase {
     private let screen = CGSize(width: 1440, height: 900)

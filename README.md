@@ -1,4 +1,4 @@
-# SwitchDeck
+# Panelumi
 
 **English** · [繁體中文](README.zh-TW.md)
 
@@ -11,9 +11,9 @@ Eighteen Mac settings you would otherwise dig through System Settings or Termina
 
 Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache-2.0-licensed.
 
-<p align="center"><img src="docs/images/menu.png" width="360" alt="The SwitchDeck menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
+<p align="center"><img src="docs/images/menu.png" width="360" alt="The Panelumi menu: switch rows with their live state, then Permissions, Settings and Quit"></p>
 
-## Why SwitchDeck
+## Why Panelumi
 
 - **One click instead of a Terminal command.** Showing hidden files or hiding desktop icons normally means `defaults write …` followed by `killall Finder`. Here it is a menu row, and the row shows the current state.
 - **One menu instead of several apps.** Keep Awake, screen cleaning, quick audio recording and an annotating screenshot tool live in the same menu, so there is less to install and fewer icons in the menu bar.
@@ -27,15 +27,15 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache
 
 ### From a release
 
-Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/panelumi/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed with a stable self-signed certificate rather than a paid Apple Developer ID. They are not notarized, so macOS blocks the first launch once:
+Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/panelumi/releases) and move `Panelumi.app` to `/Applications`. Releases are built by CI and signed with a stable self-signed certificate rather than a paid Apple Developer ID. They are not notarized, so macOS blocks the first launch once:
 
 1. Double-click it and click **Done** on the warning.
 2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
 3. Launch it again. From then on it opens normally.
 
-`xattr -dr com.apple.quarantine /Applications/SwitchDeck.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Every release from 0.9.1 on is signed with the same certificate, so updating keeps the Accessibility, Automation and Screen Recording grants. Coming from 0.9.0 or earlier, or switching between a release and a local build, asks for them once more.
+`xattr -dr com.apple.quarantine /Applications/Panelumi.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Every release from 0.9.1 on is signed with the same certificate, so updating keeps the Accessibility, Automation and Screen Recording grants. Coming from 0.9.0 or earlier, or switching between a release and a local build, asks for them once more.
 
-To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; SwitchDeck never checks on its own.
+To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; Panelumi never checks on its own.
 
 ### Build from source
 
@@ -44,11 +44,11 @@ Needs macOS 14 or later and the Xcode command line tools (`swift --version` shou
 ```bash
 git clone https://github.com/jwcrystal/panelumi.git && cd panelumi
 swift test                      # 159 tests, no UI needed
-./scripts/build-app.sh          # builds build/SwitchDeck.app
-open build/SwitchDeck.app
+./scripts/build-app.sh          # builds build/Panelumi.app
+open build/Panelumi.app
 ```
 
-`./scripts/setup-signing.sh` is optional but worth running once per machine: it creates a locally trusted, self-signed `SwitchDeck Local Signing` certificate, which `build-app.sh` then signs with. Without it, every rebuild changes the ad-hoc CDHash and macOS treats the app as new, so Accessibility and Automation grants are asked for again.
+`./scripts/setup-signing.sh` is optional but worth running once per machine: it creates a locally trusted, self-signed `Panelumi Local Signing` certificate, which `build-app.sh` then signs with. Without it, every rebuild changes the ad-hoc CDHash and macOS treats the app as new, so Accessibility and Automation grants are asked for again.
 
 Launch at login needs the app in `/Applications`; until then the toggle in Settings › General reports the system error.
 
@@ -79,7 +79,7 @@ Launch at login needs the app in `/Applications`; until then the toggle in Setti
 
 How each one is implemented is listed under [Development](#how-each-switch-works).
 
-Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/SwitchDeck/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
+Settings › Customize reorders and hides switches; the choice is stored in `~/Library/Application Support/Panelumi/config.json`. Rows are dragged into place; a context menu offers Move Up / Move Down / Show in Menu for keyboard use.
 
 Settings › Screenshot holds the capture options; Settings › Recognize Text holds the text-recognition shortcut, Silent recognition and Auto copy; Settings › Recording does the same for audio.
 
@@ -102,7 +102,7 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 ## Permissions
 
-macOS TCC cannot be pre-granted. SwitchDeck shows a **Set up SwitchDeck** window when a permission is missing, and that window is the only place the app triggers a permission dialog:
+macOS TCC cannot be pre-granted. Panelumi shows a **Set up Panelumi** window when a permission is missing, and that window is the only place the app triggers a permission dialog:
 
 - **Automation — System Events** — Dark Mode.
 - **Automation — Finder** — Empty Trash and its item count.
@@ -115,36 +115,36 @@ Grant there once and the menu never prompts again; using a switch with a missing
 ## Development
 
 ```bash
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump          # every switch + live state
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --run keepAwake # run one switch, print result
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # register a probe shortcut, report conflicts
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # what the app sees for each permission
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # the menu as it is built
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # capture the main display, report the result
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # editor over $SWITCHDECK_DEMO_IMAGE, for screenshots
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --ocr-demo      # text recognition over $SWITCHDECK_DEMO_IMAGE
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # microphones CoreAudio offers, default marked
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # run the 3 s delayed capture for a visual check
+build/Panelumi.app/Contents/MacOS/Panelumi --dump          # every switch + live state
+build/Panelumi.app/Contents/MacOS/Panelumi --run keepAwake # run one switch, print result
+build/Panelumi.app/Contents/MacOS/Panelumi --hotkeys       # register a probe shortcut, report conflicts
+build/Panelumi.app/Contents/MacOS/Panelumi --permissions   # what the app sees for each permission
+build/Panelumi.app/Contents/MacOS/Panelumi --menu          # the menu as it is built
+build/Panelumi.app/Contents/MacOS/Panelumi --capture-test  # capture the main display, report the result
+build/Panelumi.app/Contents/MacOS/Panelumi --editor-demo   # editor over $PANELUMI_DEMO_IMAGE, for screenshots
+build/Panelumi.app/Contents/MacOS/Panelumi --ocr-demo      # text recognition over $PANELUMI_DEMO_IMAGE
+build/Panelumi.app/Contents/MacOS/Panelumi --audio-inputs  # microphones CoreAudio offers, default marked
+build/Panelumi.app/Contents/MacOS/Panelumi --timed-demo    # run the 3 s delayed capture for a visual check
 ```
 
 ```
-Sources/SwitchKit/             # no AppKit UI, unit-testable
+Sources/PanelumiKit/             # no AppKit UI, unit-testable
   SwitchItem.swift             # one menu row: title, icon, state, action, submenu
   SwitchCatalog.swift          # the built-in switches
   Config.swift                 # order, visibility and shortcuts, JSON persistence
   HotkeyBinding.swift          # key + Carbon modifiers + key-cap label
   Shell.swift / Automation.swift
   Switches/                    # one file per switch
-Sources/SwitchDeckCore/        # the app code, as a library: AppKit + SwiftUI
-  Launcher.swift               # SwitchDeckLauncher.run(), the one public entry point
+Sources/PanelumiCore/        # the app code, as a library: AppKit + SwiftUI
+  Launcher.swift               # PanelumiLauncher.run(), the one public entry point
   MenuController.swift         # NSStatusItem + NSMenu, rebuilt on config change
   HotkeyCenter.swift           # Carbon registration, conflict reporting
   HotkeyRecorder.swift         # NSEvent -> binding, local capture monitor
   SettingsView.swift           # SwiftUI settings
   Screenshot/                  # capture, in-place editor, annotations
-Sources/SwitchDeck/            # thin executable
-  main.swift                   # calls SwitchDeckLauncher.run()
-Tests/SwitchKitTests/          # switches, config, hotkeys, Trash counting
+Sources/Panelumi/            # thin executable
+  main.swift                   # calls PanelumiLauncher.run()
+Tests/PanelumiKitTests/          # switches, config, hotkeys, Trash counting
 Tests/ScreenshotTests/         # annotation history, styles, capture and selection
 ```
 
@@ -166,10 +166,10 @@ Tests/ScreenshotTests/         # annotation history, styles, capture and selecti
 | Stage Manager Autohide | `com.apple.WindowManager AutoHide` + restart | Same |
 | Empty Trash | Finder AppleScript: `count items in trash`, `empty trash` | Needs Automation; direct `~/.Trash` reads are blocked by TCC |
 | Empty Pasteboard | `NSPasteboard.clearContents()` | |
-| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/SwitchDeck`), with a microphone picker; elapsed time in the menu | Needs Microphone |
+| Recording | `AVAudioRecorder` to the folder chosen in Settings › Recording (default `~/Music/Panelumi`), with a microphone picker; elapsed time in the menu | Needs Microphone |
 | Screenshot | ScreenCaptureKit region, single-window, multi-window and full-screen capture; borderless editor with rectangle, ellipse, line, arrow, pen, highlighter, text, numbering, mosaic and blur; copy, save, pin | Needs Screen Recording |
 | Recognize Text | Same overlay as Screenshot, finishing on selection; Vision `VNRecognizeTextRequest` (accurate, language detection, Traditional/Simplified Chinese, English, Japanese, Korean) and `VNDetectBarcodesRequest` | Runs on device; a QR code wins over surrounding text |
-| Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and SwitchDeck | Unsaved work still prompts |
+| Quit All Apps | `NSRunningApplication.terminate()`, skips Finder and Panelumi | Unsaved work still prompts |
 | Eject Disk | `NSWorkspace.unmountAndEjectDevice`, counts removable volumes | |
 
 Adding a switch is one `SwitchItem` plus one class; `docs/adding-a-switch.md` walks through it.
@@ -177,14 +177,14 @@ Adding a switch is one `SwitchItem` plus one class; `docs/adding-a-switch.md` wa
 The designated requirement the signature keeps stable across rebuilds is:
 
 ```
-identifier "io.github.jwcrystal.switchdeck" and certificate leaf = H"…"
+identifier "io.github.jwcrystal.panelumi" and certificate leaf = H"…"
 ```
 
-Verify with `codesign -d -r- build/SwitchDeck.app`.
+Verify with `codesign -d -r- build/Panelumi.app`.
 
 ## Not on the App Store
 
-SwitchDeck cannot ship on the Mac App Store in this form, and does not try to:
+Panelumi cannot ship on the Mac App Store in this form, and does not try to:
 
 - It uses private APIs (`SACLockScreenImmediate`, `CBBlueLightClient`), which App Review rejects outright.
 - It is not sandboxed and drives Finder and System Events through Apple Events.
@@ -200,11 +200,11 @@ The interface ships in English and Traditional Chinese (Taiwan). English wording
 
 ## Approach
 
-SwitchDeck keeps to a short, flat native menu, a local build outside the sandbox, and one `SwitchItem` per switch.
+Panelumi keeps to a short, flat native menu, a local build outside the sandbox, and one `SwitchItem` per switch.
 
 ## Feedback
 
-Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com/jwcrystal/panelumi/issues). For a bug, include your macOS version, the SwitchDeck version (Settings › About) and, if a switch misbehaves, the output of `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` and `--permissions`.
+Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com/jwcrystal/panelumi/issues). For a bug, include your macOS version, the Panelumi version (Settings › About) and, if a switch misbehaves, the output of `/Applications/Panelumi.app/Contents/MacOS/Panelumi --dump` and `--permissions`.
 
 ## License
 

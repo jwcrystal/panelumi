@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The live region capture: the gate that serialises it, the context API wired
 /// through a real takeover, and one permission-gated end-to-end check.
@@ -257,7 +257,7 @@ final class CaptureLiveTests: XCTestCase {
     /// the size the documentation promises.
     @MainActor
     func testLiveCaptureLeavesAnAttachedPanelOutAndHasTheDocumentedSize() async throws {
-        try XCTSkipUnless(ProcessInfo.processInfo.environment["SWITCHDECK_LIVE_CAPTURE_TESTS"] == "1")
+        try XCTSkipUnless(ProcessInfo.processInfo.environment["PANELUMI_LIVE_CAPTURE_TESTS"] == "1")
         try XCTSkipUnless(CGPreflightScreenCaptureAccess(), "Screen Recording permission is required")
         NSApplication.shared.setActivationPolicy(.accessory)
         NSApplication.shared.finishLaunching()

@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// Helper windows an extension hands to the host with `attach`: they are raised
 /// above the overlay, left out of captures and window picking, and closed when

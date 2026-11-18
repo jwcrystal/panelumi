@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The extension toolbar item: the snapshot taken when editing starts, the
 /// toolbar it renders into, and the per-view action it reports. No real event

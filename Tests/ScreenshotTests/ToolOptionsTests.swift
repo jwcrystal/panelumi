@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class ToolOptionsTests: XCTestCase {
     @MainActor
@@ -196,7 +196,7 @@ final class ToolOptionsTests: XCTestCase {
 
     @MainActor
     func testOptionalVisualSnapshot() throws {
-        guard let path = ProcessInfo.processInfo.environment["SWITCHDECK_UI_SNAPSHOT"] else { return }
+        guard let path = ProcessInfo.processInfo.environment["PANELUMI_UI_SNAPSHOT"] else { return }
         _ = NSApplication.shared
         let session = CaptureSession()
         session.tool = .arrow
