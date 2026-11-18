@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// A capture extension that only records what the host asks it to do. Not
 /// `private` so the extension tests can share it.
@@ -59,7 +59,7 @@ final class FakeTakeover: CaptureTakeover {
 final class CaptureExtensionAPITests: XCTestCase {
     @MainActor
     func testLauncherAcceptsLaunchOptions() {
-        let _: (LaunchOptions) -> Void = SwitchDeckLauncher.run
+        let _: (LaunchOptions) -> Void = PanelumiLauncher.run
     }
 
     @MainActor

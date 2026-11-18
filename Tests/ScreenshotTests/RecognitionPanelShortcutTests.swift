@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class RecognitionPanelShortcutTests: XCTestCase {
     private func shortcut(

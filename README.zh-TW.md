@@ -1,4 +1,4 @@
-# SwitchDeck
+# Panelumi
 
 [English](README.md) · **繁體中文**
 
@@ -11,9 +11,9 @@
 
 原生 Swift（AppKit + SwiftUI），沒有第三方相依，免費、Apache-2.0 授權。
 
-<p align="center"><img src="docs/images/menu.png" width="360" alt="SwitchDeck 選單：每個開關附即時狀態，下方是權限、設定與結束"></p>
+<p align="center"><img src="docs/images/menu.png" width="360" alt="Panelumi 選單：每個開關附即時狀態，下方是權限、設定與結束"></p>
 
-## 為什麼用 SwitchDeck
+## 為什麼用 Panelumi
 
 - **點一下，取代一行終端機指令。** 顯示隱藏檔、隱藏桌面圖示，平常得先 `defaults write …` 再 `killall Finder`；這裡就是選單裡的一列，而且直接顯示目前狀態。
 - **一個選單，取代好幾個 App。** 保持清醒、螢幕清潔、快速錄音、能標註的截圖工具都在同一個選單裡，少裝幾個 App，選單列也少幾個圖示。
@@ -27,15 +27,15 @@
 
 ### 從 release 安裝
 
-需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/panelumi/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID；也沒有經過 notarize，所以 macOS 會擋第一次啟動：
+需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/panelumi/releases) 下載 zip，把 `Panelumi.app` 放進 `/Applications`。release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID；也沒有經過 notarize，所以 macOS 會擋第一次啟動：
 
 1. 點兩下開啟，警告視窗按 **Done**。
 2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
 3. 再啟動一次。之後就會正常開啟。
 
-也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/SwitchDeck.app`。macOS 15 之後右鍵→打開已經無效。0.9.1 起每個 release 都用同一張憑證簽章，更新後輔助使用、自動化與螢幕錄製權限會保留。從 0.9.0 或更早版本升級，或在 release 與本機建置之間切換時，會再問一次。
+也可以在終端機執行 `xattr -dr com.apple.quarantine /Applications/Panelumi.app`。macOS 15 之後右鍵→打開已經無效。0.9.1 起每個 release 都用同一張憑證簽章，更新後輔助使用、自動化與螢幕錄製權限會保留。從 0.9.0 或更早版本升級，或在 release 與本機建置之間切換時，會再問一次。
 
-想知道有沒有新版，從選單點「檢查更新…」。它會拿目前版本和 GitHub 上最新的 release 比較，有新版就帶你到下載頁；SwitchDeck 不會自己在背景檢查。
+想知道有沒有新版，從選單點「檢查更新…」。它會拿目前版本和 GitHub 上最新的 release 比較，有新版就帶你到下載頁；Panelumi 不會自己在背景檢查。
 
 ### 從原始碼建置
 
@@ -44,11 +44,11 @@
 ```bash
 git clone https://github.com/jwcrystal/panelumi.git && cd panelumi
 swift test                      # 159 個測試，不需要 UI
-./scripts/build-app.sh          # 產出 build/SwitchDeck.app
-open build/SwitchDeck.app
+./scripts/build-app.sh          # 產出 build/Panelumi.app
+open build/Panelumi.app
 ```
 
-`./scripts/setup-signing.sh` 可選，但每台機器值得跑一次：它會建立本機信任的自簽憑證 `SwitchDeck Local Signing`，`build-app.sh` 之後就自動用它簽章。沒有它，每次重建都會換一個 ad-hoc CDHash，macOS 會把每次建置當成新 app，於是輔助使用與自動化權限每次都要重新詢問。
+`./scripts/setup-signing.sh` 可選，但每台機器值得跑一次：它會建立本機信任的自簽憑證 `Panelumi Local Signing`，`build-app.sh` 之後就自動用它簽章。沒有它，每次重建都會換一個 ad-hoc CDHash，macOS 會把每次建置當成新 app，於是輔助使用與自動化權限每次都要重新詢問。
 
 開機自動啟動需要把 app 放進 `/Applications`；在那之前，設定 › 一般裡的開關會顯示系統錯誤。
 
@@ -79,7 +79,7 @@ open build/SwitchDeck.app
 
 每個開關的實作方式列在[開發](#每個開關怎麼實作)一節。
 
-設定 › 自訂可以調整順序與隱藏開關，選擇存在 `~/Library/Application Support/SwitchDeck/config.json`。列可以拖曳排序；右鍵選單提供「上移／下移／在選單中顯示」給鍵盤操作。
+設定 › 自訂可以調整順序與隱藏開關，選擇存在 `~/Library/Application Support/Panelumi/config.json`。列可以拖曳排序；右鍵選單提供「上移／下移／在選單中顯示」給鍵盤操作。
 
 設定 › 截圖放擷取的選項；設定 › 文字辨識放快速鍵、靜默辨識與自動複製；設定 › 錄音則集中處理音訊。
 
@@ -102,7 +102,7 @@ open build/SwitchDeck.app
 
 ## 權限
 
-macOS 的 TCC 無法預先授予。缺少權限時 SwitchDeck 會顯示「設定 SwitchDeck」視窗，那個視窗也是 app 唯一會觸發系統權限對話框的地方：
+macOS 的 TCC 無法預先授予。缺少權限時 Panelumi 會顯示「設定 Panelumi」視窗，那個視窗也是 app 唯一會觸發系統權限對話框的地方：
 
 - **自動化 — System Events** — 深色模式。
 - **自動化 — Finder** — 清空垃圾桶與項目計數。
@@ -115,36 +115,36 @@ macOS 的 TCC 無法預先授予。缺少權限時 SwitchDeck 會顯示「設定
 ## 開發
 
 ```bash
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump          # 每個開關 + 即時狀態
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --run keepAwake # 執行單一開關並印出結果
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --hotkeys       # 註冊測試快速鍵，回報衝突
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --permissions   # app 看到的每個權限狀態
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu          # 建出來的選單長怎樣
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --capture-test  # 擷取主螢幕並回報結果
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --editor-demo   # 用 $SWITCHDECK_DEMO_IMAGE 當背景開編輯器，供截圖用
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --ocr-demo      # 對 $SWITCHDECK_DEMO_IMAGE 做文字辨識
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --audio-inputs  # CoreAudio 看到的麥克風，標出預設
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --timed-demo    # 跑一次 3 秒延遲擷取，方便目視檢查
+build/Panelumi.app/Contents/MacOS/Panelumi --dump          # 每個開關 + 即時狀態
+build/Panelumi.app/Contents/MacOS/Panelumi --run keepAwake # 執行單一開關並印出結果
+build/Panelumi.app/Contents/MacOS/Panelumi --hotkeys       # 註冊測試快速鍵，回報衝突
+build/Panelumi.app/Contents/MacOS/Panelumi --permissions   # app 看到的每個權限狀態
+build/Panelumi.app/Contents/MacOS/Panelumi --menu          # 建出來的選單長怎樣
+build/Panelumi.app/Contents/MacOS/Panelumi --capture-test  # 擷取主螢幕並回報結果
+build/Panelumi.app/Contents/MacOS/Panelumi --editor-demo   # 用 $PANELUMI_DEMO_IMAGE 當背景開編輯器，供截圖用
+build/Panelumi.app/Contents/MacOS/Panelumi --ocr-demo      # 對 $PANELUMI_DEMO_IMAGE 做文字辨識
+build/Panelumi.app/Contents/MacOS/Panelumi --audio-inputs  # CoreAudio 看到的麥克風，標出預設
+build/Panelumi.app/Contents/MacOS/Panelumi --timed-demo    # 跑一次 3 秒延遲擷取，方便目視檢查
 ```
 
 ```
-Sources/SwitchKit/             # 沒有 AppKit UI，可單元測試
+Sources/PanelumiKit/             # 沒有 AppKit UI，可單元測試
   SwitchItem.swift             # 一列選單：標題、圖示、狀態、動作、子選單
   SwitchCatalog.swift          # 內建開關
   Config.swift                 # 順序、可見性與快速鍵，JSON 持久化
   HotkeyBinding.swift          # 按鍵 + Carbon 修飾鍵 + 鍵帽標籤
   Shell.swift / Automation.swift
   Switches/                    # 一個開關一個檔
-Sources/SwitchDeckCore/        # app 程式碼，包成函式庫：AppKit + SwiftUI
-  Launcher.swift               # SwitchDeckLauncher.run()，唯一公開的進入點
+Sources/PanelumiCore/        # app 程式碼，包成函式庫：AppKit + SwiftUI
+  Launcher.swift               # PanelumiLauncher.run()，唯一公開的進入點
   MenuController.swift         # NSStatusItem + NSMenu，設定變更時重建
   HotkeyCenter.swift           # Carbon 註冊、衝突回報
   HotkeyRecorder.swift         # NSEvent -> binding，本機擷取監聽
   SettingsView.swift           # SwiftUI 設定
   Screenshot/                  # 擷取、就地編輯器、標註
-Sources/SwitchDeck/            # 精簡的執行檔
-  main.swift                   # 呼叫 SwitchDeckLauncher.run()
-Tests/SwitchKitTests/          # 開關、設定、快速鍵、垃圾桶計數
+Sources/Panelumi/            # 精簡的執行檔
+  main.swift                   # 呼叫 PanelumiLauncher.run()
+Tests/PanelumiKitTests/          # 開關、設定、快速鍵、垃圾桶計數
 Tests/ScreenshotTests/         # 標註歷史、樣式、擷取與選取
 ```
 
@@ -166,10 +166,10 @@ Tests/ScreenshotTests/         # 標註歷史、樣式、擷取與選取
 | 幕前調度自動隱藏 | `com.apple.WindowManager AutoHide` + 重啟 | 同上 |
 | 清空垃圾桶 | Finder AppleScript：`count items in trash`、`empty trash` | 需要自動化權限；TCC 會擋掉直接讀 `~/.Trash` |
 | 清空剪貼簿 | `NSPasteboard.clearContents()` | |
-| 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/SwitchDeck`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
+| 錄音 | `AVAudioRecorder` 存到設定 › 錄音選的資料夾（預設 `~/Music/Panelumi`），可選麥克風；選單顯示已錄時間 | 需要麥克風權限 |
 | 截圖 | `ScreenCaptureKit` 擷取區域／單一視窗／多視窗合成／全螢幕；無邊框就地編輯器，支援矩形、橢圓、直線、箭頭、畫筆、螢光筆、文字、編號、馬賽克與模糊；延遲擷取、HEX／RGB／HSL 讀值、PNG／JPEG／HEIC 儲存；可複製、儲存、釘選 | 需要螢幕錄製權限 |
 | 文字辨識 | 沿用截圖的選取層，選好就結束；Vision `VNRecognizeTextRequest`（精準等級、自動偵測語言，支援繁中、簡中、英、日、韓）與 `VNDetectBarcodesRequest` | 在本機執行；有 QR 碼時優先複製 QR 碼內容 |
-| 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 SwitchDeck | 未儲存的工作仍會跳出詢問 |
+| 結束所有 App | `NSRunningApplication.terminate()`，跳過 Finder 與 Panelumi | 未儲存的工作仍會跳出詢問 |
 | 退出磁碟 | `NSWorkspace.unmountAndEjectDevice`，計數可卸除的卷宗 | |
 
 新增一個開關就是一個 `SwitchItem` 加一個類別；`docs/adding-a-switch.md` 有完整流程。
@@ -177,14 +177,14 @@ Tests/ScreenshotTests/         # 標註歷史、樣式、擷取與選取
 簽章在重建之間保持穩定的 designated requirement 是：
 
 ```
-identifier "io.github.jwcrystal.switchdeck" and certificate leaf = H"…"
+identifier "io.github.jwcrystal.panelumi" and certificate leaf = H"…"
 ```
 
-用 `codesign -d -r- build/SwitchDeck.app` 驗證。
+用 `codesign -d -r- build/Panelumi.app` 驗證。
 
 ## 不會上 App Store
 
-SwitchDeck 以現在的形式無法上 Mac App Store，也沒有試：
+Panelumi 以現在的形式無法上 Mac App Store，也沒有試：
 
 - 用了私有 API（`SACLockScreenImmediate`、`CBBlueLightClient`），App Review 會直接退。
 - 沒有沙盒，透過 Apple Events 驅動 Finder 與 System Events。
@@ -200,11 +200,11 @@ release 會附上 CI 建置的 zip（自簽憑證簽章，未 notarize），第�
 
 ## 設計取向
 
-SwitchDeck 維持精簡的單層原生選單、不受沙盒限制的本機建置，以及一個開關一個 `SwitchItem`。
+Panelumi 維持精簡的單層原生選單、不受沙盒限制的本機建置，以及一個開關一個 `SwitchItem`。
 
 ## 回饋
 
-錯誤回報、問題與新開關的想法請開 [GitHub Issues](https://github.com/jwcrystal/panelumi/issues)。回報錯誤時請附上 macOS 版本、SwitchDeck 版本（設定 › 關於），若是某個開關異常，也請附上 `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` 與 `--permissions` 的輸出。
+錯誤回報、問題與新開關的想法請開 [GitHub Issues](https://github.com/jwcrystal/panelumi/issues)。回報錯誤時請附上 macOS 版本、Panelumi 版本（設定 › 關於），若是某個開關異常，也請附上 `/Applications/Panelumi.app/Contents/MacOS/Panelumi --dump` 與 `--permissions` 的輸出。
 
 ## 授權
 

@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// Text and number annotations are selected by what is actually drawn, and the
 /// text field shows the text where and how it will be drawn.

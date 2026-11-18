@@ -1,13 +1,13 @@
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 final class ScreenshotSaverTests: XCTestCase {
     /// A fixed date keeps the formatted name stable.
     private let date = Date(timeIntervalSince1970: 1_760_000_000)
 
     func testFileNameStartsWithThePrefix() {
-        let name = ScreenshotPreferences.fileName(prefix: "SwitchDeck", at: date, format: .png)
-        XCTAssertTrue(name.hasPrefix("SwitchDeck_Screenshot_"))
+        let name = ScreenshotPreferences.fileName(prefix: "Panelumi", at: date, format: .png)
+        XCTAssertTrue(name.hasPrefix("Panelumi_Screenshot_"))
         XCTAssertTrue(name.hasSuffix(".png"))
         XCTAssertFalse(name.contains(" "))
     }
@@ -39,7 +39,7 @@ final class ScreenshotSaverTests: XCTestCase {
     /// extension on disk.
     func testWritesEveryFormat() throws {
         let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("switchdeck-saver-\(UUID().uuidString)")
+            .appendingPathComponent("panelumi-saver-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
 
         for format in ScreenshotPreferences.ImageFormat.allCases {
@@ -62,7 +62,7 @@ final class ScreenshotSaverTests: XCTestCase {
     /// Two captures in the same second keep both files.
     func testSameSecondDoesNotOverwrite() throws {
         let folder = FileManager.default.temporaryDirectory
-            .appendingPathComponent("switchdeck-saver-\(UUID().uuidString)")
+            .appendingPathComponent("panelumi-saver-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: folder) }
 
         let first = try XCTUnwrap(ScreenshotSaver.write(

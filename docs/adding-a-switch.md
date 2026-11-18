@@ -6,12 +6,12 @@ appears in the menu, in Settings › Customize and in the config file on its own
 
 ## 1. Write the behaviour
 
-`Sources/SwitchKit/Switches/ShowHiddenFilesSwitch.swift` is the smallest
+`Sources/PanelumiKit/Switches/ShowHiddenFilesSwitch.swift` is the smallest
 complete example. Three rules keep it testable:
 
-- **No AppKit UI.** SwitchKit has no views; anything the menu draws comes from `SwitchItem`.
+- **No AppKit UI.** PanelumiKit has no views; anything the menu draws comes from `SwitchItem`.
 - **State reads are cheap.** `state` and `subtitle` run every time the menu opens, so read a preference or a cached value, never the network or a process.
-- **Throw `SwitchDeckError`.** A `.message` shows up as an alert; `.automation` additionally gets an "Open Privacy Settings" button.
+- **Throw `PanelumiError`.** A `.message` shows up as an alert; `.automation` additionally gets an "Open Privacy Settings" button.
 
 ```swift
 import Foundation
@@ -39,7 +39,7 @@ the alert expects.
 
 ## 2. Add the row
 
-In `Sources/SwitchKit/SwitchCatalog.swift`, inside `standard()`:
+In `Sources/PanelumiKit/SwitchCatalog.swift`, inside `standard()`:
 
 ```swift
 SwitchItem(
@@ -62,9 +62,9 @@ shows it until someone hides it.
 
 Permissions are wired by hand, not declared. A switch that needs one must:
 
-- add the query and the request to `Sources/SwitchDeckCore/PermissionCenter.swift`,
-- add a row to `Sources/SwitchDeckCore/PermissionViews.swift` (the setup window),
-- add the same row to the General pane in `Sources/SwitchDeckCore/SettingsView.swift`,
+- add the query and the request to `Sources/PanelumiCore/PermissionCenter.swift`,
+- add a row to `Sources/PanelumiCore/PermissionViews.swift` (the setup window),
+- add the same row to the General pane in `Sources/PanelumiCore/SettingsView.swift`,
 - add the usage string to `Info.plist` in `scripts/build-app.sh` if macOS requires one (microphone, screen recording).
 
 The rule the app follows: the setup window is the only place that triggers a
@@ -90,7 +90,7 @@ user-facing AppKit text that never reached `t()`.
 
 ## 5. Test the logic, not the menu
 
-`Tests/SwitchKitTests/` covers behaviour. Keep the switch testable by injecting
+`Tests/PanelumiKitTests/` covers behaviour. Keep the switch testable by injecting
 what it touches — `EmptyTrashSwitch` takes a `TrashAccess` for exactly this
 reason — so a test never has to change the real system:
 
@@ -111,9 +111,9 @@ func testSubtitleCountsTopLevelItems() {
 
 ```bash
 ./scripts/build-app.sh
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump      # id, title, live state for every switch
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --run <id>  # toggles once, prints the result
-build/SwitchDeck.app/Contents/MacOS/SwitchDeck --menu      # the menu as it is actually built
+build/Panelumi.app/Contents/MacOS/Panelumi --dump      # id, title, live state for every switch
+build/Panelumi.app/Contents/MacOS/Panelumi --run <id>  # toggles once, prints the result
+build/Panelumi.app/Contents/MacOS/Panelumi --menu      # the menu as it is actually built
 ```
 
 `--dump` prints in the current interface language; add `-AppleLanguages '(en)'`

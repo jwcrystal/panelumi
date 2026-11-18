@@ -5,8 +5,8 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [ -x build/SwitchDeck.app/Contents/MacOS/SwitchDeck ]; then
-  build/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump
+if [ -x build/Panelumi.app/Contents/MacOS/Panelumi ]; then
+  build/Panelumi.app/Contents/MacOS/Panelumi --dump
 else
-  swift run -c debug SwitchDeck --dump 2>/dev/null | grep -v '^\['
+  swift run -c debug Panelumi --dump 2>/dev/null | grep -v '^\['
 fi

@@ -79,15 +79,15 @@ jobs:
 
       - name: Check the signature
         run: |
-          info="$(codesign -dvv build/SwitchDeck.app 2>&1)"
+          info="$(codesign -dvv build/Panelumi.app 2>&1)"
           echo "$info" | grep -E '^(Authority|CodeDirectory|Identifier)='
           if ! echo "$info" | grep -qx "Authority=$SIGN_IDENTITY"; then
-            echo "::error::build/SwitchDeck.app is not signed with $SIGN_IDENTITY"
+            echo "::error::build/Panelumi.app is not signed with $SIGN_IDENTITY"
             exit 1
           fi
-          codesign --verify --strict build/SwitchDeck.app
+          codesign --verify --strict build/Panelumi.app
           # Should print the same certificate-leaf requirement on every run.
-          codesign -d -r- build/SwitchDeck.app 2>&1 | grep designated
+          codesign -d -r- build/Panelumi.app 2>&1 | grep designated
 
       - name: Remove the signing keychain
         if: always()
@@ -98,8 +98,8 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           cd build
-          ditto -c -k --keepParent --sequesterRsrc SwitchDeck.app "SwitchDeck-${version}.zip"
-          shasum -a 256 "SwitchDeck-${version}.zip" > "SwitchDeck-${version}.zip.sha256"
+          ditto -c -k --keepParent --sequesterRsrc Panelumi.app "Panelumi-${version}.zip"
+          shasum -a 256 "Panelumi-${version}.zip" > "Panelumi-${version}.zip.sha256"
 
       - name: Publish
         if: github.event_name == 'push'
@@ -108,5 +108,5 @@ jobs:
         run: |
           version="${GITHUB_REF_NAME#v}"
           notes="docs/releases/${version}.md"
-          assets="build/SwitchDeck-${version}.zip build/SwitchDeck-${version}.zip.sha256"
+          assets="build/Panelumi-${version}.zip build/Panelumi-${version}.zip.sha256"
           gh release create "$GITHUB_REF_NAME" --title "$version" --notes-file "$notes" $assets

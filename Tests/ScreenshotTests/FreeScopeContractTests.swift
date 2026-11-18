@@ -1,6 +1,6 @@
 import XCTest
-@testable import SwitchDeckCore
-@testable import SwitchKit
+@testable import PanelumiCore
+@testable import PanelumiKit
 
 // The lists in this file are the frozen set of shipped switches and tools:
 // none may be removed, hidden or restricted. Changing them needs the maintainer.

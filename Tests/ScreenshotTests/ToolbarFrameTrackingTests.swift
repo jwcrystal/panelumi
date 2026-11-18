@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The toolbar is framed from a fitting size read one main-queue turn after
 /// the tool changes. The host must be laid out before that read, or its frame

@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// A text annotation that is still being typed must not be lost when the
 /// capture finishes, and Esc during IME composition belongs to the input method.

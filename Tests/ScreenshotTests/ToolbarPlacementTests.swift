@@ -1,5 +1,5 @@
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 @MainActor
 final class ToolbarPlacementTests: XCTestCase {

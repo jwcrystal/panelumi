@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The external delivery path: an extension hands an image to the normal output
 /// pipeline. No real event delivery, key window, local monitor or Screen

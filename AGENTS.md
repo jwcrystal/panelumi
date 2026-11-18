@@ -2,16 +2,16 @@
 
 Guidance for coding agents (and humans) working in this repository.
 
-SwitchDeck is a native macOS menu-bar utility: Swift 5.9, SwiftPM, macOS 14+,
+Panelumi is a native macOS menu-bar utility: Swift 5.9, SwiftPM, macOS 14+,
 no third-party dependencies, Apache-2.0-licensed. Three modules:
 
-- `SwitchKit` — the library: switch definitions, config, ordering, hotkeys,
+- `PanelumiKit` — the library: switch definitions, config, ordering, hotkeys,
   text recognition, update check. `AppIdentity` holds the update feed,
   links and support folder name, so a package that depends on
-  `SwitchDeckCore` can supply its own. Unit-tested in `Tests/SwitchKitTests`.
-- `SwitchDeckCore` — the AppKit/SwiftUI app code: menu, settings, screenshot
+  `PanelumiCore` can supply its own. Unit-tested in `Tests/PanelumiKitTests`.
+- `PanelumiCore` — the AppKit/SwiftUI app code: menu, settings, screenshot
   editor, permissions, as a library. Tested in `Tests/ScreenshotTests`.
-- `SwitchDeck` — the thin executable: calls `SwitchDeckLauncher.run()`.
+- `Panelumi` — the thin executable: calls `PanelumiLauncher.run()`.
 
 ## Build and test
 
@@ -20,7 +20,7 @@ swift build                      # debug build
 swift test                       # all unit tests
 ./scripts/check-localizations.sh # every t("...") key has a zh-Hant entry
 ./scripts/check-version.sh       # VERSION, its release notes, and the tag agree
-./scripts/build-app.sh           # assemble build/SwitchDeck.app (release)
+./scripts/build-app.sh           # assemble build/Panelumi.app (release)
 ./scripts/smoke.sh               # print every switch and its live state
 ```
 
@@ -36,7 +36,7 @@ the same commit — the release workflow stops before building when they disagre
 with the tag.
 
 Tests that grab real screen pixels are skipped unless
-`SWITCHDECK_LIVE_CAPTURE_TESTS=1` is set and the terminal has the Screen
+`PANELUMI_LIVE_CAPTURE_TESTS=1` is set and the terminal has the Screen
 Recording permission.
 
 ## Scope

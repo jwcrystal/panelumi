@@ -1,7 +1,7 @@
 import AppKit
-import SwitchKit
+import PanelumiKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// Calls the overlay's key handling directly: no key window, no real event
 /// delivery and no local monitor are involved.

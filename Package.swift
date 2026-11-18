@@ -2,18 +2,18 @@
 import PackageDescription
 
 let package = Package(
-    name: "SwitchDeck",
+    name: "Panelumi",
     platforms: [.macOS(.v14)],
     products: [
-        .library(name: "SwitchKit", targets: ["SwitchKit"]),
-        .library(name: "SwitchDeckCore", targets: ["SwitchDeckCore"]),
-        .executable(name: "SwitchDeck", targets: ["SwitchDeck"]),
+        .library(name: "PanelumiKit", targets: ["PanelumiKit"]),
+        .library(name: "PanelumiCore", targets: ["PanelumiCore"]),
+        .executable(name: "Panelumi", targets: ["Panelumi"]),
     ],
     targets: [
-        .target(name: "SwitchKit"),
-        .target(name: "SwitchDeckCore", dependencies: ["SwitchKit"]),
-        .executableTarget(name: "SwitchDeck", dependencies: ["SwitchDeckCore"]),
-        .testTarget(name: "SwitchKitTests", dependencies: ["SwitchKit"]),
-        .testTarget(name: "ScreenshotTests", dependencies: ["SwitchDeckCore"]),
+        .target(name: "PanelumiKit"),
+        .target(name: "PanelumiCore", dependencies: ["PanelumiKit"]),
+        .executableTarget(name: "Panelumi", dependencies: ["PanelumiCore"]),
+        .testTarget(name: "PanelumiKitTests", dependencies: ["PanelumiKit"]),
+        .testTarget(name: "ScreenshotTests", dependencies: ["PanelumiCore"]),
     ]
 )

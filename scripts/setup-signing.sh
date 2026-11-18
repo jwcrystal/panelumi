@@ -1,5 +1,5 @@
 #!/bin/bash
-# Creates a stable, self-signed code-signing identity for SwitchDeck.
+# Creates a stable, self-signed code-signing identity for Panelumi.
 #
 # Why: an ad-hoc signature identifies the app by its CDHash, which changes on
 # every build. macOS ties Accessibility/Automation grants to that identity, so
@@ -31,9 +31,9 @@ openssl req -x509 -newkey rsa:2048 -nodes \
 echo "==> Importing into the login keychain"
 # macOS cannot read OpenSSL 3+ PKCS#12 defaults; ask for the legacy ciphers.
 openssl pkcs12 -export -out "$TMP/cert.p12" \
-  -inkey "$TMP/key.pem" -in "$TMP/cert.pem" -passout pass:switchdeck \
+  -inkey "$TMP/key.pem" -in "$TMP/cert.pem" -passout pass:panelumi \
   -certpbe PBE-SHA1-3DES -keypbe PBE-SHA1-3DES -macalg sha1
-security import "$TMP/cert.p12" -k "$KEYCHAIN" -P switchdeck -T /usr/bin/codesign -A
+security import "$TMP/cert.p12" -k "$KEYCHAIN" -P panelumi -T /usr/bin/codesign -A
 
 echo "==> Trusting it for code signing (user trust domain)"
 security add-trusted-cert -r trustRoot -k "$KEYCHAIN" "$TMP/cert.pem"

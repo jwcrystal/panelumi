@@ -1,6 +1,6 @@
 import SwiftUI
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 @MainActor
 final class PopoverEdgeTests: XCTestCase {

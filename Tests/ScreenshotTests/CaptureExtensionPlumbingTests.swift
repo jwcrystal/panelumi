@@ -1,6 +1,6 @@
 import AppKit
 import XCTest
-@testable import SwitchDeckCore
+@testable import PanelumiCore
 
 /// The wiring between `LaunchOptions`, the app delegate, the coordinator and
 /// the capture session. No capture is started here.
