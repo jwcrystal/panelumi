@@ -104,7 +104,9 @@ public enum SwitchDeckLauncher {
 enum Dump {
     @MainActor
     static func printAll() {
-        for item in AppCatalog.make(screenshot: ScreenshotCoordinator()).items {
+        let screenshot = ScreenshotCoordinator()
+        defer { withExtendedLifetime(screenshot) {} }
+        for item in AppCatalog.make(screenshot: screenshot).items {
             print(line(for: item))
         }
     }
@@ -113,7 +115,11 @@ enum Dump {
     /// Toggles flip state, so the printed state afterwards shows the result.
     @MainActor
     static func run(id: String) {
-        guard let item = AppCatalog.make(screenshot: ScreenshotCoordinator()).item(id: id) else {
+        // The screenshot switches hold the coordinator weakly, so it has to
+        // outlive perform() or they silently do nothing.
+        let screenshot = ScreenshotCoordinator()
+        defer { withExtendedLifetime(screenshot) {} }
+        guard let item = AppCatalog.make(screenshot: screenshot).item(id: id) else {
             FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
             exit(2)
         }
@@ -140,7 +146,9 @@ enum Dump {
     /// switches being absent. Useful when the menu looks wrong.
     @MainActor
     static func printMenu() {
-        let model = AppModel(catalog: AppCatalog.make(screenshot: ScreenshotCoordinator()))
+        let screenshot = ScreenshotCoordinator()
+        defer { withExtendedLifetime(screenshot) {} }
+        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot))
         var seen = Set<String>()
         let items = model.menuItems.filter { seen.insert($0.id).inserted }
 
