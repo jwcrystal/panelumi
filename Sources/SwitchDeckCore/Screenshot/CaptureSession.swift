@@ -511,6 +511,8 @@ struct CaptureToolbarView: View {
     /// The hosting view's hit test uses the same value.
     static let hintBandHeight: CGFloat = 24
     static let optionsRowHeight: CGFloat = 36
+    static let optionsRowSpacing: CGFloat = 5
+    static var optionsRowReserve: CGFloat { optionsRowHeight + optionsRowSpacing }
 
     private enum HoverItem: Equatable {
         case tool(CaptureSession.Tool)
@@ -521,7 +523,7 @@ struct CaptureToolbarView: View {
     @State private var openExtensionPopover: String?
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: Self.optionsRowSpacing) {
             if popoverPlacement.edge == .top {
                 optionsRowIfShown
                 mainRow
@@ -533,6 +535,11 @@ struct CaptureToolbarView: View {
             }
         }
         .fixedSize()
+        .onChange(of: session.showsOptionsRow) { _, shown in
+            if !shown {
+                showColors = false
+            }
+        }
     }
 
     private var hintText: String {

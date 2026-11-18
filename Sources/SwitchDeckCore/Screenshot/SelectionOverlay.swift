@@ -1255,7 +1255,7 @@ final class SelectionView: NSView {
     private func layoutToolbar() {
         guard let toolbarHost, let selection else { return }
         let size = toolbarHost.fittingSize
-        let reserve = session.showsOptionsRow ? 0 : CaptureToolbarView.optionsRowHeight + 5
+        let reserve = session.showsOptionsRow ? 0 : CaptureToolbarView.optionsRowReserve
         let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds, reserve: reserve)
         toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible || session.takeoverActive

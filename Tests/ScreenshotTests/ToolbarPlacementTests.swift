@@ -49,7 +49,7 @@ final class ToolbarPlacementTests: XCTestCase {
 
     func testReservedOptionsRowKeepsTheToolbarOnTheSameSide() {
         let selection = CGRect(x: 300, y: 140, width: 800, height: 400)
-        let reserve = CaptureToolbarView.optionsRowHeight + 5
+        let reserve = CaptureToolbarView.optionsRowReserve
 
         let hidden = CGRect(
             origin: SelectionView.toolbarOrigin(selection: selection, size: size, bounds: bounds, reserve: reserve),

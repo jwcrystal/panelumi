@@ -97,7 +97,7 @@ final class SelectedStyleTests: XCTestCase {
         let unselected = toolbarSize(selected: false)
         let selected = toolbarSize(selected: true)
 
-        XCTAssertEqual(selected.height, unselected.height + CaptureToolbarView.optionsRowHeight + 5,
+        XCTAssertEqual(selected.height, unselected.height + CaptureToolbarView.optionsRowReserve,
                        accuracy: 0.5)
         XCTAssertLessThanOrEqual(selected.width, unselected.width + 2)
     }
