@@ -21,15 +21,20 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     private let statusItem: NSStatusItem
     private let model: AppModel
+    private let permissions: PermissionCenter
     private var cancellables: Set<AnyCancellable> = []
     private var isMenuOpen = false
     private var needsRebuild = false
+    /// The permission count the menu was built with, so the setup window's
+    /// periodic refresh only rebuilds when something actually changed.
+    private var builtMissingPermissionCount = -1
 
     var openSettings: () -> Void = {}
     var openPermissions: () -> Void = {}
 
-    init(model: AppModel) {
+    init(model: AppModel, permissions: PermissionCenter) {
         self.model = model
+        self.permissions = permissions
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -48,6 +53,17 @@ final class MenuController: NSObject, NSMenuDelegate {
         model.$config
             .receive(on: RunLoop.main)
             .sink { [weak self] _ in self?.rebuild() }
+            .store(in: &cancellables)
+
+        // objectWillChange fires before the value lands, so read the count a turn
+        // later. The setup window refreshes every two seconds; an unchanged count
+        // must not rebuild the menu.
+        permissions.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.permissions.missingCount != self.builtMissingPermissionCount else { return }
+                self.rebuild()
+            }
             .store(in: &cancellables)
 
         model.runSwitch = { [weak self] id in
@@ -100,8 +116,12 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let missingPermissions = permissions.missingCount
+        builtMissingPermissionCount = missingPermissions
         let permissionsItem = NSMenuItem(
-            title: t("Permissions…"),
+            title: missingPermissions > 0
+                ? tf("Permissions… (%d missing)", missingPermissions)
+                : t("Permissions…"),
             action: #selector(showPermissions),
             keyEquivalent: ""
         )

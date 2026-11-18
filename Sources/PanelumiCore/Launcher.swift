@@ -179,6 +179,8 @@ enum Dump {
 
         var lines = [
             "accessibility\t\(center.accessibility ? "granted" : "missing")",
+            "screenRecording\t\(center.screenRecording ? "granted" : "missing")",
+            "screenRecording:relaunchNeeded\t\(center.screenRecordingRelaunchNeeded ? "yes" : "no")",
             "automation:systemEvents\t\(label(center.systemEvents))",
             "automation:finder\t\(label(center.finder))",
         ]

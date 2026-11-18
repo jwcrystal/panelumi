@@ -65,6 +65,7 @@
 "The display is dark and the keyboard is locked.\nWipe the screen with a dry cloth, then press the button below." = "螢幕已熄暗、鍵盤已鎖定。\n請用乾布擦拭螢幕，然後按下面的按鈕。";
 "The display is dark.\nWipe the screen with a dry cloth, then press the button below.\n\nAccessibility permission is missing, so the keyboard is not locked." = "螢幕已熄暗。\n請用乾布擦拭螢幕，然後按下面的按鈕。\n\n缺少「輔助使用」權限，鍵盤沒有鎖定。";
 "Permissions…" = "權限…";
+"Permissions… (%d missing)" = "權限…（缺 %d 項）";
 "Settings…" = "設定…";
 "Quit Panelumi" = "結束 Panelumi";
 "OK" = "好";
@@ -82,6 +83,7 @@
 "Automation — Finder" = "自動化 — Finder";
 "Empty Trash and its item count." = "清空垃圾桶與項目計數。";
 "Screen Recording" = "螢幕錄製";
+"Granted. Relaunch Panelumi before Screenshot and Recognize Text can use it." = "已授予。重新啟動 Panelumi 之後，截圖與文字辨識才能使用。";
 "Microphone" = "麥克風";
 "Recording." = "錄音。";
 "Grants survive rebuilds: the app is signed with a local identity, so macOS keeps recognising it." = "授權在重建後仍然有效：app 用本機身分簽章，macOS 會一直認得它。";

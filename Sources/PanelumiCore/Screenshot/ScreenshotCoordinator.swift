@@ -16,6 +16,9 @@ final class ScreenshotCoordinator {
     /// which path a capture takes without Screen Recording; nil uses the real
     /// service.
     var regionCaptureHook: (@MainActor (CGRect, NSScreen) async -> CGImage?)?
+    /// Called when a capture failed only because macOS has not granted Screen
+    /// Recording. The app answers by opening the permission checklist.
+    var onPermissionFailure: (() -> Void)?
     private var pinnedWindows: [NSWindow] = []
     private var countdown: CaptureCountdown?
     /// Frames taken just before a timed overlay appeared, keyed by display.
@@ -492,6 +495,14 @@ final class ScreenshotCoordinator {
     }
 
     private func present(_ error: Error, title: String = t("Screenshot")) {
+        // A missing grant is answered by the checklist, which explains that
+        // macOS applies the Screen Recording grant after a relaunch and offers
+        // the relaunch; an alert would only repeat that badly.
+        if case ScreenCaptureService.CaptureError.permission = error {
+            onPermissionFailure?()
+            return
+        }
+
         NSApp.activate(ignoringOtherApps: true)
 
         let alert = NSAlert()
@@ -499,16 +510,6 @@ final class ScreenshotCoordinator {
         alert.messageText = title
         alert.informativeText = error.localizedDescription
         alert.addButton(withTitle: t("OK"))
-
-        if case ScreenCaptureService.CaptureError.permission = error {
-            alert.addButton(withTitle: t("Open Privacy Settings"))
-            if alert.runModal() == .alertSecondButtonReturn {
-                let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture")!
-                NSWorkspace.shared.open(url)
-            }
-            return
-        }
-
         alert.runModal()
     }
 
