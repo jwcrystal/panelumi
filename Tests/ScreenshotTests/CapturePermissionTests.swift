@@ -35,6 +35,9 @@ final class CapturePermissionTests: XCTestCase {
     func testCaptureOpensWhenTheGrantIsPresent() throws {
         let coordinator = ScreenshotCoordinator()
         coordinator.screenRecordingGranted = { true }
+        // The overlay samples the screen as it opens. Keep that away from
+        // ScreenCaptureKit: a test process must never trigger a TCC request.
+        coordinator.regionCaptureHook = { _, _ in nil }
         coordinator.onPermissionFailure = { XCTFail("The grant is present, so nothing may ask for it") }
 
         coordinator.begin()
