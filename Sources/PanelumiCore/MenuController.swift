@@ -85,6 +85,13 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     // MARK: - Menu construction
 
+    /// The Permissions… title, carrying the count so the menu itself says what
+    /// is still missing.
+    private func permissionsMenuTitle() -> String {
+        let missing = permissions.missingCount
+        return missing > 0 ? tf("Permissions… (%d missing)", missing) : t("Permissions…")
+    }
+
     private func rebuild() {
         // Never mutate a menu that is on screen: AppKit keeps painting the old
         // rows and the list looks duplicated. Defer until the menu closes.
@@ -119,9 +126,7 @@ final class MenuController: NSObject, NSMenuDelegate {
         let missingPermissions = permissions.missingCount
         builtMissingPermissionCount = missingPermissions
         let permissionsItem = NSMenuItem(
-            title: missingPermissions > 0
-                ? tf("Permissions… (%d missing)", missingPermissions)
-                : t("Permissions…"),
+            title: permissionsMenuTitle(),
             action: #selector(showPermissions),
             keyEquivalent: ""
         )
@@ -175,6 +180,15 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         isMenuOpen = true
+
+        // A grant can change in System Settings while no permission view is
+        // monitoring, so read it now: the title is otherwise baked in at rebuild.
+        permissions.refresh()
+        builtMissingPermissionCount = permissions.missingCount
+        for menuItem in menu.items where menuItem.action == #selector(showPermissions) {
+            menuItem.title = permissionsMenuTitle()
+        }
+
         for menuItem in menu.items {
             guard let box = menuItem.representedObject as? ItemBox else { continue }
             let item = box.item
