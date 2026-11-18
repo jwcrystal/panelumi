@@ -34,10 +34,10 @@ final class AppIdentityTests: XCTestCase {
         XCTAssertEqual(standard.supportFolderName, "SwitchDeck")
         XCTAssertEqual(
             standard.updateFeedURL.absoluteString,
-            "https://api.github.com/repos/jwcrystal/switchdeck/releases/latest"
+            "https://api.github.com/repos/jwcrystal/panelumi/releases/latest"
         )
-        XCTAssertEqual(standard.repositoryURL.absoluteString, "https://github.com/jwcrystal/switchdeck")
-        XCTAssertEqual(standard.issuesURL.absoluteString, "https://github.com/jwcrystal/switchdeck/issues")
+        XCTAssertEqual(standard.repositoryURL.absoluteString, "https://github.com/jwcrystal/panelumi")
+        XCTAssertEqual(standard.issuesURL.absoluteString, "https://github.com/jwcrystal/panelumi/issues")
     }
 
     func testCustomSupportFolderChangesConfigPath() {

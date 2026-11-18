@@ -99,10 +99,10 @@ final class TextRecognizerTests: XCTestCase {
     }
 
     func testReadsQRCode() throws {
-        let image = try XCTUnwrap(Self.qrCode("https://github.com/jwcrystal/switchdeck"))
+        let image = try XCTUnwrap(Self.qrCode("https://github.com/jwcrystal/panelumi"))
         let result = try TextRecognizer.recognize(image)
-        XCTAssertEqual(result.codes, ["https://github.com/jwcrystal/switchdeck"])
-        XCTAssertEqual(result.clipboardText, "https://github.com/jwcrystal/switchdeck")
+        XCTAssertEqual(result.codes, ["https://github.com/jwcrystal/panelumi"])
+        XCTAssertEqual(result.clipboardText, "https://github.com/jwcrystal/panelumi")
     }
 
     func testWarmUpLeavesRecognitionWorking() throws {

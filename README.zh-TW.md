@@ -2,8 +2,8 @@
 
 [English](README.md) · **繁體中文**
 
-[![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
+[![CI](https://github.com/jwcrystal/panelumi/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/panelumi/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jwcrystal/panelumi)](https://github.com/jwcrystal/panelumi/releases)
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#安裝)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -27,7 +27,7 @@
 
 ### 從 release 安裝
 
-需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/switchdeck/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID；也沒有經過 notarize，所以 macOS 會擋第一次啟動：
+需要 macOS 14 以上。從 [Releases](https://github.com/jwcrystal/panelumi/releases) 下載 zip，把 `SwitchDeck.app` 放進 `/Applications`。release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID；也沒有經過 notarize，所以 macOS 會擋第一次啟動：
 
 1. 點兩下開啟，警告視窗按 **Done**。
 2. 打開系統設定 › 隱私權與安全性，捲到「安全性」，按 **仍要打開**，然後驗證身份。
@@ -42,7 +42,7 @@
 需要 macOS 14 以上，以及 Xcode 命令列工具（`swift --version` 應顯示 5.9 以上）。
 
 ```bash
-git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
+git clone https://github.com/jwcrystal/panelumi.git && cd panelumi
 swift test                      # 159 個測試，不需要 UI
 ./scripts/build-app.sh          # 產出 build/SwitchDeck.app
 open build/SwitchDeck.app
@@ -204,7 +204,7 @@ SwitchDeck 維持精簡的單層原生選單、不受沙盒限制的本機建置
 
 ## 回饋
 
-錯誤回報、問題與新開關的想法請開 [GitHub Issues](https://github.com/jwcrystal/switchdeck/issues)。回報錯誤時請附上 macOS 版本、SwitchDeck 版本（設定 › 關於），若是某個開關異常，也請附上 `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` 與 `--permissions` 的輸出。
+錯誤回報、問題與新開關的想法請開 [GitHub Issues](https://github.com/jwcrystal/panelumi/issues)。回報錯誤時請附上 macOS 版本、SwitchDeck 版本（設定 › 關於），若是某個開關異常，也請附上 `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` 與 `--permissions` 的輸出。
 
 ## 授權
 

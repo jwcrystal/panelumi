@@ -28,7 +28,7 @@ final class UpdateCheckerTests: XCTestCase {
 
     private func response(_ status: Int) -> HTTPURLResponse {
         HTTPURLResponse(
-            url: URL(string: "https://api.github.com/repos/jwcrystal/switchdeck/releases/latest")!,
+            url: URL(string: "https://api.github.com/repos/jwcrystal/panelumi/releases/latest")!,
             statusCode: status,
             httpVersion: nil,
             headerFields: nil
@@ -38,7 +38,7 @@ final class UpdateCheckerTests: XCTestCase {
     private func checker(
         current: String,
         tag: String,
-        url: String = "https://github.com/jwcrystal/switchdeck/releases/tag/v0.9.0",
+        url: String = "https://github.com/jwcrystal/panelumi/releases/tag/v0.9.0",
         status: Int = 200
     ) -> UpdateChecker {
         UpdateChecker(currentVersion: current) { request in
@@ -58,7 +58,7 @@ final class UpdateCheckerTests: XCTestCase {
             .updateAvailable(
                 ReleaseInfo(
                     version: "0.9.0",
-                    url: URL(string: "https://github.com/jwcrystal/switchdeck/releases/tag/v0.9.0")!
+                    url: URL(string: "https://github.com/jwcrystal/panelumi/releases/tag/v0.9.0")!
                 )
             )
         )

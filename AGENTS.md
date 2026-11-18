@@ -67,6 +67,10 @@ maintainer:
 - Push tags or create GitHub releases. Pushing a `v*` tag publishes a release
   through `.github/workflows/release.yml`.
 - Change repository visibility, settings, branch protection or secrets.
+- Recreate a repository at the slug `jwcrystal/switchdeck`, which this project
+  used before the rename. Builds released under that slug call its update feed
+  and reach the current repository only through GitHub's redirect, so the slug
+  must stay unused.
 - Create, use or commit signing keys, certificates, notarization credentials or
   any other secret. `scripts/setup-signing.sh` makes a local, self-signed
   identity on your own machine only; never commit its output.
