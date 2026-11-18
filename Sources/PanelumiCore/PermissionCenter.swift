@@ -27,6 +27,8 @@ struct PermissionSnapshot: Equatable {
         var missing: [MissingPermission] = []
         if !accessibility { missing.append(.accessibility) }
         if !screenRecording { missing.append(.screenRecording) }
+        // The checklist is the only place a switch may prompt, so an un-asked
+        // microphone stays missing until the user deals with it there.
         if microphone != .authorized { missing.append(.microphone) }
         // `unknown` means the target app is not running, not that the grant was
         // refused, so it must not read as something the user has to fix.
