@@ -23,7 +23,7 @@ permissions:
   contents: write
 
 env:
-  SIGN_IDENTITY: SwitchDeck Release Signing
+  SIGN_IDENTITY: Panelumi Release Signing
 
 jobs:
   release:
