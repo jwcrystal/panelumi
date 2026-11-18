@@ -120,6 +120,13 @@ final class SelectionController {
         NSApp.activate(ignoringOtherApps: true)
     }
 
+    /// Closes a live overlay without producing output. Used when the grant the
+    /// capture needs is gone: the checklist replaces the overlay instead of
+    /// being drawn behind it.
+    func abort() {
+        finish(nil, outputs: [])
+    }
+
     /// Debug helper: completes the current selection as if Enter was pressed.
     func completeForDebug(_ output: CaptureSession.Output, extraAnnotations: [Annotation] = []) {
         for window in windows {

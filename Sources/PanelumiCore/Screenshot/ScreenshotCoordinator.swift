@@ -16,6 +16,10 @@ final class ScreenshotCoordinator {
     /// which path a capture takes without Screen Recording; nil uses the real
     /// service.
     var regionCaptureHook: (@MainActor (CGRect, NSScreen) async -> CGImage?)?
+    /// The Screen Recording grant, read without prompting: a preflight costs a
+    /// few microseconds and shows no UI, while asking for the grant does both.
+    /// Tests replace it.
+    var screenRecordingGranted: () -> Bool = { CGPreflightScreenCaptureAccess() }
     /// Called when a capture failed only because macOS has not granted Screen
     /// Recording. The app answers by opening the permission checklist.
     var onPermissionFailure: (() -> Void)?
@@ -61,6 +65,7 @@ final class ScreenshotCoordinator {
     /// no editor: choosing the area is the whole interaction.
     func beginTextRecognition() {
         guard !selections.isActive, countdown == nil else { return }
+        guard requireScreenRecording() else { return }
         // Load the models while the user is still selecting.
         Task.detached(priority: .userInitiated) { TextRecognizer.warmUp() }
         start(initialSelection: nil, finishOnSelect: .recognizeText)
@@ -94,6 +99,8 @@ final class ScreenshotCoordinator {
             self.countdown = nil
             return
         }
+
+        guard requireScreenRecording() else { return }
 
         let seconds = ScreenshotPreferences.delaySeconds
         guard seconds > 0 else {
@@ -236,6 +243,9 @@ final class ScreenshotCoordinator {
         finishOnSelect: CaptureSession.Output? = nil
     ) {
         guard !selections.isActive else { return }
+        // A delayed capture reaches here after the countdown, so the grant is
+        // checked again rather than trusted from the first press.
+        guard requireScreenRecording() else { return }
 
         frozenScreens = frozen
         selections.session.prepareForCapture()
@@ -253,7 +263,12 @@ final class ScreenshotCoordinator {
                 await self?.captureRegion(rect, screen)
             },
             captureWindows: { [weak self] targets, canvas, screen in
-                await self?.captureWindows(targets, canvas: canvas, screen: screen)
+                guard let self else { return nil }
+                let image = await self.captureWindows(targets, canvas: canvas, screen: screen)
+                if image == nil, !self.screenRecordingGranted() {
+                    self.abortForMissingPermission()
+                }
+                return image
             },
             initialSelection: initialSelection,
             frozen: { [weak self] screen in
@@ -265,6 +280,32 @@ final class ScreenshotCoordinator {
                 await self?.captureLiveRegion(rect, screen)
             }
         )
+    }
+
+    /// Every capture entry point runs this before it draws anything. The
+    /// checklist is the only place that asks for the grant and explains that
+    /// macOS applies it on the next launch.
+    private func requireScreenRecording() -> Bool {
+        guard screenRecordingGranted() else {
+            onPermissionFailure?()
+            return false
+        }
+        return true
+    }
+
+    /// The overlay sits above every ordinary window, so it has to close before
+    /// the checklist opens; otherwise the checklist is drawn behind it.
+    private func abortForMissingPermission() {
+        selections.abort()
+        onPermissionFailure?()
+    }
+
+    /// A nil region capture means different things: an empty selection, or a
+    /// grant that is not there. Only the second one has an answer.
+    static func regionCaptureFailure(permissionGranted: Bool) -> ScreenCaptureService.CaptureError {
+        permissionGranted
+            ? .captureFailed(t("The selected area was empty."))
+            : .permission
     }
 
     /// One frame per display, taken while the desktop is still untouched.
@@ -359,7 +400,7 @@ final class ScreenshotCoordinator {
             } else if let region = await captureRegion(payload.rect, payload.screen) {
                 cropped = region
             } else {
-                throw ScreenCaptureService.CaptureError.captureFailed(t("The selected area was empty."))
+                throw Self.regionCaptureFailure(permissionGranted: screenRecordingGranted())
             }
 
             if output == .recognizeText {
