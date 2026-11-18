@@ -103,7 +103,7 @@ echo "==> Signing"
 # builds behave like notarized ones. Notarization also needs a secure
 # timestamp: set TIMESTAMP=1 (needs network) for release builds; local builds
 # skip it to stay fast and offline.
-SIGN_IDENTITY="${SIGN_IDENTITY:-SwitchDeck Local Signing}"
+SIGN_IDENTITY="${SIGN_IDENTITY:-Panelumi Local Signing}"
 ENTITLEMENTS="Resources/Panelumi.entitlements"
 SIGN_FLAGS=(--force --options runtime --entitlements "$ENTITLEMENTS")
 if [ "${TIMESTAMP:-0}" = "1" ]; then

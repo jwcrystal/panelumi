@@ -11,7 +11,7 @@
 # automatically when it exists.
 set -euo pipefail
 
-NAME="SwitchDeck Local Signing"
+NAME="Panelumi Local Signing"
 KEYCHAIN="$HOME/Library/Keychains/login.keychain-db"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
