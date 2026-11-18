@@ -39,10 +39,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        let controller = MenuController(model: model)
+        let controller = MenuController(model: model, permissions: permissions)
         controller.openSettings = { [weak self] in self?.showSettings() }
         controller.openPermissions = { [weak self] in self?.showSetup() }
         menuController = controller
+
+        // A capture that failed on a missing grant sends the user to the
+        // checklist, which explains the relaunch rule and offers it.
+        screenshot.onPermissionFailure = { [weak self] in self?.showSetup() }
 
         // Load the text-recognition models in the background, so the first
         // recognition after login does not wait for them.

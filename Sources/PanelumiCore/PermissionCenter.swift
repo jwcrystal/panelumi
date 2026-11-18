@@ -3,7 +3,51 @@ import AVFoundation
 import CoreServices
 import PanelumiKit
 
-/// Reads and requests the three permissions Panelumi can need.
+/// One permission a shipped feature needs, in the order the checklist lists them.
+enum MissingPermission {
+    case accessibility
+    case screenRecording
+    case microphone
+    case systemEvents
+    case finder
+}
+
+/// The permission state without the system calls behind it, so the rules that
+/// decide what is missing stay testable without touching TCC.
+struct PermissionSnapshot: Equatable {
+    var accessibility = false
+    var screenRecording = false
+    /// Whether Screen Recording was already granted when this process started.
+    var screenRecordingAtLaunch = false
+    var microphone: AVAuthorizationStatus = .notDetermined
+    var systemEvents: PermissionCenter.AutomationState = .unknown
+    var finder: PermissionCenter.AutomationState = .unknown
+
+    var missing: [MissingPermission] {
+        var missing: [MissingPermission] = []
+        if !accessibility { missing.append(.accessibility) }
+        if !screenRecording { missing.append(.screenRecording) }
+        // The checklist is the only place a switch may prompt, so an un-asked
+        // microphone stays missing until the user deals with it there.
+        if microphone != .authorized { missing.append(.microphone) }
+        // `unknown` means the target app is not running, not that the grant was
+        // refused, so it must not read as something the user has to fix.
+        if systemEvents == .denied { missing.append(.systemEvents) }
+        if finder == .denied { missing.append(.finder) }
+        return missing
+    }
+
+    var missingCount: Int { missing.count }
+    var allGranted: Bool { missing.isEmpty }
+
+    /// macOS applies a Screen Recording grant to new processes only, so one that
+    /// arrived while this process was running still needs a relaunch.
+    var screenRecordingRelaunchNeeded: Bool {
+        screenRecording && !screenRecordingAtLaunch
+    }
+}
+
+/// Reads and requests the permissions Panelumi's shipped features can need.
 ///
 /// The app asks once, in the setup window shown at launch. Switches never call a
 /// prompting API themselves, so using the menu cannot trigger another dialog.
@@ -18,6 +62,7 @@ final class PermissionCenter: ObservableObject {
     @Published private(set) var accessibility = false
     @Published private(set) var microphone: AVAuthorizationStatus = .notDetermined
     @Published private(set) var screenRecording = false
+    @Published private(set) var screenRecordingAtLaunch = false
     @Published private(set) var screenRecordingRequested = false
     @Published private(set) var systemEvents: AutomationState = .unknown
     @Published private(set) var finder: AutomationState = .unknown
@@ -26,18 +71,23 @@ final class PermissionCenter: ObservableObject {
     @Published private(set) var automationMessageIsError = false
 
     private var refreshTimer: Timer?
+    private var readScreenRecordingAtLaunch = false
 
-    var allGranted: Bool {
-        accessibility && microphone == .authorized && systemEvents == .granted
+    var snapshot: PermissionSnapshot {
+        PermissionSnapshot(
+            accessibility: accessibility,
+            screenRecording: screenRecording,
+            screenRecordingAtLaunch: screenRecordingAtLaunch,
+            microphone: microphone,
+            systemEvents: systemEvents,
+            finder: finder
+        )
     }
 
-    var missingCount: Int {
-        var count = 0
-        if !accessibility { count += 1 }
-        if microphone != .authorized { count += 1 }
-        if systemEvents != .granted { count += 1 }
-        return count
-    }
+    var missing: [MissingPermission] { snapshot.missing }
+    var missingCount: Int { snapshot.missingCount }
+    var allGranted: Bool { snapshot.allGranted }
+    var screenRecordingRelaunchNeeded: Bool { snapshot.screenRecordingRelaunchNeeded }
 
     /// Live status while a settings or setup window is open, so a toggle in
     /// System Settings shows up without relaunching.
@@ -58,6 +108,10 @@ final class PermissionCenter: ObservableObject {
         accessibility = AXIsProcessTrusted()
         microphone = AVCaptureDevice.authorizationStatus(for: .audio)
         screenRecording = CGPreflightScreenCaptureAccess()
+        if !readScreenRecordingAtLaunch {
+            screenRecordingAtLaunch = screenRecording
+            readScreenRecordingAtLaunch = true
+        }
 
         // Unknown usually means the target app is not running, not that the
         // grant is missing; keep the last known answer instead of flapping.

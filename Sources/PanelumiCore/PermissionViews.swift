@@ -35,6 +35,11 @@ struct PermissionStatusRow: View {
                     .labelStyle(.titleAndIcon)
                     .font(.caption)
                     .foregroundStyle(.green)
+                if let onRelaunch {
+                    Button(t("Relaunch"), action: onRelaunch)
+                        .controlSize(.small)
+                        .help(t("macOS applies the Screen Recording grant after Panelumi relaunches."))
+                }
             } else {
                 if let onRelaunch {
                     Button(t("Relaunch"), action: onRelaunch)
@@ -113,12 +118,16 @@ struct SetupView: View {
 
                 PermissionStatusRow(
                     title: t("Screen Recording"),
-                    detail: t("Screenshot and Recognize Text. macOS applies the grant after a relaunch."),
+                    detail: permissions.screenRecordingRelaunchNeeded
+                        ? t("Granted. Relaunch Panelumi before Screenshot and Recognize Text can use it.")
+                        : t("Screenshot and Recognize Text. macOS applies the grant after a relaunch."),
                     granted: permissions.screenRecording,
                     grantTitle: t("Grant"),
                     onGrant: { permissions.requestScreenRecording() },
                     onOpenSettings: { permissions.openPrivacyPane("Privacy_ScreenCapture") },
-                    onRelaunch: permissions.screenRecordingRequested ? { AppLanguage.relaunch() } : nil
+                    onRelaunch: permissions.screenRecordingRelaunchNeeded || permissions.screenRecordingRequested
+                        ? { AppLanguage.relaunch() }
+                        : nil
                 )
 
                 Divider()

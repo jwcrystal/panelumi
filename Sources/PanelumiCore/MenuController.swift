@@ -21,15 +21,20 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     private let statusItem: NSStatusItem
     private let model: AppModel
+    private let permissions: PermissionCenter
     private var cancellables: Set<AnyCancellable> = []
     private var isMenuOpen = false
     private var needsRebuild = false
+    /// The permission count the menu was built with, so the setup window's
+    /// periodic refresh only rebuilds when something actually changed.
+    private var builtMissingPermissionCount = -1
 
     var openSettings: () -> Void = {}
     var openPermissions: () -> Void = {}
 
-    init(model: AppModel) {
+    init(model: AppModel, permissions: PermissionCenter) {
         self.model = model
+        self.permissions = permissions
         self.statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
 
@@ -50,6 +55,17 @@ final class MenuController: NSObject, NSMenuDelegate {
             .sink { [weak self] _ in self?.rebuild() }
             .store(in: &cancellables)
 
+        // objectWillChange fires before the value lands, so read the count a turn
+        // later. The setup window refreshes every two seconds; an unchanged count
+        // must not rebuild the menu.
+        permissions.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                guard let self, self.permissions.missingCount != self.builtMissingPermissionCount else { return }
+                self.rebuild()
+            }
+            .store(in: &cancellables)
+
         model.runSwitch = { [weak self] id in
             self?.performSwitch(id: id)
         }
@@ -68,6 +84,13 @@ final class MenuController: NSObject, NSMenuDelegate {
     }
 
     // MARK: - Menu construction
+
+    /// The Permissions… title, carrying the count so the menu itself says what
+    /// is still missing.
+    private func permissionsMenuTitle() -> String {
+        let missing = permissions.missingCount
+        return missing > 0 ? tf("Permissions… (%d missing)", missing) : t("Permissions…")
+    }
 
     private func rebuild() {
         // Never mutate a menu that is on screen: AppKit keeps painting the old
@@ -100,8 +123,10 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         menu.addItem(.separator())
 
+        let missingPermissions = permissions.missingCount
+        builtMissingPermissionCount = missingPermissions
         let permissionsItem = NSMenuItem(
-            title: t("Permissions…"),
+            title: permissionsMenuTitle(),
             action: #selector(showPermissions),
             keyEquivalent: ""
         )
@@ -155,6 +180,15 @@ final class MenuController: NSObject, NSMenuDelegate {
 
     func menuWillOpen(_ menu: NSMenu) {
         isMenuOpen = true
+
+        // A grant can change in System Settings while no permission view is
+        // monitoring, so read it now: the title is otherwise baked in at rebuild.
+        permissions.refresh()
+        builtMissingPermissionCount = permissions.missingCount
+        for menuItem in menu.items where menuItem.action == #selector(showPermissions) {
+            menuItem.title = permissionsMenuTitle()
+        }
+
         for menuItem in menu.items {
             guard let box = menuItem.representedObject as? ItemBox else { continue }
             let item = box.item
