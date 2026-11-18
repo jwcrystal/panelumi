@@ -1095,7 +1095,9 @@ final class SelectionView: NSView {
 
         // A drawing tool is put down before Esc closes the capture.
         if event.keyCode == 53, session.tool != .select {
+            cancelCanvasInteractionForHistory()
             session.tool = .select
+            needsDisplay = true
             return nil
         }
 
@@ -1719,7 +1721,9 @@ final class SelectionView: NSView {
             }
 
             if event.keyCode == 53, session.tool != .select {
+                cancelCanvasInteractionForHistory()
                 session.tool = .select
+                needsDisplay = true
                 return
             }
 
