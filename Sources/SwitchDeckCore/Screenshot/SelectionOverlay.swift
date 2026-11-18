@@ -1771,6 +1771,7 @@ final class SelectionView: NSView {
         else { return false }
 
         if event.keyCode == 48 { // Tab
+            if event.isARepeat { return true }
             session.toolbarVisible.toggle()
             return true
         }
@@ -1783,6 +1784,7 @@ final class SelectionView: NSView {
         // hidden, so those tools keep their keys.
         if character == "i" {
             guard session.showsOptionsRow, session.allowsColorStyles else { return false }
+            if event.isARepeat { return true }
             if interaction.isIdle {
                 session.isPickingColor.toggle()
             }
@@ -1792,6 +1794,7 @@ final class SelectionView: NSView {
         guard let tool = CaptureSession.Tool.tool(forShortcut: character) else { return false }
         // A drag is finished by the tool that started it; switching mid-drag
         // would commit it as another shape or drop it.
+        if event.isARepeat { return true }
         if interaction.isIdle {
             session.isPickingColor = false
             session.toggleTool(tool)

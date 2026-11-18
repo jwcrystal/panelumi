@@ -459,6 +459,77 @@ final class SelectionViewKeyTests: XCTestCase {
         XCTAssertTrue(session.toolbarVisible)
     }
 
+    @MainActor
+    func testHeldToolLetterLeavesTheToolAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view, isARepeat: true)))
+        XCTAssertEqual(session.tool, .select)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view, isARepeat: true)))
+        XCTAssertEqual(session.tool, .rectangle)
+    }
+
+    @MainActor
+    func testHeldColourKeyLeavesTheEyedropperAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        XCTAssertNil(view.handleKeyEvent(keyEvent(34, "i", in: view, isARepeat: true)))
+        XCTAssertFalse(session.isPickingColor)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(34, "i", in: view)))
+        XCTAssertTrue(session.isPickingColor)
+    }
+
+    @MainActor
+    func testHeldTabLeavesTheToolbarAlone() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tab must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        XCTAssertTrue(session.toolbarVisible)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view, isARepeat: true)))
+        XCTAssertTrue(session.toolbarVisible)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(48, "\t", in: view)))
+        XCTAssertFalse(session.toolbarVisible)
+    }
+
     // MARK: - Helpers
 
     /// Forward delete and the fn-Delete variant must behave the same.
@@ -555,7 +626,8 @@ final class SelectionViewKeyTests: XCTestCase {
 
     @MainActor
     private func keyEvent(_ keyCode: UInt16, _ characters: String, in view: SelectionView,
-                          modifiers: NSEvent.ModifierFlags = []) -> NSEvent {
+                          modifiers: NSEvent.ModifierFlags = [],
+                          isARepeat: Bool = false) -> NSEvent {
         NSEvent.keyEvent(
             with: .keyDown,
             location: .zero,
@@ -565,7 +637,7 @@ final class SelectionViewKeyTests: XCTestCase {
             context: nil,
             characters: characters,
             charactersIgnoringModifiers: characters,
-            isARepeat: false,
+            isARepeat: isARepeat,
             keyCode: keyCode
         )!
     }
