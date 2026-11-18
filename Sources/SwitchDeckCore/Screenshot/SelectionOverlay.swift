@@ -1080,26 +1080,7 @@ final class SelectionView: NSView {
 
         if applyEditingShortcut(event) { return nil }
 
-        // Picking a colour is cancelled before Esc closes the capture.
-        if event.keyCode == 53, session.isPickingColor {
-            session.isPickingColor = false
-            needsDisplay = true
-            return nil
-        }
-
-        // The watermark submenu closes first; the capture stays open.
-        if event.keyCode == 53, session.showsWatermarkBar {
-            session.showsWatermarkBar = false
-            return nil
-        }
-
-        // A drawing tool is put down before Esc closes the capture.
-        if event.keyCode == 53, session.tool != .select {
-            cancelCanvasInteractionForHistory()
-            session.tool = .select
-            needsDisplay = true
-            return nil
-        }
+        if event.keyCode == 53, dismissEscapeLayer() { return nil }
 
         switch event.keyCode {
         case 53: // Esc
@@ -1714,25 +1695,7 @@ final class SelectionView: NSView {
 
             if applyEditingShortcut(event) { return }
 
-            // Picking a colour is cancelled before Esc closes the capture.
-            if event.keyCode == 53, session.isPickingColor {
-                session.isPickingColor = false
-                needsDisplay = true
-                return
-            }
-
-            // The watermark submenu closes first; the capture stays open.
-            if event.keyCode == 53, session.showsWatermarkBar {
-                session.showsWatermarkBar = false
-                return
-            }
-
-            if event.keyCode == 53, session.tool != .select {
-                cancelCanvasInteractionForHistory()
-                session.tool = .select
-                needsDisplay = true
-                return
-            }
+            if event.keyCode == 53, dismissEscapeLayer() { return }
 
             switch event.keyCode {
             case 53: onCancel?()                                  // Esc
@@ -1778,6 +1741,25 @@ final class SelectionView: NSView {
         }
     }
 
+    private func dismissEscapeLayer() -> Bool {
+        if session.isPickingColor {
+            session.isPickingColor = false
+            needsDisplay = true
+            return true
+        }
+        if session.showsWatermarkBar {
+            session.showsWatermarkBar = false
+            return true
+        }
+        if session.tool != .select {
+            cancelCanvasInteractionForHistory()
+            session.tool = .select
+            needsDisplay = true
+            return true
+        }
+        return false
+    }
+
     /// Tool letters, the Tab toggle and the colour eyedropper only work once
     /// the toolbar is up, no text field (including an input-method composition)
     /// owns the keys, and no ⌘/⌃/⌥ shortcut is meant.
@@ -1800,7 +1782,7 @@ final class SelectionView: NSView {
         // I is the eyedropper. It has no meaning where the colour button is
         // hidden, so those tools keep their keys.
         if character == "i" {
-            guard session.allowsColorStyles else { return false }
+            guard session.showsOptionsRow, session.allowsColorStyles else { return false }
             if interaction.isIdle {
                 session.isPickingColor.toggle()
             }

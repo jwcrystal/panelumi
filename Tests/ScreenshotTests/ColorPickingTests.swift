@@ -177,9 +177,23 @@ final class ColorPickingTests: XCTestCase {
         try await waitForBaseImage(view)
 
         XCTAssertNil(CaptureSession.Tool.tool(forShortcut: "i"), "I belongs to the eyedropper")
+        session.tool = .rectangle
         XCTAssertNil(view.handleKeyEvent(letterEvent("i", in: view)))
         XCTAssertTrue(session.isPickingColor)
         XCTAssertNil(view.handleKeyEvent(letterEvent("i", in: view)))
+        XCTAssertFalse(session.isPickingColor)
+    }
+
+    @MainActor
+    func testIShortcutIsInertInSelectWithNoAnnotation() async throws {
+        let (view, session, window) = makeEditingView(base: splitImage())
+        defer { window.close() }
+        try await waitForBaseImage(view)
+
+        session.tool = .select
+        XCTAssertNil(session.selectionIndex)
+        let event = letterEvent("i", in: view)
+        XCTAssertIdentical(view.handleKeyEvent(event), event)
         XCTAssertFalse(session.isPickingColor)
     }
 
@@ -189,6 +203,7 @@ final class ColorPickingTests: XCTestCase {
         defer { window.close() }
         try await waitForBaseImage(view)
 
+        session.tool = .rectangle
         _ = view.handleKeyEvent(letterEvent("i", in: view, modifiers: [.command]))
         XCTAssertFalse(session.isPickingColor, "⌘I is not the eyedropper")
         _ = view.handleKeyEvent(letterEvent("i", in: view, modifiers: [.control]))
