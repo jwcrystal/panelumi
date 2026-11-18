@@ -21,7 +21,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache
 - **Your menu, your order.** Hide the switches you never use and drag the rest into place.
 - **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-**Status: pre-1.0 (0.9.1).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
+**Status: pre-1.0 (0.10.0).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
 
 ## Install
 
@@ -87,16 +87,17 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 ## Screenshot editor
 
-<p align="center"><img src="docs/images/editor.png" width="640" alt="The in-place editor: a frozen region with a red rectangle, an arrow and a label, and the tool strip under it"></p>
+<p align="center"><img src="docs/images/editor.png" width="640" alt="The in-place editor: a frozen region with a red rectangle, an arrow and a label, and the toolbar under it"></p>
 
 - `⌥E` starts a capture (change it in Settings › Screenshot). Drag a region, or click a window to capture that window alone (`⇧`-click several to compose them, then `Return` to edit); `F` takes the whole screen, `R` restores the last region.
 - Editing happens **in place**: the selection stays on screen, everything outside it dims, and the toolbar sits under the region — no second window.
-- Tools: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (with an optional bubble), numbered markers, mosaic and blur. Picking a tool reveals its style row below; clicking the active tool again (or `Esc`, or `V`) puts it down.
+- Tools: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (with an optional bubble), numbered markers, mosaic and blur. Hovering a tool shows its name and shortcut letter; picking one reveals its style row below, and clicking the active tool again (or `Esc`, or `V`) puts it down. `⇥` hides the toolbar.
 - With no tool picked, clicking an existing mark edits that object — the style row shows its own values — and dragging or the eight handles moves and resizes it; `⌫` deletes the selected mark.
+- Colours come from a shared 10-colour palette with recently used and a custom page (hex or RGB); `I` is an eyedropper. Colour and line width are remembered between launches.
 - While selecting, the colour and pixel coordinates under the pointer are shown; `⌥` cycles HEX / RGB / HSL and `C` copies the value and leaves capture mode.
 - The image freezes the moment editing starts, so mosaic and blur are exactly what gets saved. A delayed capture counts down in a small pill; press the shortcut again to cancel it.
 - `Enter` copies, `Space` saves (`~/Downloads`, PNG by default), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo, `Esc` closes; the folder, file-name prefix, format, quality and delay live in Settings › Screenshot.
-- The signature button adds a watermark (the macOS full user name, or text from Settings) with editable colour, position, size, angle and opacity, clipped to the capture; the eye-slash hides it from the image but keeps the text in the file metadata.
+- The signature button adds a watermark (the macOS full user name, or text from Settings) with a sub-bar for on/off, position (or tiled), size and colour, clipped to the capture; **More…** has the rest, including hiding it from the image while keeping the text in the file metadata. Settings › Screenshot sets the default position, size, angle, opacity and colour.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity.
 
 ## Permissions
