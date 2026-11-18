@@ -109,6 +109,46 @@ final class SelectionViewKeyTests: XCTestCase {
         XCTAssertTrue(controller.isActive)
     }
 
+    /// #34: the overlay can be visible with its hints, while another Panelumi
+    /// window holds the keyboard. Keys still belong to the capture then, so the
+    /// monitor must not require the overlay window to be key.
+    @MainActor
+    func testKeysBelongToTheCaptureEvenWhenTheOverlayIsNotTheKeyWindow() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Framing must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+
+        view.window?.resignKey()
+        XCTAssertFalse(view.window?.isKeyWindow ?? false)
+        XCTAssertTrue(controller.keyTarget() === view)
+    }
+
+    @MainActor
+    func testNoOverlayOwnsKeysAfterTheSessionEnds() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Framing must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil }
+        )
+        let view = try XCTUnwrap(overlayView(on: screen))
+        XCTAssertTrue(controller.keyTarget() === view)
+
+        view.onCancel?()
+        XCTAssertFalse(controller.isActive)
+        XCTAssertNil(controller.keyTarget())
+    }
+
     @MainActor
     func testDeleteRemovesTheSelectedAnnotation() throws {
         for (keyCode, characters) in deleteKeys {
