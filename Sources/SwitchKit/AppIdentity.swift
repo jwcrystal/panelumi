@@ -17,10 +17,10 @@ public struct AppIdentity: Equatable, Sendable {
     public init(
         supportFolderName: String = "SwitchDeck",
         updateFeedURL: URL = URL(
-            string: "https://api.github.com/repos/jwcrystal/switchdeck/releases/latest"
+            string: "https://api.github.com/repos/jwcrystal/panelumi/releases/latest"
         )!,
-        repositoryURL: URL = URL(string: "https://github.com/jwcrystal/switchdeck")!,
-        issuesURL: URL = URL(string: "https://github.com/jwcrystal/switchdeck/issues")!
+        repositoryURL: URL = URL(string: "https://github.com/jwcrystal/panelumi")!,
+        issuesURL: URL = URL(string: "https://github.com/jwcrystal/panelumi/issues")!
     ) {
         self.supportFolderName = supportFolderName
         self.updateFeedURL = updateFeedURL

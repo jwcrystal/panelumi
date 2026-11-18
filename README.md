@@ -2,8 +2,8 @@
 
 **English** · [繁體中文](README.zh-TW.md)
 
-[![CI](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/switchdeck/actions/workflows/ci.yml)
-[![Release](https://img.shields.io/github/v/release/jwcrystal/switchdeck)](https://github.com/jwcrystal/switchdeck/releases)
+[![CI](https://github.com/jwcrystal/panelumi/actions/workflows/ci.yml/badge.svg)](https://github.com/jwcrystal/panelumi/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/v/release/jwcrystal/panelumi)](https://github.com/jwcrystal/panelumi/releases)
 [![Platform](https://img.shields.io/badge/macOS-14%2B-blue)](#install)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
 
@@ -27,7 +27,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache
 
 ### From a release
 
-Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/switchdeck/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed with a stable self-signed certificate rather than a paid Apple Developer ID. They are not notarized, so macOS blocks the first launch once:
+Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwcrystal/panelumi/releases) and move `SwitchDeck.app` to `/Applications`. Releases are built by CI and signed with a stable self-signed certificate rather than a paid Apple Developer ID. They are not notarized, so macOS blocks the first launch once:
 
 1. Double-click it and click **Done** on the warning.
 2. Open System Settings › Privacy & Security, scroll to Security, click **Open Anyway**, then authenticate.
@@ -42,7 +42,7 @@ To see whether a newer release is out, choose **Check for Updates…** in the me
 Needs macOS 14 or later and the Xcode command line tools (`swift --version` should report 5.9 or later).
 
 ```bash
-git clone https://github.com/jwcrystal/switchdeck.git && cd switchdeck
+git clone https://github.com/jwcrystal/panelumi.git && cd panelumi
 swift test                      # 159 tests, no UI needed
 ./scripts/build-app.sh          # builds build/SwitchDeck.app
 open build/SwitchDeck.app
@@ -204,7 +204,7 @@ SwitchDeck keeps to a short, flat native menu, a local build outside the sandbox
 
 ## Feedback
 
-Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com/jwcrystal/switchdeck/issues). For a bug, include your macOS version, the SwitchDeck version (Settings › About) and, if a switch misbehaves, the output of `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` and `--permissions`.
+Bug reports, questions and switch ideas go to [GitHub Issues](https://github.com/jwcrystal/panelumi/issues). For a bug, include your macOS version, the SwitchDeck version (Settings › About) and, if a switch misbehaves, the output of `/Applications/SwitchDeck.app/Contents/MacOS/SwitchDeck --dump` and `--permissions`.
 
 ## License
 
