@@ -91,8 +91,8 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 
 - `⌥E` starts a capture (change it in Settings › Screenshot). Drag a region, or click a window to capture that window alone (`⇧`-click several to compose them, then `Return` to edit); `F` takes the whole screen, `R` restores the last region.
 - Editing happens **in place**: the selection stays on screen, everything outside it dims, and the toolbar sits under the region — no second window.
-- Tools: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (with an optional bubble), numbered markers, mosaic and blur. Picking a tool reveals its style row below; clicking it again returns to Select.
-- With Select, clicking an existing mark edits that object — the style row shows its own values — and dragging or the eight handles moves and resizes it.
+- Tools: rectangle, ellipse, line, arrow (straight / curved / elbow), freehand, highlighter, text (with an optional bubble), numbered markers, mosaic and blur. Picking a tool reveals its style row below; clicking the active tool again (or `Esc`, or `V`) puts it down.
+- With no tool picked, clicking an existing mark edits that object — the style row shows its own values — and dragging or the eight handles moves and resizes it; `⌫` deletes the selected mark.
 - While selecting, the colour and pixel coordinates under the pointer are shown; `⌥` cycles HEX / RGB / HSL and `C` copies the value and leaves capture mode.
 - The image freezes the moment editing starts, so mosaic and blur are exactly what gets saved. A delayed capture counts down in a small pill; press the shortcut again to cancel it.
 - `Enter` copies, `Space` saves (`~/Downloads`, PNG by default), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo, `Esc` closes; the folder, file-name prefix, format, quality and delay live in Settings › Screenshot.

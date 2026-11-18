@@ -173,7 +173,7 @@
 "Enter or drag to edit · R reuses the last region · Esc cancels" = "Enter 或拖曳開始編輯 · R 沿用上次的區域 · Esc 取消";
 "C Copy colour · ⌥ HEX / RGB / HSL" = "C 複製色值 · ⌥ HEX / RGB / HSL";
 "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · Esc 關閉";
-"↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · ⇥ 隱藏 · Esc 關閉";
+"↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · ⌫ 刪除 · ⇥ 隱藏 · Esc 關閉";
 "The selected area was empty." = "選取的範圍是空的。";
 "Copy" = "複製";
 "50% Opacity" = "50% 不透明度";

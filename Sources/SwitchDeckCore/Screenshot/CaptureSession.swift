@@ -91,6 +91,11 @@ final class CaptureSession: ObservableObject {
             }
         }
     }
+
+    func toggleTool(_ tool: Tool) {
+        self.tool = (self.tool == tool && tool != .select) ? .select : tool
+    }
+
     @Published var selectionIndex: Int? {
         didSet {
             if selectionIndex != nil {
@@ -527,7 +532,7 @@ struct CaptureToolbarView: View {
             if session.isPickingColor {
                 return t("Click the screenshot to pick a colour · Esc cancels")
             }
-            return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⇥ Hide · Esc Close")
+            return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close")
         }
     }
 
@@ -599,7 +604,7 @@ struct CaptureToolbarView: View {
     private func toolButton(_ tool: CaptureSession.Tool) -> some View {
         let active = session.tool == tool
         return Button {
-            session.tool = tool
+            session.toggleTool(tool)
             session.isPickingColor = false
             showColors = false
         } label: {

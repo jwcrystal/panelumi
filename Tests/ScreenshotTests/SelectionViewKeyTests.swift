@@ -301,6 +301,57 @@ final class SelectionViewKeyTests: XCTestCase {
     }
 
     @MainActor
+    func testTogglingTheActiveToolPutsItDown() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Tools must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.toggleTool(.rectangle)
+        XCTAssertEqual(session.tool, .rectangle)
+        session.toggleTool(.rectangle)
+        XCTAssertEqual(session.tool, .select)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .rectangle)
+        XCTAssertNil(view.handleKeyEvent(keyEvent(0, "r", in: view)))
+        XCTAssertEqual(session.tool, .select)
+    }
+
+    @MainActor
+    func testEscapeClosesTheTextFieldBeforePuttingDownText() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Esc must not deliver a capture") },
+            onCancel: {},
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .text
+        view.mouseDown(with: try mouseEvent(.leftMouseDown, at: editingPoint(on: screen), in: view))
+        XCTAssertNotNil(view.pendingTextFieldForDebug)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertNil(view.pendingTextFieldForDebug)
+        XCTAssertEqual(session.tool, .text)
+        XCTAssertTrue(controller.isActive)
+    }
+
+    @MainActor
     func testEscapePutsDownTheToolBeforeClosing() throws {
         let screen = try requireScreen()
         let controller = SelectionController()

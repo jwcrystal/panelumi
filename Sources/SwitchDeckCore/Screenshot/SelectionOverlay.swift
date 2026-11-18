@@ -1801,7 +1801,7 @@ final class SelectionView: NSView {
         // would commit it as another shape or drop it.
         if interaction.isIdle {
             session.isPickingColor = false
-            session.tool = tool
+            session.toggleTool(tool)
         }
         return true
     }
