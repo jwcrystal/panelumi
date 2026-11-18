@@ -535,7 +535,7 @@ struct CaptureToolbarView: View {
             }
         }
         .fixedSize()
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: popoverPlacement.edge == .top ? .bottom : .top)
+        .frame(minWidth: 0, maxWidth: .infinity, minHeight: 0, maxHeight: .infinity, alignment: popoverPlacement.edge == .top ? .bottom : .top)
         .onChange(of: session.showsOptionsRow) { _, shown in
             if !shown {
                 showColors = false
