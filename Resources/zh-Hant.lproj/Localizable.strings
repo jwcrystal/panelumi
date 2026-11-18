@@ -235,7 +235,7 @@
 "Medium" = "中";
 "Large" = "大";
 "Font size %d" = "字級 %d";
-"Select an annotation to adjust its style" = "選取物件以調整樣式";
+"Click an annotation to adjust its style" = "點選物件以調整樣式";
 "Watermark settings" = "浮水印設定";
 "Show watermark" = "顯示浮水印";
 "Hide watermark" = "隱藏浮水印";

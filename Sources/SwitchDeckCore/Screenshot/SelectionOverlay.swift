@@ -1093,6 +1093,12 @@ final class SelectionView: NSView {
             return nil
         }
 
+        // A drawing tool is put down before Esc closes the capture.
+        if event.keyCode == 53, session.tool != .select {
+            session.tool = .select
+            return nil
+        }
+
         switch event.keyCode {
         case 53: // Esc
             onCancel?()
@@ -1709,6 +1715,11 @@ final class SelectionView: NSView {
             // The watermark submenu closes first; the capture stays open.
             if event.keyCode == 53, session.showsWatermarkBar {
                 session.showsWatermarkBar = false
+                return
+            }
+
+            if event.keyCode == 53, session.tool != .select {
+                session.tool = .select
                 return
             }
 

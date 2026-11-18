@@ -558,7 +558,7 @@ struct CaptureToolbarView: View {
 
     private var mainRow: some View {
         HStack(spacing: 5) {
-            ForEach(CaptureSession.Tool.allCases) { tool in
+            ForEach(CaptureSession.Tool.allCases.filter { $0 != .select }) { tool in
                 toolButton(tool)
             }
 
@@ -762,7 +762,7 @@ struct CaptureToolbarView: View {
             patternControls
             lineWidthSlider
         case .select:
-            Text(t("Select an annotation to adjust its style"))
+            Text(t("Click an annotation to adjust its style"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         }

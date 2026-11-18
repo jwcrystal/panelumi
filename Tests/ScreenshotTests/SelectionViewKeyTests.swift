@@ -301,6 +301,31 @@ final class SelectionViewKeyTests: XCTestCase {
     }
 
     @MainActor
+    func testEscapePutsDownTheToolBeforeClosing() throws {
+        let screen = try requireScreen()
+        let controller = SelectionController()
+        var cancels = 0
+        controller.begin(
+            onCapture: { _, _ in XCTFail("Esc must not deliver a capture") },
+            onCancel: { cancels += 1 },
+            captureBase: { _, _ in nil },
+            captureWindows: { _, _, _ in nil },
+            initialSelection: editingRect(on: screen)
+        )
+        defer { cancel(controller, on: screen) }
+        let view = try XCTUnwrap(overlayView(on: screen))
+        let session = controller.session
+
+        session.tool = .rectangle
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertEqual(session.tool, .select)
+        XCTAssertEqual(cancels, 0)
+
+        XCTAssertNil(view.handleKeyEvent(keyEvent(53, "\u{1b}", in: view)))
+        XCTAssertEqual(cancels, 1)
+    }
+
+    @MainActor
     func testToolLetterKeysAreIgnoredWithAShortcutModifier() throws {
         let screen = try requireScreen()
         let controller = SelectionController()
