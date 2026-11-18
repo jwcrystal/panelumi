@@ -260,6 +260,10 @@ final class CaptureSession: ObservableObject {
 
     var hasSelectedAnnotation: Bool { selectedAnnotation != nil }
 
+    var showsOptionsRow: Bool {
+        displayTool != .select || showsWatermarkBar
+    }
+
     /// The tool whose options describe what is being edited: the selected
     /// annotation's shape in Select, otherwise the active drawing tool.
     var displayTool: Tool {
@@ -506,6 +510,7 @@ struct CaptureToolbarView: View {
     /// Height of the strip above the pill that names what the pointer is on.
     /// The hosting view's hit test uses the same value.
     static let hintBandHeight: CGFloat = 24
+    static let optionsRowHeight: CGFloat = 36
 
     private enum HoverItem: Equatable {
         case tool(CaptureSession.Tool)
@@ -517,9 +522,15 @@ struct CaptureToolbarView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
-            hintBand
-            mainRow
-            optionsRow
+            if popoverPlacement.edge == .top {
+                optionsRowIfShown
+                mainRow
+                hintBand
+            } else {
+                hintBand
+                mainRow
+                optionsRowIfShown
+            }
         }
         .fixedSize()
     }
@@ -637,6 +648,13 @@ struct CaptureToolbarView: View {
             Text(verbatim: "A").font(.system(size: 14, weight: .medium))
         default:
             Image(systemName: tool.symbol).font(.system(size: 12.5, weight: .medium))
+        }
+    }
+
+    @ViewBuilder
+    private var optionsRowIfShown: some View {
+        if session.showsOptionsRow {
+            optionsRow
         }
     }
 
@@ -1494,9 +1512,10 @@ final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
 
     var hintBandRect: NSRect {
         let height = min(CaptureToolbarView.hintBandHeight, bounds.height)
+        let atBottom = rootView.popoverPlacement.edge == .top
         return isFlipped
-            ? NSRect(x: 0, y: 0, width: bounds.width, height: height)
-            : NSRect(x: 0, y: bounds.maxY - height, width: bounds.width, height: height)
+            ? NSRect(x: 0, y: atBottom ? bounds.maxY - height : 0, width: bounds.width, height: height)
+            : NSRect(x: 0, y: atBottom ? bounds.minY : bounds.maxY - height, width: bounds.width, height: height)
     }
 }
 

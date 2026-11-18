@@ -13,7 +13,7 @@ final class ToolOptionsTests: XCTestCase {
             let host = NSHostingView(rootView: CaptureToolbarView(session: session))
             return host.fittingSize
         }
-        let plain = size(.select)
+        let plain = size(.rectangle)
         for tool in CaptureSession.Tool.allCases where tool != .select {
             let options = size(tool)
             XCTAssertEqual(options.height, plain.height, accuracy: 0.5,
@@ -35,7 +35,7 @@ final class ToolOptionsTests: XCTestCase {
             }
             return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
         }
-        let empty = size(nil)
+        let reference = size(.rectangle(from: .zero, to: .zero))
         let shapes: [Annotation.Shape] = [
             .rectangle(from: .zero, to: .zero),
             .ellipse(from: .zero, to: .zero),
@@ -50,9 +50,9 @@ final class ToolOptionsTests: XCTestCase {
         ]
         for shape in shapes {
             let expanded = size(shape)
-            XCTAssertEqual(expanded.height, empty.height, accuracy: 0.5,
+            XCTAssertEqual(expanded.height, reference.height, accuracy: 0.5,
                            "\(shape) must keep the toolbar height steady")
-            XCTAssertLessThanOrEqual(expanded.width, empty.width + 2,
+            XCTAssertLessThanOrEqual(expanded.width, reference.width + 2,
                                      "\(shape) must not widen the main toolbar")
         }
     }
@@ -86,16 +86,28 @@ final class ToolOptionsTests: XCTestCase {
     }
 
     @MainActor
-    func testEmptySelectOptionsRowKeepsTheToolbarHeight() {
+    func testEmptySelectRowHidesTheOptionsRow() {
         _ = NSApplication.shared
         func size(_ tool: CaptureSession.Tool) -> NSSize {
             let session = CaptureSession()
             session.tool = tool
             return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
         }
-        let emptySelect = size(.select)
-        XCTAssertEqual(emptySelect.height, size(.rectangle).height, accuracy: 0.5)
-        XCTAssertEqual(emptySelect.height, size(.mosaic).height, accuracy: 0.5)
+        let hiddenRow = CaptureToolbarView.optionsRowHeight + 5
+        XCTAssertEqual(size(.select).height + hiddenRow, size(.rectangle).height, accuracy: 0.5)
+        XCTAssertEqual(size(.select).height + hiddenRow, size(.mosaic).height, accuracy: 0.5)
+    }
+
+    @MainActor
+    func testSelectWithoutASelectionHidesTheOptionsRow() {
+        _ = NSApplication.shared
+        let session = CaptureSession()
+        session.tool = .select
+
+        XCTAssertFalse(session.showsOptionsRow)
+
+        session.tool = .rectangle
+        XCTAssertTrue(session.showsOptionsRow)
     }
 
     func testEveryToolHasATitleAndAUniqueShortcut() {

@@ -1255,7 +1255,8 @@ final class SelectionView: NSView {
     private func layoutToolbar() {
         guard let toolbarHost, let selection else { return }
         let size = toolbarHost.fittingSize
-        let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds)
+        let reserve = session.showsOptionsRow ? 0 : CaptureToolbarView.optionsRowHeight + 5
+        let origin = Self.toolbarOrigin(selection: selection, size: size, bounds: bounds, reserve: reserve)
         toolbarHost.frame = NSRect(origin: origin, size: size)
         toolbarHost.isHidden = !session.toolbarVisible || session.takeoverActive
         let edge = Self.popoverEdge(toolbar: toolbarHost.frame, selection: selection, bounds: bounds)
@@ -1284,7 +1285,12 @@ final class SelectionView: NSView {
     /// selection's bottom edge on the inside: a selection that leaves no room
     /// on either side is mostly the screen, and its bottom strip is the least
     /// costly part to cover.
-    static func toolbarOrigin(selection: CGRect, size: CGSize, bounds: CGRect) -> CGPoint {
+    static func toolbarOrigin(
+        selection: CGRect,
+        size: CGSize,
+        bounds: CGRect,
+        reserve: CGFloat = 0
+    ) -> CGPoint {
         let gap: CGFloat = 10
         let margin: CGFloat = 8
 
@@ -1293,9 +1299,9 @@ final class SelectionView: NSView {
         let below = selection.minY - size.height - gap
         let above = selection.maxY + gap
         let y: CGFloat
-        if below >= margin {
+        if below - reserve >= margin {
             y = below
-        } else if above + size.height <= bounds.height - margin {
+        } else if above + size.height + reserve <= bounds.height - margin {
             y = above
         } else {
             y = max(margin, min(selection.minY + gap, bounds.height - size.height - margin))

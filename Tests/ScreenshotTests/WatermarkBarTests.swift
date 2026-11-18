@@ -129,7 +129,7 @@ final class WatermarkBarTests: XCTestCase {
             configure(session)
             return NSHostingView(rootView: CaptureToolbarView(session: session)).fittingSize
         }
-        let plain = size { _ in }
+        let plain = size { $0.tool = .rectangle }
         for tool in CaptureSession.Tool.allCases {
             let withBar = size {
                 $0.tool = tool
