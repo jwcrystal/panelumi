@@ -1,4 +1,5 @@
 import AppKit
+import PanelumiKit
 import ScreenCaptureKit
 
 /// Grabs pixels through ScreenCaptureKit (macOS 14+).
@@ -76,13 +77,13 @@ final class ScreenCaptureService {
         var errorDescription: String? {
             switch self {
             case .permission:
-                return "Panelumi needs Screen Recording permission to take screenshots. Grant it in System Settings › Privacy & Security › Screen Recording, then relaunch."
+                return t("Panelumi needs Screen Recording permission to take screenshots. Grant it in System Settings › Privacy & Security › Screen Recording, then relaunch.")
             case .displayNotFound:
-                return "The display could not be found for this capture."
+                return t("The display could not be found for this capture.")
             case .windowNotFound:
-                return "The window went away before it could be captured."
+                return t("The window went away before it could be captured.")
             case .captureFailed(let message):
-                return "Capture failed: \(message)"
+                return tf("Capture failed: %@", message)
             }
         }
     }

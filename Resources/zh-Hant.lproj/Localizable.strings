@@ -177,6 +177,10 @@
 "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · Esc 關閉";
 "↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · ⌫ 刪除 · ⇥ 隱藏 · Esc 關閉";
 "The selected area was empty." = "選取的範圍是空的。";
+"Capture failed: %@" = "截圖失敗：%@";
+"The display could not be found for this capture." = "找不到這次截圖要用的顯示器。";
+"The window went away before it could be captured." = "視窗在擷取前就關閉了。";
+"Panelumi needs Screen Recording permission to take screenshots. Grant it in System Settings › Privacy & Security › Screen Recording, then relaunch." = "Panelumi 需要「螢幕錄製」權限才能截圖。請到系統設定 › 隱私權與安全性 › 螢幕錄製開啟，然後重新啟動 Panelumi。";
 "Copy" = "複製";
 "50% Opacity" = "50% 不透明度";
 "Close" = "關閉";
