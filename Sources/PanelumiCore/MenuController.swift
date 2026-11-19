@@ -143,6 +143,14 @@ final class MenuController: NSObject, NSMenuDelegate {
         checkForUpdatesItem.image = symbol("arrow.down.circle")
         menu.addItem(checkForUpdatesItem)
 
+        let build = BuildInfo.current
+        let versionTitle = build.edition.isEmpty
+            ? tf("Version %@", build.version)
+            : tf("Version %@ (%@)", build.version, build.edition)
+        let versionItem = NSMenuItem(title: versionTitle, action: nil, keyEquivalent: "")
+        versionItem.isEnabled = false
+        menu.addItem(versionItem)
+
         let settings = NSMenuItem(title: t("Settings…"), action: #selector(showSettings), keyEquivalent: "")
         settings.target = self
         settings.image = symbol("gearshape")

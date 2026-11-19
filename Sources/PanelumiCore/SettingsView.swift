@@ -1219,20 +1219,24 @@ private struct ShortcutsPane: View {
 // MARK: - About
 
 private struct AboutPane: View {
+    private var build: BuildInfo { .current }
+
     var body: some View {
         VStack(spacing: 14) {
             Image(nsImage: NSApp.applicationIconImage)
                 .resizable()
                 .frame(width: 88, height: 88)
 
-            Text(t("Panelumi"))
+            Text(build.edition.isEmpty ? t("Panelumi") : "\(t("Panelumi")) \(build.edition)")
                 .font(.system(size: 22, weight: .semibold))
 
-            Text(tf("Version %@", Self.version))
+            Text(tf("Version %@", build.version))
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            Text(t("Menu-bar switches for macOS.\nNo telemetry, no in-app purchase."))
+            Text(build.edition.isEmpty
+                ? t("Menu-bar switches for macOS.\nNo telemetry, no in-app purchase.")
+                : t("Menu-bar switches for macOS.\nNo telemetry."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
@@ -1247,12 +1251,5 @@ private struct AboutPane: View {
         }
         .padding(28)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    private static var version: String {
-        let info = Bundle.main.infoDictionary
-        let short = info?["CFBundleShortVersionString"] as? String ?? "dev"
-        let build = info?["CFBundleVersion"] as? String ?? "0"
-        return "\(short) (\(build))"
     }
 }

@@ -164,8 +164,10 @@
 "Record a shortcut to toggle a switch from any app. Esc cancels, Delete clears." = "錄一組快速鍵，在任何 App 裡切換開關。Esc 取消，Delete 清除。";
 "Screenshot’s shortcut lives in Settings › Screenshot, next to where its images go." = "截圖的快速鍵在「設定 › 截圖」，就在影像存放位置旁邊。";
 "Menu-bar switches for macOS.\nNo telemetry, no in-app purchase." = "給 macOS 的選單列開關。\n沒有遙測，沒有 App 內購買。";
+"Menu-bar switches for macOS.\nNo telemetry." = "給 macOS 的選單列開關。\n沒有遙測。";
 "Saves as %@" = "儲存為 %@";
 "Version %@" = "版本 %@";
+"Version %@ (%@)" = "版本 %@（%@）";
 "%d%%" = "%d%%";
 "Repository" = "原始碼";
 "Report an Issue" = "回報問題";
