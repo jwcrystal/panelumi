@@ -662,8 +662,8 @@ final class SelectionView: NSView {
             return
         }
 
-        // A timed capture paints the frame taken before the overlay appeared,
-        // so menus and tooltips stay on screen while the region is chosen.
+        // A capture paints the frame taken before the overlay opened, so menus
+        // and tooltips stay on screen while the region is chosen.
         if let frozenScreen {
             NSImage(cgImage: frozenScreen, size: bounds.size).draw(in: bounds)
         }
@@ -988,8 +988,8 @@ final class SelectionView: NSView {
         }
     }
 
-    /// A timed capture crops the frame taken before the overlay appeared; a
-    /// live capture goes back to ScreenCaptureKit.
+    /// A region comes out of the frame taken before the overlay opened; a live
+    /// capture goes back to ScreenCaptureKit.
     private func pixels(in global: CGRect) async -> CGImage? {
         if let frozenScreen,
            let cropped = ScreenCaptureService.crop(image: frozenScreen, to: global, screenFrame: screen.frame) {

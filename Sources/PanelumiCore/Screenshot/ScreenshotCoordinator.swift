@@ -16,6 +16,10 @@ final class ScreenshotCoordinator {
     /// which path a capture takes without Screen Recording; nil uses the real
     /// service.
     var regionCaptureHook: (@MainActor (CGRect, NSScreen) async -> CGImage?)?
+    /// Replaces the service call behind a freeze. Tests set it to open the
+    /// overlay without Screen Recording; nil uses the real service. Every
+    /// display is asked for one frame, in screen order.
+    var displayCaptureHook: (@MainActor (CGDirectDisplayID) async -> CGImage?)?
     /// The Screen Recording grant, read without prompting: a preflight costs a
     /// few microseconds and shows no UI, while asking for the grant does both.
     /// Tests replace it.
@@ -25,8 +29,15 @@ final class ScreenshotCoordinator {
     var onPermissionFailure: (() -> Void)?
     private var pinnedWindows: [NSWindow] = []
     private var countdown: CaptureCountdown?
-    /// Frames taken just before a timed overlay appeared, keyed by display.
-    /// Internal so a capture can be checked against a seeded frame.
+    /// The freeze that runs before the overlay opens. Held so the next press
+    /// can call the capture off while there is no overlay to take the cancel.
+    private var pendingFreeze: Task<Void, Never>?
+    /// Frames taken before the overlay opened, keyed by display. Regions are
+    /// cut from these instead of the live screen, so the shot is the instant
+    /// the shortcut was pressed: menus, popovers and tooltips that the
+    /// overlay's activation dismisses are still in the picture, and nothing
+    /// moves under the cursor while the region is chosen. Internal so a capture
+    /// can be checked against a seeded frame.
     var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
     private let recognitionWindow = TextRecognitionWindowController()
 
@@ -64,11 +75,11 @@ final class ScreenshotCoordinator {
     /// Select a region or window, then read its text. There is no delay and
     /// no editor: choosing the area is the whole interaction.
     func beginTextRecognition() {
-        guard !selections.isActive, countdown == nil else { return }
+        guard !selections.isActive, countdown == nil, pendingFreeze == nil else { return }
         guard requireScreenRecording() else { return }
         // Load the models while the user is still selecting.
         Task.detached(priority: .userInitiated) { TextRecognizer.warmUp() }
-        start(initialSelection: nil, finishOnSelect: .recognizeText)
+        startFrozen(initialSelection: nil, finishOnSelect: .recognizeText)
     }
 
     /// Debug (`--ocr-demo`): recognition over `$PANELUMI_DEMO_IMAGE`, so the
@@ -87,13 +98,20 @@ final class ScreenshotCoordinator {
     var isSelectionActive: Bool { selections.isActive }
 
     deinit {
+        pendingFreeze?.cancel()
         pinnedWindows.removeAll()
     }
 
     func begin() {
         guard !selections.isActive else { return }
 
-        // A second press while the clock runs calls the capture off.
+        // A second press calls the capture off, whether the clock is running or
+        // the freeze has started and no overlay is up to take the cancel.
+        if let pendingFreeze {
+            pendingFreeze.cancel()
+            self.pendingFreeze = nil
+            return
+        }
         if let countdown {
             countdown.cancel()
             self.countdown = nil
@@ -104,7 +122,7 @@ final class ScreenshotCoordinator {
 
         let seconds = ScreenshotPreferences.delaySeconds
         guard seconds > 0 else {
-            start(initialSelection: nil)
+            startFrozen(initialSelection: nil)
             return
         }
 
@@ -114,8 +132,7 @@ final class ScreenshotCoordinator {
             guard let self else { return }
             self.countdown = nil
             Task { @MainActor in
-                let frozen = await self.captureEveryScreen()
-                self.start(initialSelection: nil, frozen: frozen)
+                self.startFrozen(initialSelection: nil)
             }
         }
     }
@@ -237,6 +254,26 @@ final class ScreenshotCoordinator {
         }
     }
 
+    /// Freezes every display, then opens the overlay on those frames.
+    ///
+    /// The overlay activates the app, which dismisses menus, popovers and
+    /// tooltips, and the screen keeps moving underneath it. Freezing first
+    /// makes the pixels a region is cut from the instant the shortcut was
+    /// pressed, and holds them still while the region is chosen.
+    private func startFrozen(
+        initialSelection: CGRect?,
+        finishOnSelect: CaptureSession.Output? = nil
+    ) {
+        pendingFreeze?.cancel()
+        pendingFreeze = Task { [weak self] in
+            guard let self else { return }
+            let frozen = await self.captureEveryScreen()
+            guard !Task.isCancelled else { return }
+            self.pendingFreeze = nil
+            self.start(initialSelection: initialSelection, frozen: frozen, finishOnSelect: finishOnSelect)
+        }
+    }
+
     private func start(
         initialSelection: CGRect?,
         frozen: [CGDirectDisplayID: CGImage] = [:],
@@ -312,11 +349,17 @@ final class ScreenshotCoordinator {
     private func captureEveryScreen() async -> [CGDirectDisplayID: CGImage] {
         var frames: [CGDirectDisplayID: CGImage] = [:]
         for screen in NSScreen.screens {
-            guard let id = Self.displayID(for: screen),
-                  let image = try? await capture.captureDisplay(
+            if Task.isCancelled { break }
+            guard let id = Self.displayID(for: screen) else { continue }
+            let image: CGImage?
+            if let hook = displayCaptureHook {
+                image = await hook(id)
+            } else {
+                image = try? await capture.captureDisplay(
                     displayID: id, excludingWindowIDs: SelectionController.overlayWindowIDs
-                  )
-            else { continue }
+                )
+            }
+            guard let image else { continue }
             frames[id] = image
         }
         return frames
