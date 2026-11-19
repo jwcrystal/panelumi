@@ -27,21 +27,48 @@
   color-scheme: light dark;
 }
 :root[data-theme="dark"] {
-  --ink: #ecedef;
-  --ink-2: #a0a4ad;
-  --ink-3: #868a93;
-  --line: #2a2c33;
-  --line-2: #202227;
-  --bg: #101114;
-  --bg-2: #191a1f;
-  --accent: #e3a45b;
-  --code-bg: #191a1f;
-  --code-fg: #e6e8ee;
+  --ink: #f4eee5;
+  --ink-2: #b9afa2;
+  --ink-3: #a2968a;
+  --line: #3a3129;
+  --line-2: #2b251f;
+  --bg: #1a1613;
+  --bg-2: #241e18;
+  --accent: #e8a85c;
+  --code-bg: #221d18;
+  --code-fg: #efe8de;
   color-scheme: dark;
 }
 :root[data-theme="dark"] .screen,
-:root[data-theme="dark"] .shot-figure svg { box-shadow: 0 30px 60px -32px #000, 0 0 0 1px #26282e; }
+:root[data-theme="dark"] .shot-figure svg { box-shadow: 0 30px 60px -32px #000, 0 0 0 1px #3a3129; }
 :root[data-theme="dark"] pre { border-color: var(--line); }
+:root[data-theme="dark"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: .045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .hero h1::before,
+:root[data-theme="dark"] .sect-head h2::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 2px;
+  margin-bottom: 16px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+:root[data-theme="dark"] .hero-figure { position: relative; isolation: isolate; }
+:root[data-theme="dark"] .hero-figure::before {
+  content: "";
+  position: absolute;
+  inset: -6% -10% 8% -10%;
+  z-index: -1;
+  background: radial-gradient(60% 50% at 70% 35%, rgba(232, 168, 92, .24), transparent 70%);
+}
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 *, *::before, *::after { box-sizing: border-box; }
 body {
@@ -285,17 +312,17 @@ footer a:hover { color: var(--ink); }
         <svg class="screen" viewBox="0 0 420 700" role="img" aria-label="The Panelumi menu open in the menu bar">
           <defs>
             <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#0f1014"/>
-              <stop offset=".55" stop-color="#141419"/>
-              <stop offset="1" stop-color="#1a191f"/>
+              <stop offset="0" stop-color="#231f1b"/>
+              <stop offset=".55" stop-color="#29231d"/>
+              <stop offset="1" stop-color="#2e2721"/>
             </linearGradient>
             <radialGradient id="glow-a" cx=".2" cy=".1" r=".9">
-              <stop offset="0" stop-color="#5d6b8a" stop-opacity=".22"/>
-              <stop offset="1" stop-color="#5d6b8a" stop-opacity="0"/>
+              <stop offset="0" stop-color="#6b6052" stop-opacity=".30"/>
+              <stop offset="1" stop-color="#6b6052" stop-opacity="0"/>
             </radialGradient>
             <radialGradient id="glow-b" cx=".9" cy=".85" r=".8">
-              <stop offset="0" stop-color="#e3a45b" stop-opacity=".16"/>
-              <stop offset="1" stop-color="#e3a45b" stop-opacity="0"/>
+              <stop offset="0" stop-color="#e8a85c" stop-opacity=".22"/>
+              <stop offset="1" stop-color="#e8a85c" stop-opacity="0"/>
             </radialGradient>
             <filter id="panel-shadow" x="-40%" y="-8%" width="180%" height="118%">
               <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#080a10" flood-opacity=".5"/>
@@ -316,7 +343,7 @@ footer a:hover { color: var(--ink); }
             <use href="#g-switch2" x="348" y="7" width="15" height="15" style="color:#fff"/>
             <text x="408" y="17.4" text-anchor="end" font-size="11.5" fill="#fff" opacity=".88">9:41</text>
             <g filter="url(#panel-shadow)">
-              <rect id="panel-bg" x="69" y="32" width="300" height="623" rx="11" fill="#24242a" stroke="#fff" stroke-opacity=".14"/>
+              <rect id="panel-bg" x="69" y="32" width="300" height="623" rx="11" fill="#1e1a16" stroke="#fff" stroke-opacity=".16"/>
             </g>
             <g id="menu-rows"></g>
           </g>

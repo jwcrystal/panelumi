@@ -17,9 +17,11 @@ python3 -m http.server 8000 --directory site
   and use the app's own wording from `Resources/zh-Hant.lproj`.
 - **Colour lives in the tokens at the top of the page.** Dark is
   `:root[data-theme="dark"]`; the footer's 自動／淺色／深色 control picks it and
-  remembers the choice, and 自動 follows `prefers-color-scheme`. The hero's
-  desktop wallpaper is graphite in both appearances, because the icon is: no
-  second hue anywhere.
+  remembers the choice, and 自動 follows `prefers-color-scheme`.
+- **The dark theme has its own temperature.** Its surfaces are warm charcoal
+  rather than neutral grey, there is a 4.5% film grain over the page, and every
+  section heading carries a short accent rule. All three are dark-only: in
+  light mode the page stays exactly as it was.
 - **The editor mock stays light in dark mode.** It is a screenshot of a page,
   and screenshots do not follow the system appearance.
 - **The menu mock and the switch list come from one array.** `SWITCHES` in the
