@@ -40,8 +40,8 @@ frame, and cost continuous capture to do it.
 - The frame is what the user saw when pressing, and it does not move while the
   region is chosen.
 - **Cost:** 50–150 ms of live screen between the keypress and the freeze. On a
-  moving display the change is visible; the overlay fades the frozen frame in
-  on its first composite so the cut is not preceded by a transparent frame.
+  moving display the change is visible. Once the overlay is up, its appearance
+  does not change again (see "The first composite is the final appearance").
 - **Cost:** full-resolution frames for every display are held until the capture
   finishes (roughly 31 MB per 16-inch Retina display, 81 MB per 6K display).
 - Delaying the capture remains the tool for "wait until the screen looks like
@@ -59,9 +59,61 @@ frame, and cost continuous capture to do it.
 - **Capturing the displays concurrently.** Tried; no measurable gain, because
   the cost is starting the capture, not doing it per display. Reverted.
 
+## What a persistent stream costs, measured
+
+M5 Pro, macOS 27, a 3024×1964 display and a 5120×2880 display. The stream kept
+only the newest frame and encoded nothing, which is what "keep a frame ready"
+means for a screenshot; the numbers are the app's own CPU.
+
+| setting | frames in 8 s | CPU per frame |
+| --- | --- | --- |
+| 1 fps, 3024×1964 | 9 | 2.1 ms |
+| 10 fps, 3024×1964, still screen | 58 | 0.7 ms |
+| 30 fps, 3024×1964, still screen | 53 | 1.0 ms |
+| 30 fps, 3024×1964, whole screen changing | 344 | 0.4 ms |
+| 30 fps, 5120×2880 | 53 | 1.1 ms |
+
+So the capture itself is cheap: about 1% of one core at 30 fps, 13 MB of the
+app's memory, and no measurable change in system or WindowServer CPU. A static
+screen produces far fewer frames than the requested rate, because only changed
+frames are delivered.
+
+What is not cheap:
+
+- **Memory**, if frames are kept rather than one. One frame is 22.7 MB at
+  3024×1964 and 56.2 MB at 5120×2880 — the same amount a capture already holds
+  while it runs. Keeping every frame for 15 s at 15 fps on the 5K display would
+  be about 12.6 GB, so a buffer has to be encoded: 15 s of 5K at 30 Mbps is
+  about 56 MB.
+- **The state itself**: a capture indicator stays in the menu bar for as long
+  as the stream runs, and the stream has to be rebuilt across sleep, display
+  changes and a revoked grant.
+- **Energy in the GPU pipeline**, which process CPU does not show. Measuring it
+  needs `powermetrics` as root and has not been done.
+
+An idle stream is visible from outside, which makes the claim testable:
+`CGWindowListCopyWindowInfo` lists an on-screen window named `StatusIndicator`,
+owned by WindowServer, while a stream runs, and none while the app is idle.
+
+## The first composite is the final appearance
+
+The window's layer is handed the frozen frame with the dim already applied and
+the window under the pointer left out of it and outlined, all computed before
+the window is ordered front. Otherwise the first composite is the dim over
+everything and the first draw removes it from the pointer's window: measured as
+a full-screen brightness step (median 128 → 70 → 128) that lands about 30 ms
+after the overlay appears and reads as a flash. Sampling two patches (inside
+the pointer's window and outside it) shows no such step now: the window is at
+full brightness in the overlay's first frame, and the dim arrives as one step.
+
 ## What would reopen this
 
 A capture mode that needs a frame from *before* the keypress — a rolling buffer
 that hands over the last N seconds — or a measured requirement for a freeze
 under one frame. Either moves the cost to continuous capture and needs its own
 decision and its own ADR.
+
+A user choice between freezing at the keypress and capturing when the region is
+chosen would not change this decision: both paths capture on demand. It is a
+product switch, and where it lives is a placement decision, not an engineering
+one.

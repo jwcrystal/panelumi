@@ -128,11 +128,24 @@ final class SelectionController {
             window.contentView = view
             // A view's first draw lands a display cycle after the window is on
             // screen, so the first composite would be the live desktop. Hand
-            // the layer the frozen frame with the dim already in it, so what
-            // appears is the freeze.
+            // the layer the frozen frame, dimmed, before the window appears.
+            //
+            // The window under the pointer is asked for now rather than when
+            // the pointer enters: otherwise the overlay appears dimmed all
+            // over and undims that window a frame later, which reads as the
+            // screen flashing.
+            let pointer = NSEvent.mouseLocation
+            view.primeHover(at: CGPoint(
+                x: pointer.x - screen.frame.minX,
+                y: pointer.y - screen.frame.minY
+            ))
             if let frozenScreen, initialSelection == nil {
                 view.layer?.contentsGravity = .resize
-                view.layer?.contents = Self.backdrop(of: frozenScreen)
+                view.layer?.contents = Self.backdrop(
+                    of: frozenScreen,
+                    scale: CGFloat(frozenScreen.width) / max(1, screen.frame.width),
+                    hovering: view.hovered?.rect
+                )
             }
             window.orderFrontRegardless()
             windows.append(window)
@@ -156,10 +169,10 @@ final class SelectionController {
         DispatchQueue.main.async { [weak self] in self?.claimFocus() }
     }
 
-    /// The frozen frame with the overlay's dim already in it, for the one
-    /// composite before the view's own draw. A draw pass would be a frame
-    /// late, and the live desktop would be what the window first shows.
-    private static func backdrop(of image: CGImage) -> CGImage? {
+    /// The frozen frame as the overlay will look once it has drawn: dimmed,
+    /// with the window a click would capture left out of the dim and outlined,
+    /// so the first composite and the first draw agree.
+    static func backdrop(of image: CGImage, scale: CGFloat, hovering hovered: CGRect?) -> CGImage? {
         let width = image.width, height = image.height
         guard let context = CGContext(
             data: nil,
@@ -173,8 +186,23 @@ final class SelectionController {
         let bounds = CGRect(x: 0, y: 0, width: width, height: height)
         context.interpolationQuality = .none
         context.draw(image, in: bounds)
+
+        // The view's rectangles are in points; the image is in pixels.
+        let hoveredPixels = hovered?.applying(CGAffineTransform(scaleX: scale, y: scale))
+
+        let path = CGMutablePath()
+        path.addRect(bounds)
+        if let hoveredPixels { path.addRect(hoveredPixels) }
+        context.addPath(path)
         context.setFillColor(CGColor(gray: 0, alpha: SelectionView.dimAlpha))
-        context.fill(bounds)
+        context.fillPath(using: .evenOdd)
+
+        if let hoveredPixels {
+            context.setStrokeColor(CGColor(gray: 1, alpha: 0.9))
+            context.setLineWidth(scale)
+            context.addRect(hoveredPixels)
+            context.strokePath()
+        }
         return context.makeImage()
     }
 
@@ -2158,6 +2186,15 @@ final class SelectionView: NSView {
             x: min(minX, maxX), y: min(minY, maxY),
             width: abs(maxX - minX), height: abs(maxY - minY)
         )
+    }
+
+    /// Sets the window under the pointer before the overlay is on screen, so
+    /// the first composite can already carry the highlight instead of the
+    /// window lighting up a frame after the overlay appears.
+    func primeHover(at point: CGPoint) {
+        guard bounds.contains(point) else { return }
+        lastMousePoint = point
+        hovered = windowUnderMouse(point)
     }
 
     private func updateHover(at point: CGPoint) {
