@@ -182,8 +182,10 @@
 "The window went away before it could be captured." = "視窗在擷取前就關閉了。";
 "Panelumi needs Screen Recording permission to take screenshots. Grant it in System Settings › Privacy & Security › Screen Recording, then relaunch." = "Panelumi 需要「螢幕錄製」權限才能截圖。請到系統設定 › 隱私權與安全性 › 螢幕錄製開啟，然後重新啟動 Panelumi。";
 "Copy" = "複製";
+"Copied" = "已複製";
 "50% Opacity" = "50% 不透明度";
 "Close" = "關閉";
+"Zoom" = "縮放";
 "Rectangle" = "矩形";
 "Ellipse" = "橢圓";
 "Line" = "直線";

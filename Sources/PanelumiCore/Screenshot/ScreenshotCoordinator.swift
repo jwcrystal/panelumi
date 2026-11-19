@@ -422,7 +422,7 @@ final class ScreenshotCoordinator {
             case .save:
                 save(image, watermark: payload.watermark)
             case .pin:
-                pin(image)
+                pin(image, at: payload.rect)
             case .recognizeText:
                 break
             }
@@ -499,17 +499,13 @@ final class ScreenshotCoordinator {
         }
     }
 
-    private func pin(_ image: NSImage) {
-        let screen = NSScreen.main ?? NSScreen.screens[0]
-        let maxWidth = screen.visibleFrame.width * 0.55
-        let scale = min(1, maxWidth / max(1, image.size.width))
-        let size = NSSize(
-            width: max(80, image.size.width * scale),
-            height: max(60, image.size.height * scale)
-        )
-
+    /// Opens the pin over the area that was captured, at the picture's own size,
+    /// so what was pinned stays where it was taken from. The pill's percentage
+    /// and the wheel then move it away from that 100%.
+    private func pin(_ image: NSImage, at region: CGRect) {
+        let size = image.size
         let window = PinnedWindow(
-            contentRect: NSRect(origin: .zero, size: size),
+            contentRect: NSRect(origin: region.origin, size: size),
             styleMask: [.borderless],
             backing: .buffered,
             defer: false
@@ -519,17 +515,16 @@ final class ScreenshotCoordinator {
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
+        window.naturalSize = size
 
         let content = PinnedContentView(frame: NSRect(origin: .zero, size: size))
         content.imageView.image = image
+        content.naturalWidth = size.width
         content.onClose = { [weak window] in window?.close() }
         window.contentView = content
+        content.syncZoom()
 
-        let origin = NSPoint(
-            x: screen.visibleFrame.midX - size.width / 2,
-            y: screen.visibleFrame.midY - size.height / 2
-        )
-        window.setFrameTopLeftPoint(NSPoint(x: origin.x, y: origin.y + size.height))
+        window.setFrameOrigin(region.origin)
         window.makeKeyAndOrderFront(nil)
 
         pinnedWindows.append(window)
@@ -660,9 +655,19 @@ final class CaptureCountdown {
     }
 }
 
-/// A pinned screenshot: scroll resizes it, ⌘-scroll changes opacity, Esc or the
-/// corner button closes it.
-private final class PinnedWindow: NSWindow {
+/// A pinned screenshot: the wheel zooms it about the pointer, ⌘-scroll changes
+/// opacity, Esc or the pill closes it.
+final class PinnedWindow: NSWindow {
+    /// The picture's own size. Zoom is the frame's width over this, so 100% puts
+    /// the pin back where it was captured.
+    var naturalSize = NSSize(width: 1, height: 1)
+    /// Beyond this the pin is either a speck or a wall.
+    static let zoomRange: ClosedRange<CGFloat> = 0.1...4
+
+    var zoom: CGFloat {
+        naturalSize.width > 0 ? frame.width / naturalSize.width : 1
+    }
+
     override var canBecomeKey: Bool { true }
 
     override func keyDown(with event: NSEvent) {
@@ -688,13 +693,37 @@ private final class PinnedWindow: NSWindow {
     }
 
     @objc private func copyImage() {
-        guard let view = contentView as? PinnedContentView, let image = view.imageView.image else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.writeObjects([image])
+        (contentView as? PinnedContentView)?.copyImage()
     }
 
     @objc private func toggleHalfOpacity() {
         alphaValue = alphaValue < 0.99 ? 1 : 0.5
+    }
+
+    /// Zooms to `zoom`, holding the screen point under `anchor` — the pointer for
+    /// the wheel, the middle for the pill's menu — so the part being looked at
+    /// stays put instead of the pin growing from a corner.
+    func setZoom(_ zoom: CGFloat, around anchor: NSPoint? = nil) {
+        let clamped = min(Self.zoomRange.upperBound, max(Self.zoomRange.lowerBound, zoom))
+        let size = NSSize(
+            width: naturalSize.width * clamped,
+            height: naturalSize.height * clamped
+        )
+        var frame = self.frame
+        let point = anchor ?? NSPoint(x: frame.midX, y: frame.midY)
+        let relative = NSPoint(
+            x: frame.width > 0 ? (point.x - frame.minX) / frame.width : 0.5,
+            y: frame.height > 0 ? (point.y - frame.minY) / frame.height : 0.5
+        )
+        frame = NSRect(
+            x: point.x - size.width * relative.x,
+            y: point.y - size.height * relative.y,
+            width: size.width,
+            height: size.height
+        )
+        setFrame(frame, display: true)
+        contentView?.frame = NSRect(origin: .zero, size: size)
+        (contentView as? PinnedContentView)?.syncZoom()
     }
 
     override func scrollWheel(with event: NSEvent) {
@@ -705,25 +734,39 @@ private final class PinnedWindow: NSWindow {
             return
         }
 
-        let factor = 1 + delta * 0.01
-        var frame = self.frame
-        let width = min(max(80, frame.width * factor), 4000)
-        let height = min(max(60, frame.height * factor), 4000)
+        // A trackpad sends many small precise deltas, a wheel a few whole lines.
+        let step = event.hasPreciseScrollingDeltas ? delta * 0.01 : delta * 0.1
+        setZoom(zoom * exp(step), around: convertPoint(toScreen: event.locationInWindow))
+    }
 
-        frame.origin.x -= (width - frame.width) / 2
-        frame.origin.y -= (height - frame.height) / 2
-        frame.size = NSSize(width: width, height: height)
-        setFrame(frame, display: true)
-        contentView?.frame = NSRect(origin: .zero, size: frame.size)
+    /// Two fingers pinching do what the wheel does, so a trackpad user never has
+    /// to find a scroll gesture for it.
+    override func magnify(with event: NSEvent) {
+        setZoom(zoom * (1 + event.magnification), around: convertPoint(toScreen: event.locationInWindow))
     }
 }
 
-/// Image plus a close button that fades up when the pointer is over the pin.
-private final class PinnedContentView: NSView {
-    let imageView = NSImageView()
+/// The picture, with a pill over its bottom edge: the zoom, copy and close. The
+/// image itself is what most drags land on, so the pill only has to say what it
+/// can be resized to and offers the two actions that do not have a key.
+final class PinnedContentView: NSView {
+    let imageView = PinnedImageView()
+    let toolbar = PinnedToolbar()
     var onClose: (() -> Void)?
+    /// The picture's width at its own size, for the zoom readout. Zero until
+    /// the pin sets it.
+    var naturalWidth: CGFloat = 0
 
-    private let closeButton = NSButton()
+    /// Set while the pointer is over the pin. The pill is only there then, so a
+    /// pinned shot is just the shot until it is used.
+    var isPointerInside = false {
+        didSet {
+            guard isPointerInside != oldValue else { return }
+            updateToolbarVisibility()
+        }
+    }
+
+    private var toolbarFits = true
     private var hoverTracking: NSTrackingArea?
 
     override init(frame: NSRect) {
@@ -735,14 +778,13 @@ private final class PinnedContentView: NSView {
         imageView.imageScaling = .scaleProportionallyUpOrDown
         addSubview(imageView)
 
-        closeButton.isBordered = false
-        closeButton.bezelStyle = .circular
-        closeButton.image = NSImage(systemSymbolName: "xmark.circle.fill", accessibilityDescription: "Close")
-        closeButton.contentTintColor = .white
-        closeButton.alphaValue = 0.5
-        closeButton.target = self
-        closeButton.action = #selector(closeTapped)
-        addSubview(closeButton)
+        toolbar.onCopy = { [weak self] in self?.copyImage() }
+        toolbar.onClose = { [weak self] in self?.onClose?() }
+        toolbar.onZoom = { [weak self] zoom in
+            (self?.window as? PinnedWindow)?.setZoom(zoom)
+        }
+        addSubview(toolbar)
+        updateToolbarVisibility()
     }
 
     required init?(coder: NSCoder) {
@@ -751,13 +793,48 @@ private final class PinnedContentView: NSView {
 
     override func layout() {
         super.layout()
-        let size: CGFloat = 20
-        closeButton.frame = NSRect(
-            x: bounds.maxX - size - 6,
-            y: bounds.maxY - size - 6,
-            width: size,
-            height: size
+        let inset: CGFloat = 10
+        let full = toolbar.contentSize
+        let compact = bounds.width < full.width + inset * 2 || bounds.height < full.height + inset * 2
+        toolbar.isCompact = compact
+        let size = compact ? toolbar.compactSize : full
+        toolbarFits = bounds.width >= size.width + inset * 2 && bounds.height >= size.height + inset * 2
+        updateToolbarVisibility()
+        guard toolbarFits else { return }
+        toolbar.frame = NSRect(
+            x: (bounds.width - size.width) / 2,
+            y: inset,
+            width: size.width,
+            height: size.height
         )
+    }
+
+    private func updateToolbarVisibility() {
+        guard toolbarFits, isPointerInside else {
+            toolbar.isHidden = true
+            toolbar.alphaValue = 0
+            return
+        }
+        toolbar.isHidden = false
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.12
+            toolbar.animator().alphaValue = 1
+        }
+    }
+
+    /// Keeps the readout level with how far the pin has been stretched from
+    /// the picture's own size.
+    func syncZoom() {
+        guard naturalWidth > 0 else { return }
+        toolbar.zoom = bounds.width / naturalWidth
+        needsLayout = true
+    }
+
+    func copyImage() {
+        guard let image = imageView.image else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+        toolbar.flashCopied()
     }
 
     override func updateTrackingAreas() {
@@ -775,14 +852,301 @@ private final class PinnedContentView: NSView {
     }
 
     override func mouseEntered(with event: NSEvent) {
-        closeButton.alphaValue = 1
+        isPointerInside = true
     }
 
     override func mouseExited(with event: NSEvent) {
-        closeButton.alphaValue = 0.5
+        isPointerInside = false
+    }
+}
+
+/// The pin's own chrome. It is a view inside the pinned window rather than a
+/// second floating panel: the picture already carries the drag and the scroll
+/// zoom, and a panel would have to be kept in step with every resize.
+final class PinnedToolbar: NSView {
+    var zoom: CGFloat = 1 {
+        didSet {
+            zoomLabel.stringValue = Self.percent.string(from: NSNumber(value: zoom))
+                ?? "\(Int((zoom * 100).rounded()))%"
+        }
+    }
+
+    var onCopy: (() -> Void)?
+    var onClose: (() -> Void)?
+    var onZoom: ((CGFloat) -> Void)?
+
+    /// The percentages the readout offers; the wheel fills in everything else.
+    private static let zoomPresets = [25, 50, 100, 200, 400]
+
+    private static let percent: NumberFormatter = {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .percent
+        formatter.maximumFractionDigits = 0
+        return formatter
+    }()
+
+    private let zoomLabel = NSTextField(labelWithString: "")
+    private let zoomHitArea = PinnedZoomHitArea()
+    private let divider = NSView()
+    private let copyButton = PinnedToolbarButton(symbol: "doc.on.doc", label: t("Copy"))
+    private let closeButton = PinnedToolbarButton(symbol: "xmark", label: t("Close"))
+    private let background = NSVisualEffectView()
+    private var copyFlash: DispatchWorkItem?
+
+    private enum Metric {
+        static let height: CGFloat = 30
+        static let leading: CGFloat = 9
+        static let trailing: CGFloat = 7
+        static let spacing: CGFloat = 7
+        static let divider = NSSize(width: 1, height: 14)
+        static let button: CGFloat = 18
+        static let buttonSpacing: CGFloat = 2
+    }
+
+    /// The pill at its content size. The pin places the pill with frames, so
+    /// this view must not fix its own frame with constraints.
+    var contentSize: NSSize {
+        NSSize(
+            width: Metric.leading + zoomWidth + Metric.spacing
+                + Metric.divider.width + Metric.spacing
+                + Metric.button + Metric.buttonSpacing + Metric.button + Metric.trailing,
+            height: Metric.height
+        )
+    }
+
+    /// The pill without the readout. A pin too narrow for the full pill keeps
+    /// copy and close rather than losing its chrome to the edge.
+    var compactSize: NSSize {
+        NSSize(
+            width: Metric.leading + Metric.button + Metric.buttonSpacing + Metric.button + Metric.trailing,
+            height: Metric.height
+        )
+    }
+
+    var isCompact = false {
+        didSet {
+            guard isCompact != oldValue else { return }
+            for view in [zoomLabel, zoomHitArea, divider] {
+                view.isHidden = isCompact
+            }
+            needsLayout = true
+        }
+    }
+
+    private var zoomWidth: CGFloat {
+        zoomLabel.intrinsicContentSize.width.rounded(.up)
+    }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+
+        background.material = .popover
+        background.blendingMode = .withinWindow
+        background.state = .active
+        background.maskImage = Self.pillMask(radius: 10)
+        addSubview(background)
+
+        divider.wantsLayer = true
+        divider.layer?.backgroundColor = NSColor.secondaryLabelColor.withAlphaComponent(0.35).cgColor
+
+        zoomLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .medium)
+        zoomLabel.textColor = .secondaryLabelColor
+        zoomLabel.setAccessibilityLabel(t("Zoom"))
+
+        zoomHitArea.isBordered = false
+        zoomHitArea.title = ""
+        zoomHitArea.target = self
+        zoomHitArea.action = #selector(zoomClicked)
+        zoomHitArea.setAccessibilityLabel(t("Zoom"))
+        zoomHitArea.onHover = { [weak self] inside in
+            self?.zoomLabel.textColor = inside ? .labelColor : .secondaryLabelColor
+        }
+
+        copyButton.target = self
+        copyButton.action = #selector(copyTapped)
+        closeButton.target = self
+        closeButton.action = #selector(closeTapped)
+
+        for view in [zoomLabel, zoomHitArea, divider, copyButton, closeButton] {
+            addSubview(view)
+        }
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("PinnedToolbar is created in code only")
+    }
+
+    override func layout() {
+        super.layout()
+        background.frame = bounds
+
+        var x = Metric.leading
+        if !isCompact {
+            let zoomHeight = zoomLabel.intrinsicContentSize.height.rounded(.up)
+            zoomLabel.frame = NSRect(
+                x: x,
+                y: (bounds.height - zoomHeight) / 2,
+                width: zoomWidth,
+                height: zoomHeight
+            )
+            zoomHitArea.frame = zoomLabel.frame.insetBy(dx: -2, dy: -6)
+            x = zoomLabel.frame.maxX + Metric.spacing
+
+            divider.frame = NSRect(
+                x: x,
+                y: (bounds.height - Metric.divider.height) / 2,
+                width: Metric.divider.width,
+                height: Metric.divider.height
+            )
+            x = divider.frame.maxX + Metric.spacing
+        }
+
+        for button in [copyButton, closeButton] {
+            button.frame = NSRect(
+                x: x,
+                y: (bounds.height - Metric.button) / 2,
+                width: Metric.button,
+                height: Metric.button
+            )
+            x = button.frame.maxX + Metric.buttonSpacing
+        }
+    }
+
+    @objc private func copyTapped() {
+        onCopy?()
     }
 
     @objc private func closeTapped() {
         onClose?()
     }
+
+    @objc private func zoomClicked() {
+        let menu = NSMenu()
+        let current = Int((zoom * 100).rounded())
+        for preset in Self.zoomPresets {
+            let title = Self.percent.string(from: NSNumber(value: Double(preset) / 100)) ?? "\(preset)"
+            let item = NSMenuItem(title: title, action: #selector(zoomPicked(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = NSNumber(value: Double(preset) / 100)
+            item.state = preset == current ? .on : .off
+            menu.addItem(item)
+        }
+        _ = menu.popUp(positioning: nil, at: NSPoint(x: 0, y: -4), in: zoomHitArea)
+    }
+
+    @objc private func zoomPicked(_ sender: NSMenuItem) {
+        guard let selected = sender.representedObject as? NSNumber else { return }
+        onZoom?(CGFloat(selected.doubleValue))
+    }
+
+    /// A checkmark for a second says the copy landed without a sound.
+    func flashCopied() {
+        copyFlash?.cancel()
+        copyButton.image = NSImage(systemSymbolName: "checkmark", accessibilityDescription: t("Copied"))
+        copyButton.contentTintColor = .systemGreen
+        let reset = DispatchWorkItem { [weak self] in
+            self?.copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: t("Copy"))
+            self?.copyButton.contentTintColor = .secondaryLabelColor
+        }
+        copyFlash = reset
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1, execute: reset)
+    }
+
+    /// An NSVisualEffectView draws its material outside a layer's corner
+    /// radius, so the pill is rounded with a resizable mask instead.
+    private static func pillMask(radius: CGFloat) -> NSImage {
+        let edge = radius * 2 + 1
+        let image = NSImage(size: NSSize(width: edge, height: edge), flipped: false) { rect in
+            NSColor.black.setFill()
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+            return true
+        }
+        image.capInsets = NSEdgeInsets(top: radius, left: radius, bottom: radius, right: radius)
+        image.resizingMode = .stretch
+        return image
+    }
+}
+
+/// An invisible target over the zoom readout: a click opens the percentages, and
+/// the readout brightens while the pointer is on it so it reads as a control.
+final class PinnedZoomHitArea: NSButton {
+    var onHover: ((Bool) -> Void)?
+    private var hoverTracking: NSTrackingArea?
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+    }
+
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .pointingHand)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHover?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHover?(false)
+    }
+}
+
+/// A symbol button that brightens under the pointer, the way the editor's
+/// toolbar entries do.
+final class PinnedToolbarButton: NSButton {
+    private var hoverTracking: NSTrackingArea?
+
+    init(symbol: String, label: String) {
+        super.init(frame: .zero)
+        isBordered = false
+        bezelStyle = .regularSquare
+        imagePosition = .imageOnly
+        imageScaling = .scaleProportionallyDown
+        image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+        contentTintColor = .secondaryLabelColor
+        setAccessibilityLabel(label)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("PinnedToolbarButton is created in code only")
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverTracking {
+            removeTrackingArea(hoverTracking)
+        }
+        let area = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self
+        )
+        addTrackingArea(area)
+        hoverTracking = area
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        contentTintColor = .labelColor
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        contentTintColor = .secondaryLabelColor
+    }
+}
+
+/// The image covers the whole pin, so the mouse-down lands here rather than on
+/// the window's background. NSImageView refuses to hand that drag to the window
+/// (`mouseDownCanMoveWindow` is false for controls), which left the pin stuck
+/// where it opened; forwarding it restores dragging by the picture itself.
+final class PinnedImageView: NSImageView {
+    override var mouseDownCanMoveWindow: Bool { true }
 }
