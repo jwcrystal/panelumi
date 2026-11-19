@@ -42,9 +42,9 @@ python3 -m http.server 8000 --directory site
   `CaptureSession.Tool` order, then the watermark chip, undo/redo, and the
   accent-filled copy button, save, pin and close. No options row, because no
   tool is picked in the picture.
-- **Version strings are literal.** The menu mock's `Version 0.12.1`, the
-  release-notes mock and its window title use the current version. Grep for
-  `0.12.1` when `VERSION` changes.
+- **Version strings are literal.** The menu mock's version row, the
+  release-notes mock and its window title spell out the current version. Grep
+  `site/` for whatever `VERSION` says when it changes.
 
 ## Publishing
 
