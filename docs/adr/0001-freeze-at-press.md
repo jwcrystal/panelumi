@@ -97,14 +97,49 @@ owned by WindowServer, while a stream runs, and none while the app is idle.
 
 ## The first composite is the final appearance
 
-The window's layer is handed the frozen frame with the dim already applied and
-the window under the pointer left out of it and outlined, all computed before
-the window is ordered front. Otherwise the first composite is the dim over
-everything and the first draw removes it from the pointer's window: measured as
-a full-screen brightness step (median 128 → 70 → 128) that lands about 30 ms
-after the overlay appears and reads as a flash. Sampling two patches (inside
-the pointer's window and outside it) shows no such step now: the window is at
-full brightness in the overlay's first frame, and the dim arrives as one step.
+A freeze is the last picture the user sees before the selection UI, so the
+overlay may change the screen **once**: from the live desktop to its finished
+look. Everything the overlay shows — the frozen frame, the 45 % dim, the window
+under the pointer left out of the dim and outlined, the hint line, the colour
+readout — is composed before the window is ordered front, and nothing redraws
+it afterwards until the pointer moves.
+
+Five things broke that, and each was measured:
+
+1. **A transparent first frame.** A view's first draw lands a display cycle
+   after the window is on screen, so the first composite was the live desktop.
+   The window's layer is now given the finished picture before it is ordered
+   front.
+2. **The dim without the window cut-out.** The first version baked the dim over
+   the whole frame, and the view's first draw then removed it from the pointer's
+   window: a full-screen brightness step (median 128 → 70 → 128) about 30 ms
+   after the overlay appeared.
+3. **The window fade.** `NSWindow` fades a new window in unless told otherwise,
+   so the live desktop showed through the overlay for about 150 ms. The window
+   now sets `animationBehavior = .none`; two stills taken 1 s apart no longer
+   differ by even one pixel.
+4. **A draw after the overlay was up.** The entering-mouse event recomputed the
+   window under the pointer and requested a redraw, which landed as a second
+   change. The hover state is computed before the window appears, and the
+   entering event no longer redraws when the value it computes is the one
+   already set. Moving the pointer still redraws, because the colour readout
+   follows it.
+5. **Hints arriving late.** The sample and the colour readout were filled by an
+   asynchronous capture ~100–150 ms after the window appeared. Both are now
+   taken from the frozen frame synchronously.
+
+Measured: with a still desktop and a fixed 800 × 500 window under the pointer,
+the first still showing the overlay is identical to one taken a second later
+(0 of 5.9 M pixels differ), and the patches read 14.5 → 7.9 outside the window
+and 140.0 → 139.9 inside it — one step, then still. With a screen that changes
+on every refresh, the stream shows one transition frame (~11 ms) and no frame
+of live picture afterwards.
+
+Timing from the shortcut to the overlay on screen, measured with timestamps
+inside the app: 100–170 ms, of which 80–125 ms is the screen capture and 21–46 ms
+is rendering the view and ordering the window front; the second display follows
+37–39 ms later. The render-and-show part is inside one frame band; the capture
+is the cost this ADR already accepts.
 
 ## What would reopen this
 
