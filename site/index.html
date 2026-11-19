@@ -93,12 +93,25 @@ a { color: inherit; }
 .site-nav { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
 .site-nav a { color: var(--ink-2); text-decoration: none; }
 .site-nav a:hover { color: var(--ink); }
-.lang, .theme { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
-.lang button, .theme button { border: 0; background: none; font: inherit; color: var(--ink-3); padding: 2px 8px; border-radius: 6px; cursor: pointer; }
-.lang button[aria-pressed="true"], .theme button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
-.theme { gap: 1px; }
-.theme button { display: flex; align-items: center; justify-content: center; width: 26px; height: 22px; padding: 0; }
-.theme button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.controls { display: flex; align-items: center; gap: 2px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; }
+.lang { display: flex; align-items: center; gap: 2px; }
+.lang button { border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-3); height: 22px; padding: 0 8px; border-radius: 6px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
+.lang button:hover { color: var(--ink-2); }
+.controls-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
+.theme { position: relative; }
+.theme > button { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; }
+.theme > button:hover { background: var(--bg-2); color: var(--ink); }
+.theme > button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.theme > button .caret { width: 12px; height: 12px; color: var(--ink-3); }
+.theme-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; display: flex; flex-direction: column; gap: 1px; min-width: 188px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); box-shadow: 0 14px 32px -14px rgba(0, 0, 0, .35); }
+.theme-menu[hidden] { display: none; }
+.theme-menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--ink-3); font: inherit; font-size: 12.5px; white-space: nowrap; text-align: left; cursor: pointer; }
+.theme-menu button:hover { background: var(--bg-2); color: var(--ink); }
+.theme-menu button[aria-checked="true"] { color: var(--ink); }
+.theme-menu button svg { flex: 0 0 auto; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.theme-menu .check { margin-left: auto; opacity: 0; }
+.theme-menu button[aria-checked="true"] .check { opacity: 1; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 720px) { .site-nav { gap: 14px; font-size: 13px; } .site-nav .hide-sm { display: none; } }
 @media (max-width: 560px) { .site-head .wrap { gap: 12px; } .brand span { display: none; } }
@@ -263,6 +276,8 @@ footer a:hover { color: var(--ink); }
     <symbol id="i-auto" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.9"/><path d="M8 2.1a5.9 5.9 0 0 1 0 11.8z" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-light" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.3v1.5M8 13.2v1.5M1.3 8h1.5M13.2 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></symbol>
     <symbol id="i-dark" viewBox="0 0 16 16"><path d="M13.3 9.7A6 6 0 0 1 6.3 2.7a6 6 0 1 0 7 7Z"/></symbol>
+    <symbol id="i-caret" viewBox="0 0 16 16"><path d="M4.4 6.4 8 10.2l3.6-3.8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.4 8.6 6.3 11.4 12.6 4.8"/></symbol>
   </defs>
 </svg>
 
@@ -278,23 +293,35 @@ footer a:hover { color: var(--ink); }
       <a href="#install"><span class="en">Install</span><span class="zh">安裝</span></a>
       <a href="https://github.com/jwcrystal/panelumi" class="hide-sm">GitHub</a>
     </nav>
-    <div class="lang" role="group" aria-label="Language">
-      <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
-      <button type="button" data-set-lang="zh" aria-pressed="false">繁中</button>
-    </div>
-    <div class="theme" role="group" aria-label="Appearance">
-      <button type="button" data-set-theme="auto" aria-pressed="true" data-en="Follow the system" data-zh="跟隨系統" title="跟隨系統">
+    <div class="controls">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-set-lang="zh" aria-pressed="false">繁中</button>
+      </div>
+      <span class="controls-sep" aria-hidden="true"></span>
+      <div class="theme">
+      <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="外觀" title="外觀">
         <svg aria-hidden="true"><use href="#i-auto"/></svg>
-        <span class="sr-only"><span class="en">Follow the system</span><span class="zh">跟隨系統</span></span>
+        <svg class="caret" aria-hidden="true"><use href="#i-caret"/></svg>
       </button>
-      <button type="button" data-set-theme="light" aria-pressed="false" data-en="Light" data-zh="淺色" title="淺色">
-        <svg aria-hidden="true"><use href="#i-light"/></svg>
-        <span class="sr-only"><span class="en">Light</span><span class="zh">淺色</span></span>
-      </button>
-      <button type="button" data-set-theme="dark" aria-pressed="false" data-en="Dark" data-zh="深色" title="深色">
-        <svg aria-hidden="true"><use href="#i-dark"/></svg>
-        <span class="sr-only"><span class="en">Dark</span><span class="zh">深色</span></span>
-      </button>
+      <div class="theme-menu" role="menu" aria-label="Appearance" hidden>
+        <button type="button" role="menuitemradio" data-theme-pref="auto" aria-checked="true">
+          <svg aria-hidden="true"><use href="#i-auto"/></svg>
+          <span class="en">Follow the system</span><span class="zh">跟隨系統</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" role="menuitemradio" data-theme-pref="light" aria-checked="false">
+          <svg aria-hidden="true"><use href="#i-light"/></svg>
+          <span class="en">Light</span><span class="zh">淺色</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" role="menuitemradio" data-theme-pref="dark" aria-checked="false">
+          <svg aria-hidden="true"><use href="#i-dark"/></svg>
+          <span class="en">Dark</span><span class="zh">深色</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+      </div>
+    </div>
     </div>
   </div>
 </header>
@@ -824,9 +851,7 @@ function applyLanguage(next) {
   document.querySelectorAll('.lang button').forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.setLang === next));
   });
-  document.querySelectorAll('.theme button').forEach((button) => {
-    button.title = next === 'zh' ? button.dataset.zh : button.dataset.en;
-  });
+  renderThemeChrome();
   try {
     localStorage.setItem('panelumi-site-lang', next);
   } catch (error) {
@@ -853,35 +878,83 @@ document.querySelectorAll('.lang button').forEach((button) => {
 });
 
 const THEME_KEY = 'panelumi-site-theme';
+const THEME_MODES = ['auto', 'light', 'dark'];
+const THEME_LABELS = {
+  auto: { en: 'Follow the system', zh: '跟隨系統' },
+  light: { en: 'Light', zh: '淺色' },
+  dark: { en: 'Dark', zh: '深色' }
+};
+const themeButton = document.querySelector('.theme > button');
+const themeUse = themeButton.querySelector('use');
+const themeMenu = document.querySelector('.theme-menu');
+const themeItems = [...themeMenu.querySelectorAll('button[data-theme-pref]')];
 let themePref = 'auto';
 try {
   const savedTheme = localStorage.getItem(THEME_KEY);
-  if (savedTheme === 'auto' || savedTheme === 'light' || savedTheme === 'dark') {
+  if (THEME_MODES.indexOf(savedTheme) !== -1) {
     themePref = savedTheme;
   }
 } catch (error) {
   /* Nothing stored; follow the system. */
 }
 
+function renderThemeChrome() {
+  themeUse.setAttribute('href', '#i-' + themePref);
+  const code = lang();
+  const label = (code === 'zh' ? '外觀：' : 'Appearance: ') + THEME_LABELS[themePref][code];
+  themeButton.title = label;
+  themeButton.setAttribute('aria-label', label);
+  themeItems.forEach((item) => {
+    item.setAttribute('aria-checked', String(item.dataset.themePref === themePref));
+  });
+}
+
+function setThemeMenu(open) {
+  themeMenu.hidden = !open;
+  themeButton.setAttribute('aria-expanded', String(open));
+  if (open) {
+    const current = themeItems.find((item) => item.dataset.themePref === themePref);
+    (current || themeItems[0]).focus();
+  }
+}
+
 function applyTheme(pref) {
   const systemDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
   const dark = pref === 'dark' || (pref === 'auto' && systemDark);
   document.documentElement.dataset.theme = dark ? 'dark' : 'light';
-  document.querySelectorAll('.theme button').forEach((button) => {
-    button.setAttribute('aria-pressed', String(button.dataset.setTheme === pref));
-  });
+  renderThemeChrome();
 }
 
-document.querySelectorAll('.theme button').forEach((button) => {
-  button.addEventListener('click', () => {
-    themePref = button.dataset.setTheme;
+themeButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setThemeMenu(themeMenu.hidden);
+});
+
+themeItems.forEach((item) => {
+  item.addEventListener('click', () => {
+    themePref = item.dataset.themePref;
     try {
       localStorage.setItem(THEME_KEY, themePref);
     } catch (error) {
       /* Private browsing can refuse storage; the choice still applies. */
     }
     applyTheme(themePref);
+    setThemeMenu(false);
+    themeButton.focus();
   });
+});
+
+document.addEventListener('click', (event) => {
+  if (!themeMenu.hidden && !event.target.closest('.theme')) {
+    setThemeMenu(false);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !themeMenu.hidden) {
+    setThemeMenu(false);
+    themeButton.focus();
+  }
 });
 
 if (window.matchMedia) {
