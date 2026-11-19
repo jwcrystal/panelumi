@@ -26,8 +26,9 @@ drawn over.
 3. `start` hands the frames to `SelectionController`, which gives each
    `SelectionView` its own display's frame. The view paints it under the dim
    layer, so the whole desktop is still and the frame is what the user sees.
-   The window's layer is handed that frame with the dim already in it before
-   the window is ordered front: a view's first draw is a display cycle later,
+   The view is drawn once into a bitmap — frozen frame, dim, the pointer's
+   window left out of the dim, hints, colour readout — and that bitmap is the
+   window's first composite. A view's own first draw is a display cycle later,
    and the live desktop would be the first thing the window showed.
 4. A region is cut from that frame (`captureRegion` → `ScreenCaptureService.crop`).
    If a display produced no frame, that display falls back to a live capture,
@@ -35,6 +36,25 @@ drawn over.
 
 A second press during the freeze cancels it, the same way a second press
 cancels the countdown. The frames are dropped on cancel and on finish.
+
+## One appearance, then still
+
+The overlay changes the screen exactly once: from the live desktop to its
+finished look. Three things would make it change a second time, and all three
+are off:
+
+- **No window fade.** `NSWindow.animationBehavior = .none`; the system's default
+  fades a new window in, and the live desktop shows through it for ~150 ms.
+- **No redraw on the entering-mouse event.** The window under the pointer is
+  picked before the window is ordered front, and the entering event only
+  redraws when the answer changed. A move of the pointer still redraws, because
+  the colour readout follows it.
+- **No late hints.** The sample and the colour readout come from the frozen
+  frame synchronously, not from a capture that lands after the window is up.
+
+Measured: the first still that shows the overlay is identical to one from a
+second later, and a display changing on every refresh shows one transition frame
+and no live frame after it.
 
 ## What stays live
 
@@ -59,8 +79,10 @@ cancels the countdown. The frames are dropped on cancel and on finish.
   16-inch Retina display and 81 MB for a 6K display, dropped on finish or
   cancel.
 - Multi-display setups are frozen one display at a time, so the displays can be
-  a few tens of milliseconds apart. Invisible on a single display; worth
-  measuring before making the captures concurrent.
+  a few tens of milliseconds apart. Measured: the second display follows the
+  first by 37–39 ms; worth revisiting before making the captures concurrent.
+- From the shortcut to the overlay on screen: 100–170 ms — 80–125 ms of capture,
+  then 21–46 ms to draw the view and order the window front.
 
 ## Manual checks (needs a real Mac)
 
