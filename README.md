@@ -21,7 +21,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache
 - **Your menu, your order.** Hide the switches you never use and drag the rest into place.
 - **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-**Status: pre-1.0 (0.12.0).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
+**Status: pre-1.0 (0.12.1).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
 
 ## Install
 
