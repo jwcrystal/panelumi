@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="light">
+<meta name="color-scheme" content="light dark">
 <title>Panelumi — Mac settings in the menu bar</title>
 <meta name="description" content="Mac switches in the menu bar — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock, ejecting disks — each showing its live state. Plus screenshots you annotate where you took them. Native Swift, macOS 14+, Apache-2.0.">
 <meta property="og:type" content="website">
@@ -20,10 +20,56 @@
   --bg: #fff;
   --bg-2: #f6f6f7;
   --accent: #5b6ef0;
+  --code-bg: #15171c;
+  --code-fg: #e6e8ee;
   --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, "PingFang TC", "Noto Sans TC", sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
-  color-scheme: light;
+  color-scheme: light dark;
 }
+:root[data-theme="dark"] {
+  --ink: #f4eee5;
+  --ink-2: #b9afa2;
+  --ink-3: #a2968a;
+  --line: #3a3129;
+  --line-2: #2b251f;
+  --bg: #1a1613;
+  --bg-2: #241e18;
+  --accent: #e8a85c;
+  --code-bg: #221d18;
+  --code-fg: #efe8de;
+  color-scheme: dark;
+}
+:root[data-theme="dark"] .screen,
+:root[data-theme="dark"] .shot-figure svg { box-shadow: 0 30px 60px -32px #000, 0 0 0 1px #3a3129; }
+:root[data-theme="dark"] pre { border-color: var(--line); }
+:root[data-theme="dark"] body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  pointer-events: none;
+  opacity: .045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme="dark"] .hero h1::before,
+:root[data-theme="dark"] .sect-head h2::before {
+  content: "";
+  display: block;
+  width: 22px;
+  height: 2px;
+  margin-bottom: 16px;
+  border-radius: 1px;
+  background: var(--accent);
+}
+:root[data-theme="dark"] .hero-figure { position: relative; isolation: isolate; }
+:root[data-theme="dark"] .hero-figure::before {
+  content: "";
+  position: absolute;
+  inset: -6% -10% 8% -10%;
+  z-index: -1;
+  background: radial-gradient(60% 50% at 70% 35%, rgba(232, 168, 92, .24), transparent 70%);
+}
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 *, *::before, *::after { box-sizing: border-box; }
 body {
   margin: 0;
@@ -47,10 +93,30 @@ a { color: inherit; }
 .site-nav { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
 .site-nav a { color: var(--ink-2); text-decoration: none; }
 .site-nav a:hover { color: var(--ink); }
-.lang { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
-.lang button { border: 0; background: none; font: inherit; color: var(--ink-3); padding: 2px 8px; border-radius: 6px; cursor: pointer; }
+.controls { display: flex; align-items: center; gap: 2px; height: 28px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; }
+.lang { display: flex; align-items: center; gap: 2px; }
+.lang button { border: 0; background: none; font: inherit; font-size: 12.5px; color: var(--ink-3); height: 22px; padding: 0 8px; border-radius: 6px; cursor: pointer; }
 .lang button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
+.lang button:hover { color: var(--ink-2); }
+.controls-sep { width: 1px; height: 16px; margin: 0 3px; background: var(--line); }
+.theme { position: relative; }
+.theme > button { display: flex; align-items: center; gap: 4px; height: 22px; padding: 0 6px; border: 0; border-radius: 6px; background: transparent; color: var(--ink-2); cursor: pointer; }
+.theme > button:hover { background: var(--bg-2); color: var(--ink); }
+.theme > button svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.theme > button .caret { width: 12px; height: 12px; color: var(--ink-3); }
+.theme-menu { position: absolute; top: calc(100% + 6px); right: 0; z-index: 30; display: flex; flex-direction: column; gap: 1px; min-width: 188px; padding: 4px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2); box-shadow: 0 14px 32px -14px rgba(0, 0, 0, .35); }
+.theme-menu[hidden] { display: none; }
+.theme-menu button { display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px; border: 0; border-radius: 7px; background: none; color: var(--ink-3); font: inherit; font-size: 12.5px; white-space: nowrap; text-align: left; cursor: pointer; }
+.theme-menu button:hover { background: var(--bg-2); color: var(--ink); }
+.theme-menu button[aria-checked="true"] { color: var(--ink); }
+.theme-menu button svg { flex: 0 0 auto; width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.theme-menu .check { margin-left: auto; opacity: 0; }
+.theme-menu button[aria-checked="true"] .check { opacity: 1; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 @media (max-width: 720px) { .site-nav { gap: 14px; font-size: 13px; } .site-nav .hide-sm { display: none; } }
+@media (max-width: 560px) { .site-head .wrap { gap: 12px; } .brand span { display: none; } }
+@media (max-width: 430px) { .site-nav { display: none; } .lang { margin-left: auto; } }
+:root[data-theme="dark"] .brand img { border-radius: 7px; box-shadow: 0 0 0 1px rgba(244, 238, 229, .24), 0 8px 18px -8px rgba(232, 168, 92, .45); }
 
 .hero { padding: 76px 0 68px; }
 .hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 404px); gap: 64px; align-items: center; }
@@ -61,16 +127,16 @@ h1 .phrase { display: inline-block; }
 .lede { margin: 0 0 14px; max-width: 54ch; font-size: 17.5px; line-height: 1.62; color: var(--ink-2); }
 [data-lang="zh"] .lede { font-size: 17px; line-height: 1.75; }
 .also { margin: 0 0 30px; max-width: 56ch; font-size: 14.5px; line-height: 1.65; color: var(--ink-3); }
-.also a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid #c9cbd0; padding-bottom: 1px; }
-.also a:hover { color: var(--ink); border-color: var(--ink-3); }
+.also a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 1px; }
+.also a:hover { color: var(--ink); border-color: var(--accent); }
 .actions { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
-.btn { display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 20px; border-radius: 9px; background: var(--ink); color: #fff; font-size: 14.5px; font-weight: 550; text-decoration: none; }
-.btn:hover { background: #000; }
+.btn { display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 20px; border-radius: 9px; background: var(--ink); color: var(--bg); font-size: 14.5px; font-weight: 550; text-decoration: none; }
+.btn:hover { background: var(--ink); opacity: .88; }
 .btn svg { width: 15px; height: 15px; }
 .link { font-size: 14.5px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
 .link:hover { color: var(--ink); border-color: var(--ink-3); }
 .facts { display: flex; flex-wrap: wrap; gap: 4px 0; margin: 24px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--ink-3); }
-.facts li:not(:first-child)::before { content: "·"; margin: 0 10px; color: #c6c8cd; }
+.facts li:not(:first-child)::before { content: "·"; margin: 0 10px; color: var(--ink-3); }
 .hero-figure { margin: 0; }
 .screen { display: block; width: 100%; height: auto; border-radius: 14px; box-shadow: 0 34px 60px -34px rgba(18, 20, 28, .5), 0 2px 5px rgba(18, 20, 28, .1); }
 .hero-figure figcaption { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); }
@@ -90,7 +156,7 @@ section { border-top: 1px solid var(--line); }
 code, kbd { font-family: var(--mono); font-size: .88em; }
 code { background: var(--bg-2); border-radius: 4px; padding: .12em .35em; }
 pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
-kbd { background: #fff; border: 1px solid #dcdee3; border-bottom-width: 2px; border-radius: 4px; padding: .05em .3em; font-size: .82em; color: var(--ink-2); }
+kbd { background: var(--bg-2); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: .05em .3em; font-size: .82em; color: var(--ink-2); }
 
 .group { margin-top: 38px; }
 .group:first-of-type { margin-top: 0; }
@@ -99,7 +165,7 @@ kbd { background: #fff; border: 1px solid #dcdee3; border-bottom-width: 2px; bor
 @media (max-width: 840px) { .group ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 540px) { .group ul { grid-template-columns: 1fr; } }
 .sw { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-2); font-size: 14.5px; }
-.sw .g { flex: 0 0 auto; width: 17px; height: 17px; color: #8f939b; }
+.sw .g { flex: 0 0 auto; width: 17px; height: 17px; color: var(--ink-3); }
 .sw-name { flex: 1 1 auto; }
 .sw-tag { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
 .footnote { margin: 26px 0 0; font-size: 13px; color: var(--ink-3); }
@@ -110,7 +176,7 @@ kbd { background: #fff; border: 1px solid #dcdee3; border-bottom-width: 2px; bor
 .bullets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 56px; margin: 40px 0 0; padding: 0; list-style: none; }
 @media (max-width: 760px) { .bullets { grid-template-columns: 1fr; } }
 .bullets li { position: relative; padding: 12px 0 12px 20px; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
-.bullets li::before { content: ""; position: absolute; left: 2px; top: 21px; width: 5px; height: 5px; border-radius: 50%; background: #c3c6cd; }
+.bullets li::before { content: ""; position: absolute; left: 2px; top: 21px; width: 5px; height: 5px; border-radius: 50%; background: var(--ink-3); opacity: .5; }
 
 .install { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 60px; align-items: start; }
 @media (max-width: 860px) { .install { grid-template-columns: 1fr; gap: 40px; } }
@@ -119,7 +185,7 @@ kbd { background: #fff; border: 1px solid #dcdee3; border-bottom-width: 2px; bor
 .steps li::before { content: counter(step); position: absolute; left: 0; top: 3px; width: 23px; height: 23px; border-radius: 50%; background: var(--bg-2); color: var(--ink-2); font-size: 12px; font-weight: 600; line-height: 23px; text-align: center; }
 .steps strong { color: var(--ink); font-weight: 600; }
 .build h3 { margin: 0 0 12px; font-size: 15.5px; font-weight: 600; }
-pre { margin: 0 0 12px; padding: 18px 20px; border-radius: 10px; background: #15171c; color: #e6e8ee; font: 12.5px/1.8 var(--mono); overflow-x: auto; }
+pre { margin: 0 0 12px; padding: 18px 20px; border: 1px solid transparent; border-radius: 10px; background: var(--code-bg); color: var(--code-fg); font: 12.5px/1.8 var(--mono); overflow-x: auto; }
 .build p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
 
 .details { margin: 0; }
@@ -135,16 +201,25 @@ footer a { color: var(--ink-2); text-decoration: none; }
 footer a:hover { color: var(--ink); }
 </style>
 <script>
-  try {
-    var savedLang = localStorage.getItem('panelumi-site-lang');
-    var initialLang = savedLang === 'zh' || savedLang === 'en'
+  (function () {
+    var savedLang = null;
+    var savedTheme = null;
+    try {
+      savedLang = localStorage.getItem('panelumi-site-lang');
+      savedTheme = localStorage.getItem('panelumi-site-theme');
+    } catch (error) {
+      /* Storage can be unavailable; the defaults below still apply. */
+    }
+    var lang = savedLang === 'zh' || savedLang === 'en'
       ? savedLang
       : ((navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
-    document.documentElement.dataset.lang = initialLang;
-    document.documentElement.lang = initialLang === 'zh' ? 'zh-Hant' : 'en';
-  } catch (error) {
-    /* Storage can be unavailable; English stays the default. */
-  }
+    document.documentElement.dataset.lang = lang;
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+
+    var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var pref = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto';
+    document.documentElement.dataset.theme = pref === 'auto' ? (prefersDark ? 'dark' : 'light') : pref;
+  })();
 </script>
 </head>
 <body>
@@ -198,6 +273,11 @@ footer a:hover { color: var(--ink); }
     <symbol id="g-pin" viewBox="0 0 24 24"><path d="M9.4 3.6h5.2l-.8 5.2 3.2 3.2v1.6H7v-1.6l3.2-3.2z"/><path d="M12 13.6v6.8"/></symbol>
     <symbol id="g-x" viewBox="0 0 24 24"><path d="M6.2 6.2l11.6 11.6M17.8 6.2 6.2 17.8"/></symbol>
     <symbol id="g-signature" viewBox="0 0 24 24"><path d="M3.4 14.4c1.6 0 2-1.4 2.6-3.6.7-2.6 1.3-5.6 2.6-5.6 1 0 1.1 1.3.6 3.2-.6 2.2-1.6 4.1-1.6 5.4 0 1 .5 1.6 1.6 1.6 1.4 0 2.4-1.2 3.2-2.6"/><path d="M4 19.4h16"/></symbol>
+    <symbol id="i-auto" viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.9"/><path d="M8 2.1a5.9 5.9 0 0 1 0 11.8z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-light" viewBox="0 0 16 16"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.3v1.5M8 13.2v1.5M1.3 8h1.5M13.2 8h1.5M3.4 3.4l1.1 1.1M11.5 11.5l1.1 1.1M12.6 3.4l-1.1 1.1M4.5 11.5l-1.1 1.1"/></symbol>
+    <symbol id="i-dark" viewBox="0 0 16 16"><path d="M13.3 9.7A6 6 0 0 1 6.3 2.7a6 6 0 1 0 7 7Z"/></symbol>
+    <symbol id="i-caret" viewBox="0 0 16 16"><path d="M4.4 6.4 8 10.2l3.6-3.8"/></symbol>
+    <symbol id="i-check" viewBox="0 0 16 16"><path d="M3.4 8.6 6.3 11.4 12.6 4.8"/></symbol>
   </defs>
 </svg>
 
@@ -213,9 +293,35 @@ footer a:hover { color: var(--ink); }
       <a href="#install"><span class="en">Install</span><span class="zh">安裝</span></a>
       <a href="https://github.com/jwcrystal/panelumi" class="hide-sm">GitHub</a>
     </nav>
-    <div class="lang" role="group" aria-label="Language">
-      <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
-      <button type="button" data-set-lang="zh" aria-pressed="false">繁中</button>
+    <div class="controls">
+      <div class="lang" role="group" aria-label="Language">
+        <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
+        <button type="button" data-set-lang="zh" aria-pressed="false">繁中</button>
+      </div>
+      <span class="controls-sep" aria-hidden="true"></span>
+      <div class="theme">
+      <button type="button" aria-haspopup="true" aria-expanded="false" aria-label="外觀" title="外觀">
+        <svg aria-hidden="true"><use href="#i-auto"/></svg>
+        <svg class="caret" aria-hidden="true"><use href="#i-caret"/></svg>
+      </button>
+      <div class="theme-menu" role="menu" aria-label="Appearance" hidden>
+        <button type="button" role="menuitemradio" data-theme-pref="auto" aria-checked="true">
+          <svg aria-hidden="true"><use href="#i-auto"/></svg>
+          <span class="en">Follow the system</span><span class="zh">跟隨系統</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" role="menuitemradio" data-theme-pref="light" aria-checked="false">
+          <svg aria-hidden="true"><use href="#i-light"/></svg>
+          <span class="en">Light</span><span class="zh">淺色</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+        <button type="button" role="menuitemradio" data-theme-pref="dark" aria-checked="false">
+          <svg aria-hidden="true"><use href="#i-dark"/></svg>
+          <span class="en">Dark</span><span class="zh">深色</span>
+          <svg class="check" aria-hidden="true"><use href="#i-check"/></svg>
+        </button>
+      </div>
+    </div>
     </div>
   </div>
 </header>
@@ -226,7 +332,7 @@ footer a:hover { color: var(--ink); }
       <div>
         <h1>
           <span class="en">One menu instead of several apps.</span>
-          <span class="zh"><span class="phrase">一個選單，</span><span class="phrase">取代好幾個 App。</span></span>
+          <span class="zh"><span class="phrase">一個選單，</span><span class="phrase">取代好幾個 App</span></span>
         </h1>
         <p class="lede">
           <span class="en">Hidden files used to mean a <code>defaults</code> command, Night Shift a trip through Displays. Now it is a row in the menu bar, its state written beside it: awake until 18:30, 101 items in the Trash.</span>
@@ -257,17 +363,17 @@ footer a:hover { color: var(--ink); }
         <svg class="screen" viewBox="0 0 420 700" role="img" aria-label="The Panelumi menu open in the menu bar">
           <defs>
             <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0" stop-color="#161d29"/>
-              <stop offset=".55" stop-color="#20253a"/>
-              <stop offset="1" stop-color="#33253f"/>
+              <stop offset="0" stop-color="#231f1b"/>
+              <stop offset=".55" stop-color="#29231d"/>
+              <stop offset="1" stop-color="#2e2721"/>
             </linearGradient>
-            <radialGradient id="glow-a" cx=".18" cy=".08" r=".85">
-              <stop offset="0" stop-color="#4a68d8" stop-opacity=".5"/>
-              <stop offset="1" stop-color="#4a68d8" stop-opacity="0"/>
+            <radialGradient id="glow-a" cx=".2" cy=".1" r=".9">
+              <stop offset="0" stop-color="#6b6052" stop-opacity=".30"/>
+              <stop offset="1" stop-color="#6b6052" stop-opacity="0"/>
             </radialGradient>
-            <radialGradient id="glow-b" cx=".9" cy=".82" r=".75">
-              <stop offset="0" stop-color="#8a4a72" stop-opacity=".42"/>
-              <stop offset="1" stop-color="#8a4a72" stop-opacity="0"/>
+            <radialGradient id="glow-b" cx=".9" cy=".85" r=".8">
+              <stop offset="0" stop-color="#e8a85c" stop-opacity=".22"/>
+              <stop offset="1" stop-color="#e8a85c" stop-opacity="0"/>
             </radialGradient>
             <filter id="panel-shadow" x="-40%" y="-8%" width="180%" height="118%">
               <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#080a10" flood-opacity=".5"/>
@@ -288,7 +394,7 @@ footer a:hover { color: var(--ink); }
             <use href="#g-switch2" x="348" y="7" width="15" height="15" style="color:#fff"/>
             <text x="408" y="17.4" text-anchor="end" font-size="11.5" fill="#fff" opacity=".88">9:41</text>
             <g filter="url(#panel-shadow)">
-              <rect id="panel-bg" x="69" y="32" width="300" height="623" rx="11" fill="#1f1f22" stroke="#fff" stroke-opacity=".1"/>
+              <rect id="panel-bg" x="69" y="32" width="300" height="623" rx="11" fill="#1e1a16" stroke="#fff" stroke-opacity=".16"/>
             </g>
             <g id="menu-rows"></g>
           </g>
@@ -745,6 +851,7 @@ function applyLanguage(next) {
   document.querySelectorAll('.lang button').forEach((button) => {
     button.setAttribute('aria-pressed', String(button.dataset.setLang === next));
   });
+  renderThemeChrome();
   try {
     localStorage.setItem('panelumi-site-lang', next);
   } catch (error) {
@@ -769,6 +876,96 @@ try {
 document.querySelectorAll('.lang button').forEach((button) => {
   button.addEventListener('click', () => applyLanguage(button.dataset.setLang));
 });
+
+const THEME_KEY = 'panelumi-site-theme';
+const THEME_MODES = ['auto', 'light', 'dark'];
+const THEME_LABELS = {
+  auto: { en: 'Follow the system', zh: '跟隨系統' },
+  light: { en: 'Light', zh: '淺色' },
+  dark: { en: 'Dark', zh: '深色' }
+};
+const themeButton = document.querySelector('.theme > button');
+const themeUse = themeButton.querySelector('use');
+const themeMenu = document.querySelector('.theme-menu');
+const themeItems = [...themeMenu.querySelectorAll('button[data-theme-pref]')];
+let themePref = 'auto';
+try {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  if (THEME_MODES.indexOf(savedTheme) !== -1) {
+    themePref = savedTheme;
+  }
+} catch (error) {
+  /* Nothing stored; follow the system. */
+}
+
+function renderThemeChrome() {
+  themeUse.setAttribute('href', '#i-' + themePref);
+  const code = lang();
+  const label = (code === 'zh' ? '外觀：' : 'Appearance: ') + THEME_LABELS[themePref][code];
+  themeButton.title = label;
+  themeButton.setAttribute('aria-label', label);
+  themeItems.forEach((item) => {
+    item.setAttribute('aria-checked', String(item.dataset.themePref === themePref));
+  });
+}
+
+function setThemeMenu(open) {
+  themeMenu.hidden = !open;
+  themeButton.setAttribute('aria-expanded', String(open));
+  if (open) {
+    const current = themeItems.find((item) => item.dataset.themePref === themePref);
+    (current || themeItems[0]).focus();
+  }
+}
+
+function applyTheme(pref) {
+  const systemDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark = pref === 'dark' || (pref === 'auto' && systemDark);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  renderThemeChrome();
+}
+
+themeButton.addEventListener('click', (event) => {
+  event.stopPropagation();
+  setThemeMenu(themeMenu.hidden);
+});
+
+themeItems.forEach((item) => {
+  item.addEventListener('click', () => {
+    themePref = item.dataset.themePref;
+    try {
+      localStorage.setItem(THEME_KEY, themePref);
+    } catch (error) {
+      /* Private browsing can refuse storage; the choice still applies. */
+    }
+    applyTheme(themePref);
+    setThemeMenu(false);
+    themeButton.focus();
+  });
+});
+
+document.addEventListener('click', (event) => {
+  if (!themeMenu.hidden && !event.target.closest('.theme')) {
+    setThemeMenu(false);
+  }
+});
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !themeMenu.hidden) {
+    setThemeMenu(false);
+    themeButton.focus();
+  }
+});
+
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (themePref === 'auto') {
+      applyTheme('auto');
+    }
+  });
+}
+
+applyTheme(themePref);
 
 applyLanguage(initial);
 </script>
