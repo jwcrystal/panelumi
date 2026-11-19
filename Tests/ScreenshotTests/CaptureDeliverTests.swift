@@ -252,10 +252,10 @@ final class CaptureDeliverTests: XCTestCase {
 
         let toast = try XCTUnwrap(ColorToast.currentWindows.last)
         XCTAssertTrue(toast.isVisible)
-        XCTAssertGreaterThan(
+        XCTAssertGreaterThanOrEqual(
             toast.level.rawValue,
-            NSWindow.Level.screenSaver.rawValue,
-            "The message must sit above the overlay"
+            SelectionController.overlayLevel.rawValue,
+            "The message takes the overlay's level and is ordered in front of it"
         )
         XCTAssertTrue(toast.screen === context.screen, "The message sits on the context's screen")
 

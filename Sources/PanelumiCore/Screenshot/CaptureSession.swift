@@ -974,8 +974,8 @@ struct CaptureToolbarView: View {
 
     /// One extension's item: a plain button when it has a single entry, a
     /// popover with one button per entry when it has several. A pop-up menu can
-    /// open behind the overlay's `.screenSaver` window, so this uses the same
-    /// popover pattern as the watermark settings.
+    /// open behind the capture overlay, so this uses the same popover pattern
+    /// as the watermark settings.
     @ViewBuilder
     private func captureActionView(_ entry: CaptureExtensionToolbarEntry) -> some View {
         let item = entry.item

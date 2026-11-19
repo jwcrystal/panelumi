@@ -39,6 +39,11 @@ final class SelectionController {
         session.captureExtensions = captureExtensions.filter { seen.insert($0.identifier).inserted }
     }
 
+    /// The level every capture overlay sits at. Nothing may draw above a
+    /// capture: a system panel over the frozen frame would put the live
+    /// desktop back on screen for as long as it is up.
+    static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+
     /// Exclude only capture overlays and the helper windows a takeover
     /// attached, not Settings or other app windows. Also excludes the visible
     /// message toasts a takeover showed, so a message never lands in a live
@@ -94,12 +99,13 @@ final class SelectionController {
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
+            let frozenScreen = frozen(screen)
             let view = SelectionView(
                 screen: screen,
                 session: session,
                 captureWindows: captureWindows,
                 captureBase: captureBase,
-                frozenScreen: frozen(screen)
+                frozenScreen: frozenScreen
             )
             view.finishOnSelect = finishOnSelect
             view.onCapture = { [weak self] payload, output in
@@ -120,6 +126,14 @@ final class SelectionController {
                 self.focusView = view
             }
             window.contentView = view
+            // A view's first draw lands a display cycle after the window is on
+            // screen, so the first composite would be the live desktop. Hand
+            // the layer the frozen frame with the dim already in it, so what
+            // appears is the freeze.
+            if let frozenScreen, initialSelection == nil {
+                view.layer?.contentsGravity = .resize
+                view.layer?.contents = Self.backdrop(of: frozenScreen)
+            }
             window.orderFrontRegardless()
             windows.append(window)
             view.prepareSample()
@@ -140,6 +154,28 @@ final class SelectionController {
         claimFocus()
         // Activation lands on a later run-loop turn; claim again once it has.
         DispatchQueue.main.async { [weak self] in self?.claimFocus() }
+    }
+
+    /// The frozen frame with the overlay's dim already in it, for the one
+    /// composite before the view's own draw. A draw pass would be a frame
+    /// late, and the live desktop would be what the window first shows.
+    private static func backdrop(of image: CGImage) -> CGImage? {
+        let width = image.width, height = image.height
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        context.interpolationQuality = .none
+        context.draw(image, in: bounds)
+        context.setFillColor(CGColor(gray: 0, alpha: SelectionView.dimAlpha))
+        context.fill(bounds)
+        return context.makeImage()
     }
 
     // MARK: - Focus
@@ -307,7 +343,7 @@ final class SelectionController {
                 guard let run = box.run else { return }
                 let toast = ColorToast.show(
                     text,
-                    level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1),
+                    level: SelectionController.overlayLevel,
                     screen: run.context.screen
                 )
                 Self.messageToasts.add(toast)
@@ -315,11 +351,12 @@ final class SelectionController {
             attach: { [box, weak self] window in
                 guard let self, let run = box.run, run.endedReason == nil, self.isActive else { return }
                 window.isReleasedWhenClosed = false
-                // Raise only a window that is at or below the overlay's level;
-                // never lower one the extension already placed higher.
-                let overlayLevel = NSWindow.Level.screenSaver
-                if window.level.rawValue <= overlayLevel.rawValue {
-                    window.level = NSWindow.Level(rawValue: overlayLevel.rawValue + 1)
+                // Raise only a window that sits below the overlay's level; an
+                // overlay is at the top level, so a helper takes that level and
+                // is ordered front later instead.
+                let overlayLevel = SelectionController.overlayLevel
+                if window.level.rawValue < overlayLevel.rawValue {
+                    window.level = overlayLevel
                 }
                 run.attached.append(window)
                 Self.attachedWindows.add(window)
@@ -501,7 +538,7 @@ private final class SelectionWindow: NSWindow {
             defer: false
         )
         setFrame(screen.frame, display: false)
-        level = .screenSaver
+        level = SelectionController.overlayLevel
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false
@@ -515,6 +552,10 @@ private final class SelectionWindow: NSWindow {
 }
 
 final class SelectionView: NSView {
+    /// The dim over everything the region does not cover. The layer backdrop
+    /// uses the same value before the first draw.
+    static let dimAlpha: CGFloat = 0.45
+
     private enum Handle: CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
     }
@@ -662,8 +703,8 @@ final class SelectionView: NSView {
             return
         }
 
-        // A timed capture paints the frame taken before the overlay appeared,
-        // so menus and tooltips stay on screen while the region is chosen.
+        // A capture paints the frame taken before the overlay opened, so menus
+        // and tooltips stay on screen while the region is chosen.
         if let frozenScreen {
             NSImage(cgImage: frozenScreen, size: bounds.size).draw(in: bounds)
         }
@@ -678,7 +719,7 @@ final class SelectionView: NSView {
             path.append(NSBezierPath(rect: hovered.rect))
             path.windingRule = .evenOdd
         }
-        NSColor.black.withAlphaComponent(editing ? 0.5 : 0.45).setFill()
+        NSColor.black.withAlphaComponent(editing ? 0.5 : Self.dimAlpha).setFill()
         path.fill()
 
         if !editing {
@@ -988,8 +1029,8 @@ final class SelectionView: NSView {
         }
     }
 
-    /// A timed capture crops the frame taken before the overlay appeared; a
-    /// live capture goes back to ScreenCaptureKit.
+    /// A region comes out of the frame taken before the overlay opened; a live
+    /// capture goes back to ScreenCaptureKit.
     private func pixels(in global: CGRect) async -> CGImage? {
         if let frozenScreen,
            let cropped = ScreenCaptureService.crop(image: frozenScreen, to: global, screenFrame: screen.frame) {

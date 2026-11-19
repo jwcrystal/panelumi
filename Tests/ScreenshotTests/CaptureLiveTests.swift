@@ -186,9 +186,8 @@ final class CaptureLiveTests: XCTestCase {
 
     // MARK: - The coordinator's region paths
 
-    /// A frozen frame belongs to a timed capture only: a live request goes to
-    /// the service instead. A hook stands in for the service, so the test needs
-    /// no Screen Recording.
+    /// A live request ignores the frozen frame and goes to the service instead.
+    /// A hook stands in for the service, so the test needs no Screen Recording.
     @MainActor
     func testALiveRegionCaptureIgnoresTheFrozenFrame() async throws {
         guard let screen = NSScreen.screens.first else {
