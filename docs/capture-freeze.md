@@ -26,6 +26,9 @@ drawn over.
 3. `start` hands the frames to `SelectionController`, which gives each
    `SelectionView` its own display's frame. The view paints it under the dim
    layer, so the whole desktop is still and the frame is what the user sees.
+   The window's layer is handed that frame with the dim already in it before
+   the window is ordered front: a view's first draw is a display cycle later,
+   and the live desktop would be the first thing the window showed.
 4. A region is cut from that frame (`captureRegion` → `ScreenCaptureService.crop`).
    If a display produced no frame, that display falls back to a live capture,
    exactly as before.

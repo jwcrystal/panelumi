@@ -94,12 +94,13 @@ final class SelectionController {
 
         for screen in NSScreen.screens {
             let window = SelectionWindow(screen: screen)
+            let frozenScreen = frozen(screen)
             let view = SelectionView(
                 screen: screen,
                 session: session,
                 captureWindows: captureWindows,
                 captureBase: captureBase,
-                frozenScreen: frozen(screen)
+                frozenScreen: frozenScreen
             )
             view.finishOnSelect = finishOnSelect
             view.onCapture = { [weak self] payload, output in
@@ -120,6 +121,14 @@ final class SelectionController {
                 self.focusView = view
             }
             window.contentView = view
+            // A view's first draw lands a display cycle after the window is on
+            // screen, so the first composite would be the live desktop. Hand
+            // the layer the frozen frame with the dim already in it, so what
+            // appears is the freeze.
+            if let frozenScreen, initialSelection == nil {
+                view.layer?.contentsGravity = .resize
+                view.layer?.contents = Self.backdrop(of: frozenScreen)
+            }
             window.orderFrontRegardless()
             windows.append(window)
             view.prepareSample()
@@ -140,6 +149,28 @@ final class SelectionController {
         claimFocus()
         // Activation lands on a later run-loop turn; claim again once it has.
         DispatchQueue.main.async { [weak self] in self?.claimFocus() }
+    }
+
+    /// The frozen frame with the overlay's dim already in it, for the one
+    /// composite before the view's own draw. A draw pass would be a frame
+    /// late, and the live desktop would be what the window first shows.
+    private static func backdrop(of image: CGImage) -> CGImage? {
+        let width = image.width, height = image.height
+        guard let context = CGContext(
+            data: nil,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: 0,
+            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        let bounds = CGRect(x: 0, y: 0, width: width, height: height)
+        context.interpolationQuality = .none
+        context.draw(image, in: bounds)
+        context.setFillColor(CGColor(gray: 0, alpha: SelectionView.dimAlpha))
+        context.fill(bounds)
+        return context.makeImage()
     }
 
     // MARK: - Focus
@@ -515,6 +546,10 @@ private final class SelectionWindow: NSWindow {
 }
 
 final class SelectionView: NSView {
+    /// The dim over everything the region does not cover. The layer backdrop
+    /// uses the same value before the first draw.
+    static let dimAlpha: CGFloat = 0.45
+
     private enum Handle: CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
     }
@@ -678,7 +713,7 @@ final class SelectionView: NSView {
             path.append(NSBezierPath(rect: hovered.rect))
             path.windingRule = .evenOdd
         }
-        NSColor.black.withAlphaComponent(editing ? 0.5 : 0.45).setFill()
+        NSColor.black.withAlphaComponent(editing ? 0.5 : Self.dimAlpha).setFill()
         path.fill()
 
         if !editing {
