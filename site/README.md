@@ -16,8 +16,9 @@ python3 -m http.server 8000 --directory site
   `data-lang` on `<html>` decides which one shows. Edit both sides together,
   and use the app's own wording from `Resources/zh-Hant.lproj`.
 - **Colour lives in the tokens at the top of the page.** Dark is
-  `:root[data-theme="dark"]`; the footer's 自動／淺色／深色 control picks it and
-  remembers the choice, and 自動 follows `prefers-color-scheme`.
+  `:root[data-theme="dark"]`; the header's three-icon control (follow / light /
+  dark) picks it and remembers the choice, and the first icon follows
+  `prefers-color-scheme`, including while the page is open.
 - **The dark theme has its own temperature.** Its surfaces are warm charcoal
   rather than neutral grey, there is a 4.5% film grain over the page, and every
   section heading carries a short accent rule. All three are dark-only: in
