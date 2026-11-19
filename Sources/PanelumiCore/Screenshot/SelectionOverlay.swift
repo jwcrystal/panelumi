@@ -39,6 +39,11 @@ final class SelectionController {
         session.captureExtensions = captureExtensions.filter { seen.insert($0.identifier).inserted }
     }
 
+    /// The level every capture overlay sits at. Nothing may draw above a
+    /// capture: a system panel over the frozen frame would put the live
+    /// desktop back on screen for as long as it is up.
+    static let overlayLevel = NSWindow.Level(rawValue: Int(CGWindowLevelForKey(.maximumWindow)))
+
     /// Exclude only capture overlays and the helper windows a takeover
     /// attached, not Settings or other app windows. Also excludes the visible
     /// message toasts a takeover showed, so a message never lands in a live
@@ -338,7 +343,7 @@ final class SelectionController {
                 guard let run = box.run else { return }
                 let toast = ColorToast.show(
                     text,
-                    level: NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 1),
+                    level: SelectionController.overlayLevel,
                     screen: run.context.screen
                 )
                 Self.messageToasts.add(toast)
@@ -346,11 +351,12 @@ final class SelectionController {
             attach: { [box, weak self] window in
                 guard let self, let run = box.run, run.endedReason == nil, self.isActive else { return }
                 window.isReleasedWhenClosed = false
-                // Raise only a window that is at or below the overlay's level;
-                // never lower one the extension already placed higher.
-                let overlayLevel = NSWindow.Level.screenSaver
-                if window.level.rawValue <= overlayLevel.rawValue {
-                    window.level = NSWindow.Level(rawValue: overlayLevel.rawValue + 1)
+                // Raise only a window that sits below the overlay's level; an
+                // overlay is at the top level, so a helper takes that level and
+                // is ordered front later instead.
+                let overlayLevel = SelectionController.overlayLevel
+                if window.level.rawValue < overlayLevel.rawValue {
+                    window.level = overlayLevel
                 }
                 run.attached.append(window)
                 Self.attachedWindows.add(window)
@@ -532,7 +538,7 @@ private final class SelectionWindow: NSWindow {
             defer: false
         )
         setFrame(screen.frame, display: false)
-        level = .screenSaver
+        level = SelectionController.overlayLevel
         backgroundColor = .clear
         isOpaque = false
         hasShadow = false

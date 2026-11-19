@@ -21,10 +21,10 @@ final class CaptureAttachTests: XCTestCase {
         context.attach(panel)
 
         XCTAssertFalse(panel.isReleasedWhenClosed, "The host keeps the window alive across close")
-        XCTAssertGreaterThan(
+        XCTAssertGreaterThanOrEqual(
             panel.level.rawValue,
-            NSWindow.Level.screenSaver.rawValue,
-            "The helper sits above the overlay"
+            SelectionController.overlayLevel.rawValue,
+            "The helper takes the overlay's level and is ordered in front of it"
         )
 
         panel.orderFrontRegardless()
@@ -45,11 +45,10 @@ final class CaptureAttachTests: XCTestCase {
     }
 
     @MainActor
-    func testAnAlreadyHigherLevelIsLeftAlone() throws {
+    func testAWindowAlreadyAtTheOverlayLevelIsLeftAlone() throws {
         let harness = try Harness()
         defer { harness.cleanup() }
-        let higher = NSWindow.Level(rawValue: NSWindow.Level.screenSaver.rawValue + 5)
-        let panel = makePanel(level: higher)
+        let panel = makePanel(level: SelectionController.overlayLevel)
         defer { close(panel) }
         let view = try XCTUnwrap(harness.view)
         view.requestCaptureAction(harness.fake.identifier, "entry")
@@ -57,14 +56,14 @@ final class CaptureAttachTests: XCTestCase {
 
         context.attach(panel)
 
-        XCTAssertEqual(panel.level, higher, "The host never lowers a window")
+        XCTAssertEqual(panel.level, SelectionController.overlayLevel, "The host never lowers a window")
     }
 
     @MainActor
-    func testAWindowAtTheOverlayLevelIsRaised() throws {
+    func testAWindowBelowTheOverlayLevelIsRaisedToIt() throws {
         let harness = try Harness()
         defer { harness.cleanup() }
-        let panel = makePanel(level: .screenSaver)
+        let panel = makePanel(level: .normal)
         defer { close(panel) }
         let view = try XCTUnwrap(harness.view)
         view.requestCaptureAction(harness.fake.identifier, "entry")
@@ -73,9 +72,9 @@ final class CaptureAttachTests: XCTestCase {
         context.attach(panel)
 
         XCTAssertEqual(
-            panel.level.rawValue,
-            NSWindow.Level.screenSaver.rawValue + 1,
-            "A window at the overlay's level moves just above it"
+            panel.level,
+            SelectionController.overlayLevel,
+            "A helper below the overlay comes up to its level"
         )
     }
 
