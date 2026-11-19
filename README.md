@@ -21,7 +21,7 @@ Native Swift on AppKit and SwiftUI, no third-party dependencies, free and Apache
 - **Your menu, your order.** Hide the switches you never use and drag the rest into place.
 - **Screenshots without switching apps.** Drag a region, mark it up where it is, then `Enter` to copy or `Space` to save.
 
-**Status: pre-1.0 (0.10.0).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
+**Status: pre-1.0 (0.12.0).** Usable day to day, in English and Traditional Chinese. The settings file format may still change before 1.0.
 
 ## Install
 
@@ -35,7 +35,7 @@ Needs macOS 14 or later. Download the zip from [Releases](https://github.com/jwc
 
 `xattr -dr com.apple.quarantine /Applications/Panelumi.app` does the same from a terminal. Right-click → Open stopped working in macOS 15. Every release from 0.9.1 on is signed with the same certificate, so updating keeps the Accessibility, Automation and Screen Recording grants. Coming from 0.9.0 or earlier, or switching between a release and a local build, asks for them once more.
 
-To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; Panelumi never checks on its own.
+To see whether a newer release is out, choose **Check for Updates…** in the menu. It compares the running version with the latest GitHub release and offers the download page; Panelumi never checks on its own. The same menu shows the running version just below that item.
 
 ### Build from source
 
