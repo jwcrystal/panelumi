@@ -15,10 +15,11 @@ python3 -m http.server 8000 --directory site
 - **Copy is bilingual.** Every block has an `.en` and a `.zh` span, and
   `data-lang` on `<html>` decides which one shows. Edit both sides together,
   and use the app's own wording from `Resources/zh-Hant.lproj`.
-- **Colour lives in the tokens at the top of the page.** The dark palette is a
-  `prefers-color-scheme` block on `:root`, not a second stylesheet, so a change
-  to `--ink` or `--line` reaches both appearances. The hero's desktop
-  wallpaper is graphite in both, because the icon is: no second hue anywhere.
+- **Colour lives in the tokens at the top of the page.** Dark is
+  `:root[data-theme="dark"]`; the footer's 自動／淺色／深色 control picks it and
+  remembers the choice, and 自動 follows `prefers-color-scheme`. The hero's
+  desktop wallpaper is graphite in both appearances, because the icon is: no
+  second hue anywhere.
 - **The editor mock stays light in dark mode.** It is a screenshot of a page,
   and screenshots do not follow the system appearance.
 - **The menu mock and the switch list come from one array.** `SWITCHES` in the

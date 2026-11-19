@@ -26,22 +26,22 @@
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
   color-scheme: light dark;
 }
-@media (prefers-color-scheme: dark) {
-  :root {
-    --ink: #ecedef;
-    --ink-2: #a0a4ad;
-    --ink-3: #868a93;
-    --line: #2a2c33;
-    --line-2: #202227;
-    --bg: #101114;
-    --bg-2: #191a1f;
-    --accent: #e3a45b;
-    --code-bg: #191a1f;
-    --code-fg: #e6e8ee;
-  }
-  .screen, .shot-figure svg { box-shadow: 0 30px 60px -32px #000, 0 0 0 1px #26282e; }
-  pre { border-color: var(--line); }
+:root[data-theme="dark"] {
+  --ink: #ecedef;
+  --ink-2: #a0a4ad;
+  --ink-3: #868a93;
+  --line: #2a2c33;
+  --line-2: #202227;
+  --bg: #101114;
+  --bg-2: #191a1f;
+  --accent: #e3a45b;
+  --code-bg: #191a1f;
+  --code-fg: #e6e8ee;
+  color-scheme: dark;
 }
+:root[data-theme="dark"] .screen,
+:root[data-theme="dark"] .shot-figure svg { box-shadow: 0 30px 60px -32px #000, 0 0 0 1px #26282e; }
+:root[data-theme="dark"] pre { border-color: var(--line); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 *, *::before, *::after { box-sizing: border-box; }
 body {
@@ -66,9 +66,9 @@ a { color: inherit; }
 .site-nav { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
 .site-nav a { color: var(--ink-2); text-decoration: none; }
 .site-nav a:hover { color: var(--ink); }
-.lang { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
-.lang button { border: 0; background: none; font: inherit; color: var(--ink-3); padding: 2px 8px; border-radius: 6px; cursor: pointer; }
-.lang button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
+.lang, .theme { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.lang button, .theme button { border: 0; background: none; font: inherit; color: var(--ink-3); padding: 2px 8px; border-radius: 6px; cursor: pointer; }
+.lang button[aria-pressed="true"], .theme button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
 @media (max-width: 720px) { .site-nav { gap: 14px; font-size: 13px; } .site-nav .hide-sm { display: none; } }
 
 .hero { padding: 76px 0 68px; }
@@ -154,16 +154,25 @@ footer a { color: var(--ink-2); text-decoration: none; }
 footer a:hover { color: var(--ink); }
 </style>
 <script>
-  try {
-    var savedLang = localStorage.getItem('panelumi-site-lang');
-    var initialLang = savedLang === 'zh' || savedLang === 'en'
+  (function () {
+    var savedLang = null;
+    var savedTheme = null;
+    try {
+      savedLang = localStorage.getItem('panelumi-site-lang');
+      savedTheme = localStorage.getItem('panelumi-site-theme');
+    } catch (error) {
+      /* Storage can be unavailable; the defaults below still apply. */
+    }
+    var lang = savedLang === 'zh' || savedLang === 'en'
       ? savedLang
       : ((navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
-    document.documentElement.dataset.lang = initialLang;
-    document.documentElement.lang = initialLang === 'zh' ? 'zh-Hant' : 'en';
-  } catch (error) {
-    /* Storage can be unavailable; English stays the default. */
-  }
+    document.documentElement.dataset.lang = lang;
+    document.documentElement.lang = lang === 'zh' ? 'zh-Hant' : 'en';
+
+    var prefersDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    var pref = savedTheme === 'light' || savedTheme === 'dark' ? savedTheme : 'auto';
+    document.documentElement.dataset.theme = pref === 'auto' ? (prefersDark ? 'dark' : 'light') : pref;
+  })();
 </script>
 </head>
 <body>
@@ -636,6 +645,11 @@ open build/Panelumi.app</code></pre>
       <a href="https://github.com/jwcrystal/panelumi/blob/main/README.md">README</a>
       <a href="https://github.com/jwcrystal/panelumi/blob/main/TRADEMARKS.md"><span class="en">Trademarks</span><span class="zh">商標</span></a>
     </nav>
+    <div class="theme" role="group" aria-label="Appearance">
+      <button type="button" data-set-theme="auto" aria-pressed="true"><span class="en">Auto</span><span class="zh">自動</span></button>
+      <button type="button" data-set-theme="light" aria-pressed="false"><span class="en">Light</span><span class="zh">淺色</span></button>
+      <button type="button" data-set-theme="dark" aria-pressed="false"><span class="en">Dark</span><span class="zh">深色</span></button>
+    </div>
   </div>
 </footer>
 
@@ -788,6 +802,48 @@ try {
 document.querySelectorAll('.lang button').forEach((button) => {
   button.addEventListener('click', () => applyLanguage(button.dataset.setLang));
 });
+
+const THEME_KEY = 'panelumi-site-theme';
+let themePref = 'auto';
+try {
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  if (savedTheme === 'auto' || savedTheme === 'light' || savedTheme === 'dark') {
+    themePref = savedTheme;
+  }
+} catch (error) {
+  /* Nothing stored; follow the system. */
+}
+
+function applyTheme(pref) {
+  const systemDark = !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark = pref === 'dark' || (pref === 'auto' && systemDark);
+  document.documentElement.dataset.theme = dark ? 'dark' : 'light';
+  document.querySelectorAll('.theme button').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.setTheme === pref));
+  });
+}
+
+document.querySelectorAll('.theme button').forEach((button) => {
+  button.addEventListener('click', () => {
+    themePref = button.dataset.setTheme;
+    try {
+      localStorage.setItem(THEME_KEY, themePref);
+    } catch (error) {
+      /* Private browsing can refuse storage; the choice still applies. */
+    }
+    applyTheme(themePref);
+  });
+});
+
+if (window.matchMedia) {
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (themePref === 'auto') {
+      applyTheme('auto');
+    }
+  });
+}
+
+applyTheme(themePref);
 
 applyLanguage(initial);
 </script>
