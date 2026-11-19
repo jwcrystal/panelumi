@@ -1,0 +1,776 @@
+<!doctype html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Panelumi — Mac settings in the menu bar</title>
+<meta name="description" content="Mac switches in the menu bar — hidden files, Keep Awake, Night Shift, Dark Mode, a keyboard lock, ejecting disks — each showing its live state. Plus screenshots you annotate where you took them. Native Swift, macOS 14+, Apache-2.0.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Panelumi — Mac settings in the menu bar">
+<meta property="og:description" content="Mac switches in the menu bar, each showing its live state. Plus in-place screenshot annotation and on-device text recognition. Native Swift, free and open source.">
+<link rel="icon" href="assets/panelumi-icon.png">
+<style>
+:root {
+  --ink: #16181d;
+  --ink-2: #545861;
+  --ink-3: #6e727a;
+  --line: #e7e8eb;
+  --line-2: #f0f1f3;
+  --bg: #fff;
+  --bg-2: #f6f6f7;
+  --accent: #5b6ef0;
+  --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", system-ui, "PingFang TC", "Noto Sans TC", sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  color-scheme: light;
+}
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 400 16px/1.65 var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
+img { display: block; max-width: 100%; }
+a { color: inherit; }
+.wrap { width: 100%; max-width: 1060px; margin: 0 auto; padding: 0 28px; }
+[data-lang="en"] .zh, [data-lang="zh"] .en { display: none !important; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.g { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.screen use, .shot-figure use { fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+
+.site-head { border-bottom: 1px solid var(--line); }
+.site-head .wrap { display: flex; align-items: center; gap: 24px; height: 62px; }
+.brand { display: flex; align-items: center; gap: 9px; font-weight: 600; font-size: 15px; letter-spacing: -.01em; text-decoration: none; }
+.brand img { width: 26px; height: 26px; }
+.site-nav { margin-left: auto; display: flex; gap: 22px; font-size: 14px; }
+.site-nav a { color: var(--ink-2); text-decoration: none; }
+.site-nav a:hover { color: var(--ink); }
+.lang { display: flex; gap: 2px; padding: 2px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; }
+.lang button { border: 0; background: none; font: inherit; color: var(--ink-3); padding: 2px 8px; border-radius: 6px; cursor: pointer; }
+.lang button[aria-pressed="true"] { background: var(--bg-2); color: var(--ink); font-weight: 600; }
+@media (max-width: 720px) { .site-nav { gap: 14px; font-size: 13px; } .site-nav .hide-sm { display: none; } }
+
+.hero { padding: 76px 0 68px; }
+.hero .wrap { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 404px); gap: 64px; align-items: center; }
+@media (max-width: 900px) { .hero .wrap { grid-template-columns: minmax(0, 1fr); gap: 44px; } }
+h1 { margin: 0 0 20px; font-size: clamp(33px, 4.2vw, 48px); line-height: 1.06; letter-spacing: -.028em; font-weight: 600; max-width: 17ch; text-wrap: balance; }
+[data-lang="zh"] h1 { line-height: 1.28; letter-spacing: -.01em; max-width: 17ch; }
+h1 .phrase { display: inline-block; }
+.lede { margin: 0 0 14px; max-width: 54ch; font-size: 17.5px; line-height: 1.62; color: var(--ink-2); }
+[data-lang="zh"] .lede { font-size: 17px; line-height: 1.75; }
+.also { margin: 0 0 30px; max-width: 56ch; font-size: 14.5px; line-height: 1.65; color: var(--ink-3); }
+.also a { color: var(--ink-2); text-decoration: none; border-bottom: 1px solid #c9cbd0; padding-bottom: 1px; }
+.also a:hover { color: var(--ink); border-color: var(--ink-3); }
+.actions { display: flex; align-items: center; flex-wrap: wrap; gap: 22px; }
+.btn { display: inline-flex; align-items: center; gap: 9px; height: 42px; padding: 0 20px; border-radius: 9px; background: var(--ink); color: #fff; font-size: 14.5px; font-weight: 550; text-decoration: none; }
+.btn:hover { background: #000; }
+.btn svg { width: 15px; height: 15px; }
+.link { font-size: 14.5px; color: var(--ink-2); text-decoration: none; border-bottom: 1px solid var(--line); padding-bottom: 2px; }
+.link:hover { color: var(--ink); border-color: var(--ink-3); }
+.facts { display: flex; flex-wrap: wrap; gap: 4px 0; margin: 24px 0 0; padding: 0; list-style: none; font-size: 12.5px; color: var(--ink-3); }
+.facts li:not(:first-child)::before { content: "·"; margin: 0 10px; color: #c6c8cd; }
+.hero-figure { margin: 0; }
+.screen { display: block; width: 100%; height: auto; border-radius: 14px; box-shadow: 0 34px 60px -34px rgba(18, 20, 28, .5), 0 2px 5px rgba(18, 20, 28, .1); }
+.hero-figure figcaption { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); }
+
+section { border-top: 1px solid var(--line); }
+.pad { padding: 76px 0; }
+.sect-head { margin-bottom: 40px; }
+.sect-head h2 { margin: 0 0 12px; font-size: clamp(23px, 2.5vw, 29px); line-height: 1.22; letter-spacing: -.022em; font-weight: 600; max-width: 24ch; }
+[data-lang="zh"] .sect-head h2 { line-height: 1.4; letter-spacing: -.01em; }
+.sect-head p { margin: 0; max-width: 62ch; color: var(--ink-2); font-size: 16px; }
+
+.why { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 56px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 760px) { .why { grid-template-columns: 1fr; } }
+.why li { padding: 22px 0; border-top: 1px solid var(--line); }
+.why h3 { margin: 0 0 7px; font-size: 15.5px; font-weight: 600; letter-spacing: -.005em; }
+.why p { margin: 0; font-size: 14.5px; line-height: 1.62; color: var(--ink-2); }
+code, kbd { font-family: var(--mono); font-size: .88em; }
+code { background: var(--bg-2); border-radius: 4px; padding: .12em .35em; }
+pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+kbd { background: #fff; border: 1px solid #dcdee3; border-bottom-width: 2px; border-radius: 4px; padding: .05em .3em; font-size: .82em; color: var(--ink-2); }
+
+.group { margin-top: 38px; }
+.group:first-of-type { margin-top: 0; }
+.group h3 { margin: 0 0 4px; font-size: 11.5px; font-weight: 600; letter-spacing: .11em; text-transform: uppercase; color: var(--ink-3); }
+.group ul { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 40px; margin: 0; padding: 0; list-style: none; }
+@media (max-width: 840px) { .group ul { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 540px) { .group ul { grid-template-columns: 1fr; } }
+.sw { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-2); font-size: 14.5px; }
+.sw .g { flex: 0 0 auto; width: 17px; height: 17px; color: #8f939b; }
+.sw-name { flex: 1 1 auto; }
+.sw-tag { flex: 0 0 auto; font-size: 11.5px; color: var(--ink-3); white-space: nowrap; }
+.footnote { margin: 26px 0 0; font-size: 13px; color: var(--ink-3); }
+
+.shot-figure { margin: 0; }
+.shot-figure svg { display: block; width: 100%; height: auto; border-radius: 12px; box-shadow: 0 30px 55px -32px rgba(18, 20, 28, .45), 0 2px 5px rgba(18, 20, 28, .08); }
+.shot-figure figcaption { margin-top: 16px; font-size: 12.5px; color: var(--ink-3); max-width: 70ch; }
+.bullets { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 56px; margin: 40px 0 0; padding: 0; list-style: none; }
+@media (max-width: 760px) { .bullets { grid-template-columns: 1fr; } }
+.bullets li { position: relative; padding: 12px 0 12px 20px; border-top: 1px solid var(--line); font-size: 14.5px; line-height: 1.6; color: var(--ink-2); }
+.bullets li::before { content: ""; position: absolute; left: 2px; top: 21px; width: 5px; height: 5px; border-radius: 50%; background: #c3c6cd; }
+
+.install { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: 60px; align-items: start; }
+@media (max-width: 860px) { .install { grid-template-columns: 1fr; gap: 40px; } }
+.steps { margin: 0; padding: 0; list-style: none; counter-reset: step; }
+.steps li { position: relative; padding: 0 0 24px 36px; counter-increment: step; font-size: 14.5px; line-height: 1.62; color: var(--ink-2); }
+.steps li::before { content: counter(step); position: absolute; left: 0; top: 3px; width: 23px; height: 23px; border-radius: 50%; background: var(--bg-2); color: var(--ink-2); font-size: 12px; font-weight: 600; line-height: 23px; text-align: center; }
+.steps strong { color: var(--ink); font-weight: 600; }
+.build h3 { margin: 0 0 12px; font-size: 15.5px; font-weight: 600; }
+pre { margin: 0 0 12px; padding: 18px 20px; border-radius: 10px; background: #15171c; color: #e6e8ee; font: 12.5px/1.8 var(--mono); overflow-x: auto; }
+.build p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--ink-3); }
+
+.details { margin: 0; }
+.details > div { display: grid; grid-template-columns: 190px minmax(0, 1fr); gap: 24px; padding: 15px 0; border-top: 1px solid var(--line); font-size: 14.5px; }
+@media (max-width: 640px) { .details > div { grid-template-columns: 1fr; gap: 2px; } }
+.details dt { color: var(--ink-3); }
+.details dd { margin: 0; color: var(--ink-2); }
+
+footer { border-top: 1px solid var(--line); padding: 34px 0 60px; font-size: 13px; color: var(--ink-3); }
+footer .wrap { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 20px; }
+.foot-links { display: flex; gap: 18px; margin-left: auto; }
+footer a { color: var(--ink-2); text-decoration: none; }
+footer a:hover { color: var(--ink); }
+</style>
+<script>
+  try {
+    var savedLang = localStorage.getItem('panelumi-site-lang');
+    var initialLang = savedLang === 'zh' || savedLang === 'en'
+      ? savedLang
+      : ((navigator.language || '').toLowerCase().indexOf('zh') === 0 ? 'zh' : 'en');
+    document.documentElement.dataset.lang = initialLang;
+    document.documentElement.lang = initialLang === 'zh' ? 'zh-Hant' : 'en';
+  } catch (error) {
+    /* Storage can be unavailable; English stays the default. */
+  }
+</script>
+</head>
+<body>
+
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <radialGradient id="grad-blur">
+      <stop offset="0" stop-color="#57575d" stop-opacity=".9"/>
+      <stop offset=".5" stop-color="#57575d" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#57575d" stop-opacity="0"/>
+    </radialGradient>
+    <symbol id="g-eye" viewBox="0 0 24 24"><path d="M2.4 12S6 5.9 12 5.9 21.6 12 21.6 12 18 18.1 12 18.1 2.4 12 2.4 12Z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="g-hide-desktop" viewBox="0 0 24 24"><rect x="3" y="4.6" width="18" height="14.8" rx="2.6"/><path d="M2.6 21.4 21.4 2.6"/></symbol>
+    <symbol id="g-dock" viewBox="0 0 24 24"><rect x="3" y="4.4" width="18" height="15.2" rx="3"/><path d="M6.4 16h11.2"/></symbol>
+    <symbol id="g-sparkles" viewBox="0 0 24 24"><path d="M11.6 3.4 13.2 8l4.6 1.6-4.6 1.6-1.6 4.6-1.6-4.6L5.4 9.6 10 8z"/><path d="M18.2 14.6l.8 2.1 2.1.8-2.1.8-.8 2.1-.8-2.1-2.1-.8 2.1-.8z"/></symbol>
+    <symbol id="g-cup" viewBox="0 0 24 24"><path d="M4.4 9.4h10.8v4.8a5.4 5.4 0 0 1-5.4 5.4 5.4 5.4 0 0 1-5.4-5.4z"/><path d="M15.2 10.4h1.8a2.6 2.6 0 0 1 0 5.2h-1.8"/><path d="M3.6 21.4h13"/></symbol>
+    <symbol id="g-moon" viewBox="0 0 24 24"><path d="M20.2 14.8A8.4 8.4 0 0 1 9.2 3.8 8.6 8.6 0 1 0 20.2 14.8Z"/></symbol>
+    <symbol id="g-speaker" viewBox="0 0 24 24"><path d="M11.4 4.2 6.9 8.1H3.4v7.8h3.5l4.5 3.9z"/><path d="M15.2 9.1a4.4 4.4 0 0 1 0 5.8"/><path d="M2.8 2.8 21.2 21.2"/></symbol>
+    <symbol id="g-mic" viewBox="0 0 24 24"><path d="M12 3.2a2.9 2.9 0 0 1 2.9 2.9v5.2a2.9 2.9 0 0 1-5.8 0V6.1A2.9 2.9 0 0 1 12 3.2z"/><path d="M5.7 11.2a6.3 6.3 0 0 0 12.6 0"/><path d="M12 17.5v3.3"/><path d="M2.8 2.8 21.2 21.2"/></symbol>
+    <symbol id="g-keyboard" viewBox="0 0 24 24"><rect x="2.3" y="6" width="19.4" height="12" rx="2.6"/><path d="M6 10.2h.01M9.4 10.2h.01M12.8 10.2h.01M16.2 10.2h.01M6 13.6h.01M18 13.6h.01M9.4 13.6h5.2"/></symbol>
+    <symbol id="g-lock-display" viewBox="0 0 24 24"><rect x="2.4" y="4" width="19.2" height="12.6" rx="2.4"/><path d="M9 20.4h6"/><path d="M12 16.6v3.8"/><rect x="9.8" y="9.6" width="4.4" height="3.6" rx="1"/><path d="M10.9 9.6v-1a1.1 1.1 0 0 1 2.2 0v1"/></symbol>
+    <symbol id="g-moon-stars" viewBox="0 0 24 24"><path d="M19.4 15A7.6 7.6 0 0 1 9.6 5.2 7.9 7.9 0 1 0 19.4 15Z"/><path d="M17.8 4.4l.6 1.6 1.6.6-1.6.6-.6 1.6-.6-1.6-1.6-.6 1.6-.6z"/></symbol>
+    <symbol id="g-stage" viewBox="0 0 24 24"><rect x="2.4" y="4.6" width="19.2" height="14.8" rx="2.6"/><rect x="11.8" y="7.6" width="6.6" height="8.8" rx="1.4"/></symbol>
+    <symbol id="g-stage-autohide" viewBox="0 0 24 24"><rect x="2.4" y="4.6" width="19.2" height="14.8" rx="2.6"/><path d="M7.6 8.2v7.6" stroke-dasharray="1.5 1.9"/><path d="M10.8 9.6h5.4M10.8 12h5.4M10.8 14.4h3.4"/></symbol>
+    <symbol id="g-trash" viewBox="0 0 24 24"><path d="M4 6.6h16"/><path d="M9.2 6.6V4.4h5.6v2.2"/><path d="M6.4 6.6l.8 12.9a1.5 1.5 0 0 0 1.5 1.4h6.6a1.5 1.5 0 0 0 1.5-1.4l.8-12.9"/><path d="M10.4 10.2v7.2M13.6 10.2v7.2"/></symbol>
+    <symbol id="g-clipboard" viewBox="0 0 24 24"><rect x="4.8" y="4.2" width="14.4" height="16.4" rx="2.4"/><rect x="9" y="2.6" width="6" height="3.4" rx="1.2"/><path d="M8.6 9.8h6.8M8.6 13.2h6.8M8.6 16.6h4.2"/></symbol>
+    <symbol id="g-camera" viewBox="0 0 24 24"><path d="M3 8.6a2.4 2.4 0 0 1 2.4-2.4h1.2l1.3-2.1h6.2l1.3 2.1h1.2A2.4 2.4 0 0 1 21 8.6v7.8a2.4 2.4 0 0 1-2.4 2.4H5.4A2.4 2.4 0 0 1 3 16.4z"/><circle cx="12" cy="12.4" r="3.4"/></symbol>
+    <symbol id="g-text-scan" viewBox="0 0 24 24"><path d="M3.4 8.2V5.6a2.2 2.2 0 0 1 2.2-2.2h2.6M15.8 3.4h2.6a2.2 2.2 0 0 1 2.2 2.2v2.6M20.6 15.8v2.6a2.2 2.2 0 0 1-2.2 2.2h-2.6M8.2 20.6H5.6a2.2 2.2 0 0 1-2.2-2.2v-2.6"/><path d="M7.6 9.4h8.8M7.6 12.4h8.8M7.6 15.4h5.2"/></symbol>
+    <symbol id="g-record" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6"/><circle cx="12" cy="12" r="3.6" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="g-quit-apps" viewBox="0 0 24 24"><rect x="3" y="3.4" width="18" height="17.2" rx="3"/><path d="M8.8 8.8l6.4 6.4M15.2 8.8l-6.4 6.4"/></symbol>
+    <symbol id="g-eject" viewBox="0 0 24 24"><path d="M12 4.6 19.2 14H4.8z"/><path d="M4.8 18.2h14.4"/></symbol>
+    <symbol id="g-shield" viewBox="0 0 24 24"><path d="M12 2.8 20 5.6v6.2c0 4.4-3.3 7.7-8 9.4-4.7-1.7-8-5-8-9.4V5.6z"/><path d="M8.8 11.8l2.4 2.4 4-4.4"/></symbol>
+    <symbol id="g-down-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.4v8.2M8.6 12.4 12 15.8l3.4-3.4"/></symbol>
+    <symbol id="g-gear" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2"/><path d="M12 2.6v2.4M12 19v2.4M2.6 12H5M19 12h2.4M5.4 5.4l1.7 1.7M16.9 16.9l1.7 1.7M18.6 5.4l-1.7 1.7M7.1 16.9l-1.7 1.7"/></symbol>
+    <symbol id="g-switch2" viewBox="0 0 24 24"><rect x="2.6" y="6.6" width="18.8" height="4.6" rx="2.3"/><circle cx="17.2" cy="8.9" r="2.3" fill="currentColor" stroke="none"/><rect x="2.6" y="13.2" width="18.8" height="4.6" rx="2.3"/><circle cx="6.8" cy="15.5" r="2.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="g-arrow-right" viewBox="0 0 24 24"><path d="M4.6 12h14M13 6.4l5.6 5.6L13 17.6"/></symbol>
+    <symbol id="g-tool-rect" viewBox="0 0 24 24"><rect x="3.4" y="5" width="17.2" height="14" rx="2.4"/></symbol>
+    <symbol id="g-tool-ellipse" viewBox="0 0 24 24"><ellipse cx="12" cy="12" rx="8.9" ry="7"/></symbol>
+    <symbol id="g-tool-line" viewBox="0 0 24 24"><path d="M4.8 19.2 19.2 4.8"/></symbol>
+    <symbol id="g-tool-arrow" viewBox="0 0 24 24"><path d="M4.6 19.4 18 6"/><path d="M11.2 5.6H18.4V12.8"/></symbol>
+    <symbol id="g-tool-pen" viewBox="0 0 24 24"><path d="M4 20l1.2-4.6L15.6 5a2.2 2.2 0 0 1 3.2 0l1.2 1.2a2.2 2.2 0 0 1 0 3.2L9.6 18.8z"/><path d="M14.2 6.4 17.6 9.8"/></symbol>
+    <symbol id="g-tool-hl" viewBox="0 0 24 24"><path d="M14.4 3.8 20.4 8 12.4 19.4 6.4 15.2z"/><path d="M14.4 8.6l3.2 2.2"/><path d="M3.4 20.9h9.2" stroke-width="2.2"/></symbol>
+    <symbol id="g-tool-text" viewBox="0 0 24 24"><path d="M4.6 5.4h14.8"/><path d="M12 5.4v13.4"/><path d="M8.4 18.8h7.2"/></symbol>
+    <symbol id="g-tool-num" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="4.2"/><path d="M10.6 9.6 12.4 8.2v8"/></symbol>
+    <symbol id="g-tool-mosaic" viewBox="0 0 24 24"><rect x="3.4" y="3.4" width="17.2" height="17.2" rx="2.6"/><path d="M3.4 10.2h17.2M3.4 15.4h17.2M9.4 3.4v17.2M15 3.4v17.2"/></symbol>
+    <symbol id="g-tool-blur" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.6" fill="url(#grad-blur)" stroke="none"/></symbol>
+    <symbol id="g-undo" viewBox="0 0 24 24"><path d="M8.6 7.4 4.2 11.8l4.4 4.4"/><path d="M4.6 11.8h9.2a5.6 5.6 0 0 1 0 11.2"/></symbol>
+    <symbol id="g-redo" viewBox="0 0 24 24"><path d="M15.4 7.4l4.4 4.4-4.4 4.4"/><path d="M19.4 11.8h-9.2a5.6 5.6 0 0 0 0 11.2"/></symbol>
+    <symbol id="g-copy" viewBox="0 0 24 24"><rect x="8.6" y="8.6" width="11.4" height="11.4" rx="2.6"/><path d="M15.6 8.6V6a2.2 2.2 0 0 0-2.2-2.2H6a2.2 2.2 0 0 0-2.2 2.2v7.4A2.2 2.2 0 0 0 6 15.6h2.6"/></symbol>
+    <symbol id="g-save" viewBox="0 0 24 24"><path d="M12 4v10"/><path d="M8.2 10.6 12 14.4l3.8-3.8"/><path d="M4.8 18.8h14.4"/></symbol>
+    <symbol id="g-pin" viewBox="0 0 24 24"><path d="M9.4 3.6h5.2l-.8 5.2 3.2 3.2v1.6H7v-1.6l3.2-3.2z"/><path d="M12 13.6v6.8"/></symbol>
+    <symbol id="g-x" viewBox="0 0 24 24"><path d="M6.2 6.2l11.6 11.6M17.8 6.2 6.2 17.8"/></symbol>
+    <symbol id="g-signature" viewBox="0 0 24 24"><path d="M3.4 14.4c1.6 0 2-1.4 2.6-3.6.7-2.6 1.3-5.6 2.6-5.6 1 0 1.1 1.3.6 3.2-.6 2.2-1.6 4.1-1.6 5.4 0 1 .5 1.6 1.6 1.6 1.4 0 2.4-1.2 3.2-2.6"/><path d="M4 19.4h16"/></symbol>
+  </defs>
+</svg>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="#top">
+      <img src="assets/panelumi-icon.png" alt="" width="26" height="26">
+      <span>Panelumi</span>
+    </a>
+    <nav class="site-nav">
+      <a href="#menu"><span class="en">Switches</span><span class="zh">開關</span></a>
+      <a href="#screenshot"><span class="en">Screenshot</span><span class="zh">截圖</span></a>
+      <a href="#install"><span class="en">Install</span><span class="zh">安裝</span></a>
+      <a href="https://github.com/jwcrystal/panelumi" class="hide-sm">GitHub</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Language">
+      <button type="button" data-set-lang="en" aria-pressed="true">EN</button>
+      <button type="button" data-set-lang="zh" aria-pressed="false">繁中</button>
+    </div>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero" style="border-top:0">
+    <div class="wrap">
+      <div>
+        <h1>
+          <span class="en">One menu instead of several apps.</span>
+          <span class="zh"><span class="phrase">一個選單，</span><span class="phrase">取代好幾個 App。</span></span>
+        </h1>
+        <p class="lede">
+          <span class="en">Hidden files used to mean a <code>defaults</code> command, Night Shift a trip through Displays. Now it is a row in the menu bar, its state written beside it: awake until 18:30, 101 items in the Trash.</span>
+          <span class="zh">顯示隱藏檔案本來要打一行 <code>defaults</code>，夜覽要進「顯示器」才找得到。現在是選單列裡的一列，右邊直接寫著狀態：保持清醒到 18:30、垃圾桶有 101 個項目。</span>
+        </p>
+        <p class="also">
+          <span class="en">Also in the menu: screenshots you annotate where you took them, and text and QR recognition that never leaves this Mac. <a href="#screenshot">See the editor</a></span>
+          <span class="zh">選單裡還有拍完就地標註的截圖工具，以及完全留在這台 Mac 上的文字與 QR 辨識。<a href="#screenshot">看看截圖工具</a></span>
+        </p>
+        <div class="actions">
+          <a class="btn" href="https://github.com/jwcrystal/panelumi/releases/latest">
+            <svg class="g" aria-hidden="true"><use href="#g-save"/></svg>
+            <span class="en">Download for macOS</span><span class="zh">下載 macOS 版</span>
+          </a>
+          <a class="link" href="https://github.com/jwcrystal/panelumi">
+            <span class="en">Source and issue tracker</span><span class="zh">原始碼與問題回報</span>
+          </a>
+        </div>
+        <ul class="facts">
+          <li>macOS 14+</li>
+          <li>Apache-2.0</li>
+          <li><span class="en">No telemetry</span><span class="zh">沒有遙測</span></li>
+          <li><span class="en">Pre-1.0</span><span class="zh">pre-1.0</span></li>
+        </ul>
+      </div>
+
+      <figure class="hero-figure">
+        <svg class="screen" viewBox="0 0 420 700" role="img" aria-label="The Panelumi menu open in the menu bar">
+          <defs>
+            <linearGradient id="desk" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stop-color="#161d29"/>
+              <stop offset=".55" stop-color="#20253a"/>
+              <stop offset="1" stop-color="#33253f"/>
+            </linearGradient>
+            <radialGradient id="glow-a" cx=".18" cy=".08" r=".85">
+              <stop offset="0" stop-color="#4a68d8" stop-opacity=".5"/>
+              <stop offset="1" stop-color="#4a68d8" stop-opacity="0"/>
+            </radialGradient>
+            <radialGradient id="glow-b" cx=".9" cy=".82" r=".75">
+              <stop offset="0" stop-color="#8a4a72" stop-opacity=".42"/>
+              <stop offset="1" stop-color="#8a4a72" stop-opacity="0"/>
+            </radialGradient>
+            <filter id="panel-shadow" x="-40%" y="-8%" width="180%" height="118%">
+              <feDropShadow dx="0" dy="10" stdDeviation="16" flood-color="#080a10" flood-opacity=".5"/>
+            </filter>
+            <clipPath id="screen-clip"><rect width="420" height="700" rx="14"/></clipPath>
+          </defs>
+          <g clip-path="url(#screen-clip)">
+            <rect width="420" height="700" fill="url(#desk)"/>
+            <rect width="420" height="700" fill="url(#glow-a)"/>
+            <rect width="420" height="700" fill="url(#glow-b)"/>
+            <rect width="420" height="26" fill="#0d1016" opacity=".42"/>
+            <rect y="25.4" width="420" height=".6" fill="#fff" opacity=".15"/>
+            <text x="18" y="17.4" font-size="11.5" fill="#fff" opacity=".92">Finder</text>
+            <text x="60" y="17.4" font-size="11.5" fill="#fff" opacity=".76">File</text>
+            <text x="85" y="17.4" font-size="11.5" fill="#fff" opacity=".76">Edit</text>
+            <text x="110" y="17.4" font-size="11.5" fill="#fff" opacity=".76">View</text>
+            <rect x="342" y="3" width="27" height="20" rx="5" fill="#fff" opacity=".2"/>
+            <use href="#g-switch2" x="348" y="7" width="15" height="15" style="color:#fff"/>
+            <text x="408" y="17.4" text-anchor="end" font-size="11.5" fill="#fff" opacity=".88">9:41</text>
+            <g filter="url(#panel-shadow)">
+              <rect id="panel-bg" x="69" y="32" width="300" height="623" rx="11" fill="#1f1f22" stroke="#fff" stroke-opacity=".1"/>
+            </g>
+            <g id="menu-rows"></g>
+          </g>
+        </svg>
+        <figcaption>
+          <span class="en">The whole menu, with each switch's live state on the right.</span>
+          <span class="zh">整個選單，每個開關右邊就是目前的狀態。</span>
+        </figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section class="pad">
+    <div class="wrap">
+      <div class="sect-head">
+        <h2>
+          <span class="en">Why it lives in the menu bar</span>
+          <span class="zh">為什麼放在選單列</span>
+        </h2>
+        <p>
+          <span class="en">A shortcut, a menu row and a submenu are the whole interface. Nothing opens behind your work, and nothing asks twice.</span>
+          <span class="zh">快速鍵、選單裡的一列、一層子選單，就是全部的介面。不會有視窗開在工作後面，也不會問第二次。</span>
+        </p>
+      </div>
+      <ul class="why">
+        <li>
+          <h3><span class="en">Instead of a Terminal command</span><span class="zh">取代一行終端機指令</span></h3>
+          <p>
+            <span class="en">Showing hidden files or hiding the desktop icons normally means writing a <code>defaults</code> key and restarting Finder. Here it is one row, and the row says what just happened.</span>
+            <span class="zh">顯示隱藏檔案、隱藏桌面圖示，平常得先寫 <code>defaults</code> 再重啟 Finder。這裡就是選單裡的一列，而且會直接告訴你剛才做了什麼。</span>
+          </p>
+        </li>
+        <li>
+          <h3><span class="en">Instead of three menu-bar utilities</span><span class="zh">取代三個選單列小工具</span></h3>
+          <p>
+            <span class="en">Keep Awake, screen cleaning, audio recording and the screenshot tool share one menu item, so there are fewer apps to install and fewer icons up top.</span>
+            <span class="zh">保持清醒、螢幕清潔、錄音和截圖共用同一個選單項目，少裝幾個 App，選單列也少幾個圖示。</span>
+          </p>
+        </li>
+        <li>
+          <h3><span class="en">Permissions once, in one window</span><span class="zh">權限只問一次</span></h3>
+          <p>
+            <span class="en">Accessibility, Screen Recording, Automation and the microphone are listed in a single setup window. A switch that is missing one explains what is off instead of throwing a dialog at you mid-task.</span>
+            <span class="zh">輔助使用、螢幕錄製、自動化與麥克風集中在同一個設定視窗。缺權限的開關只會說明少了什麼，不會在做事做到一半時跳出詢問。</span>
+          </p>
+        </li>
+        <li>
+          <h3><span class="en">Your order, not mine</span><span class="zh">選單照你的習慣排</span></h3>
+          <p>
+            <span class="en">Hide the switches you never use and drag the rest into place. The order and the shortcuts live in <code>config.json</code>, under your Application Support folder.</span>
+            <span class="zh">用不到的開關藏起來，其他的拖曳排序。順序和快速鍵都存在 Application Support 底下的 <code>config.json</code>。</span>
+          </p>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="pad" id="menu">
+    <div class="wrap">
+      <div class="sect-head">
+        <h2>
+          <span class="en">What is in the menu</span>
+          <span class="zh">選單裡有什麼</span>
+        </h2>
+        <p>
+          <span class="en">The menu holds the switches and the two capture tools. A row that needs a permission says so instead of prompting; toggles show a check, actions say what they did.</span>
+          <span class="zh">選單裡是全部的開關，加上兩個擷取工具。需要權限的那一列會直接說明，不會自己跳出詢問；切換類顯示勾選，動作類回報剛才的結果。</span>
+        </p>
+      </div>
+      <div id="groups"></div>
+      <p class="footnote">
+        <span class="en">Screenshots and text recognition need Screen Recording, which macOS applies after a relaunch. Everything else runs straight from the menu.</span>
+        <span class="zh">截圖與文字辨識需要螢幕錄製權限，macOS 會在重新啟動後生效。其餘的項目直接在選單裡就能用。</span>
+      </p>
+    </div>
+  </section>
+
+  <section class="pad" id="screenshot">
+    <div class="wrap">
+      <div class="sect-head">
+        <h2>
+          <span class="en">Screenshots, annotated where they were taken</span>
+          <span class="zh">拍完，就在原地標註</span>
+        </h2>
+        <p>
+          <span class="en">The screen freezes the moment the shortcut is pressed, the selection stays where it is, everything outside it dims, and the toolbar sits under the region. There is no second window to switch to.</span>
+          <span class="zh">按下快速鍵的瞬間畫面就凍結，選取範圍留在原地，範圍外變暗，工具列就放在範圍下方。不用切到第二個視窗。</span>
+        </p>
+      </div>
+
+      <figure class="shot-figure">
+        <svg viewBox="0 0 1000 540" role="img" aria-label="The in-place screenshot editor: a frozen region with a rectangle, an arrow, a marker and text, and the toolbar under it">
+          <defs>
+            <mask id="dim-mask">
+              <rect width="1000" height="540" fill="#fff"/>
+              <rect x="40" y="128" width="560" height="242" fill="#000"/>
+            </mask>
+            <filter id="bar-shadow" x="-20%" y="-40%" width="140%" height="200%">
+              <feDropShadow dx="0" dy="6" stdDeviation="9" flood-color="#000" flood-opacity=".38"/>
+            </filter>
+            <filter id="bubble-shadow" x="-30%" y="-50%" width="160%" height="220%">
+              <feDropShadow dx="0" dy="3" stdDeviation="5" flood-color="#000" flood-opacity=".22"/>
+            </filter>
+            <marker id="arrow-head" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="6.4" markerHeight="6.4" orient="auto">
+              <path d="M0.6 1 9.2 5 0.6 9Z" fill="#ff3b30"/>
+            </marker>
+          </defs>
+
+          <rect width="1000" height="540" fill="#fdfdfe"/>
+          <rect width="1000" height="38" fill="#f2f2f4"/>
+          <path d="M0 38.5h1000" stroke="#e2e3e7"/>
+          <circle cx="20" cy="19" r="5.5" fill="#ff5f57"/>
+          <circle cx="38" cy="19" r="5.5" fill="#febc2e"/>
+          <circle cx="56" cy="19" r="5.5" fill="#28c840"/>
+          <text x="78" y="23" font-size="11.5" fill="#8a8d94">Panelumi 0.12.1 — Release notes</text>
+
+          <text x="56" y="74" font-size="10.5" letter-spacing="1.1" fill="#9a9da4">RELEASE NOTES</text>
+          <text x="56" y="106" font-size="27" font-weight="600" fill="#15171c">0.12.1</text>
+          <text x="56" y="128" font-size="12.5" fill="#5c6068">The overlay's first frame now looks the way the finished capture will.</text>
+
+          <g font-size="12.5" fill="#34373d">
+            <text x="56" y="166">The overlay used to open on a blank frame and draw its dimming a moment</text>
+            <text x="56" y="186">later. It now draws the finished look in its first frame, so the freeze you</text>
+            <text x="56" y="206">see is the one you capture, menus and tooltips included.</text>
+            <text x="56" y="248">From 0.9.1 on every release uses the same self-signed certificate, so the</text>
+            <text x="56" y="268">Accessibility, Automation and Screen Recording grants survive an update.</text>
+            <text x="56" y="288">Coming from 0.9.0 asks for them once more.</text>
+            <text x="56" y="332">Write to</text>
+          </g>
+          <rect x="112" y="320" width="126" height="15" fill="#d7d9de"/>
+          <g fill="#c1c4cb">
+            <rect x="112" y="320" width="12" height="15"/>
+            <rect x="138" y="320" width="12" height="15"/>
+            <rect x="164" y="320" width="12" height="15"/>
+            <rect x="190" y="320" width="12" height="15"/>
+            <rect x="216" y="320" width="12" height="15"/>
+          </g>
+          <text x="56" y="404" font-size="11.5" fill="#9a9da4">TESTED ON macOS 14.6 · 15.5 · 26</text>
+
+          <rect x="620" y="148" width="300" height="180" rx="10" fill="#f4f4f6" stroke="#e3e4e8"/>
+          <rect x="636" y="164" width="268" height="120" rx="7" fill="#fff" stroke="#e8e9ec"/>
+          <circle cx="650" cy="177" r="2.4" fill="#dcdde2"/>
+          <circle cx="659" cy="177" r="2.4" fill="#dcdde2"/>
+          <circle cx="668" cy="177" r="2.4" fill="#dcdde2"/>
+          <rect x="652" y="194" width="120" height="6" rx="3" fill="#d9dade"/>
+          <rect x="652" y="208" width="180" height="6" rx="3" fill="#e8e9ec"/>
+          <rect x="652" y="222" width="96" height="6" rx="3" fill="#e8e9ec"/>
+          <rect x="646" y="188" width="192" height="48" fill="none" stroke="#ff3b30" stroke-width="2"/>
+          <text x="620" y="352" font-size="11.5" fill="#9a9da4">Pinned at 200%, six days later</text>
+
+          <rect width="1000" height="540" fill="#000" opacity=".44" mask="url(#dim-mask)"/>
+
+          <rect x="56" y="239" width="190" height="13" fill="#ffd60a" opacity=".45"/>
+          <rect x="46" y="148" width="500" height="74" fill="none" stroke="#ff3b30" stroke-width="2.5"/>
+          <circle cx="46" cy="148" r="10.5" fill="#ff3b30"/>
+          <text x="46" y="152" text-anchor="middle" font-size="11" font-weight="600" fill="#fff">1</text>
+
+          <path d="M536 300C566 276 566 240 548 216" fill="none" stroke="#ff3b30" stroke-width="2.4" stroke-linecap="round" marker-end="url(#arrow-head)"/>
+          <g filter="url(#bubble-shadow)">
+            <rect x="424" y="292" width="112" height="34" rx="9" fill="#fff" stroke="#d5d6dc"/>
+            <text x="440" y="313.5" font-size="13" fill="#1c1e23">this one</text>
+          </g>
+
+          <rect x="40" y="128" width="560" height="242" fill="none" stroke="#fff" stroke-opacity=".85"/>
+          <rect x="36" y="124" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="596" y="124" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="36" y="366" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="596" y="366" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="316" y="124" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="316" y="366" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="36" y="245" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <rect x="596" y="245" width="8" height="8" fill="#fff" stroke="#000" stroke-opacity=".28"/>
+          <g filter="url(#bar-shadow)">
+            <rect x="108" y="378" width="424" height="24" rx="12" fill="#2f2f31" opacity=".93"/>
+            <text x="320" y="394" text-anchor="middle" font-size="11" font-weight="500" fill="#f3f3f5">↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close</text>
+
+            <rect x="41" y="407" width="552" height="38" rx="11" fill="#cbcbcd" stroke="#fff" stroke-opacity=".55"/>
+
+            <g style="color:#5f5f64">
+              <use href="#g-tool-rect" x="56" y="419" width="14" height="14"/>
+              <use href="#g-tool-ellipse" x="87" y="419" width="14" height="14"/>
+              <use href="#g-tool-line" x="118" y="419" width="14" height="14"/>
+              <use href="#g-tool-arrow" x="149" y="419" width="14" height="14"/>
+              <use href="#g-tool-pen" x="180" y="419" width="14" height="14"/>
+              <use href="#g-tool-hl" x="211" y="419" width="14" height="14"/>
+              <use href="#g-tool-text" x="242" y="419" width="14" height="14"/>
+              <use href="#g-tool-num" x="273" y="419" width="14" height="14"/>
+              <use href="#g-tool-mosaic" x="304" y="419" width="14" height="14"/>
+              <use href="#g-tool-blur" x="335" y="419" width="14" height="14"/>
+            </g>
+            <path d="M357 417.5v17" stroke="#000" stroke-opacity=".14"/>
+            <use href="#g-signature" x="369" y="419" width="14" height="14" style="color:#5f5f64"/>
+            <path d="M391 417.5v17" stroke="#000" stroke-opacity=".14"/>
+            <g style="color:#93939a">
+              <use href="#g-undo" x="403" y="419" width="14" height="14"/>
+              <use href="#g-redo" x="434" y="419" width="14" height="14"/>
+            </g>
+            <path d="M456 417.5v17" stroke="#000" stroke-opacity=".14"/>
+            <rect x="462" y="413" width="26" height="26" rx="6.5" fill="#2f7cf6"/>
+            <use href="#g-copy" x="468" y="419" width="14" height="14" style="color:#fff"/>
+            <use href="#g-save" x="499" y="419" width="14" height="14" style="color:#5f5f64"/>
+            <use href="#g-pin" x="530" y="419" width="14" height="14" style="color:#5f5f64"/>
+            <use href="#g-x" x="561" y="419" width="14" height="14" style="color:#5f5f64"/>
+          </g>
+        </svg>
+        <figcaption>
+          <span class="en">The editor is a borderless overlay: the region keeps its place on screen, and the toolbar follows it.</span>
+          <span class="zh">編輯器是無邊框的覆蓋層：選取範圍留在原來的畫面位置上，工具列跟著它走。</span>
+        </figcaption>
+      </figure>
+
+      <ul class="bullets">
+        <li>
+          <span class="en">Ten tools: rectangle, ellipse, line, an arrow in three styles, freehand, highlighter, text with a bubble, numbered markers, mosaic and blur.</span>
+          <span class="zh">十種工具：矩形、橢圓、直線、箭頭（直線、曲線、折線三種）、手繪、螢光筆、附對話框的文字、編號標記、馬賽克與模糊。</span>
+        </li>
+        <li>
+          <span class="en">Click a mark to move or resize it, <kbd>⌫</kbd> to delete it, <kbd>⌘Z</kbd> and <kbd>⇧⌘Z</kbd> to undo and redo.</span>
+          <span class="zh">點一下既有的標註就能移動、縮放，<kbd>⌫</kbd> 刪除，<kbd>⌘Z</kbd>、<kbd>⇧⌘Z</kbd> 復原與重做。</span>
+        </li>
+        <li>
+          <span class="en"><kbd>Enter</kbd> copies, <kbd>Space</kbd> saves to ~/Downloads, <kbd>P</kbd> pins the image on screen, <kbd>Esc</kbd> closes. <kbd>⇧</kbd>-click composes several windows into one capture.</span>
+          <span class="zh"><kbd>Enter</kbd> 複製、<kbd>Space</kbd> 存到 ~/Downloads、<kbd>P</kbd> 釘在螢幕上、<kbd>Esc</kbd> 關閉。<kbd>⇧</kbd> 點擊可以把幾個視窗拼成一張。</span>
+        </li>
+        <li>
+          <span class="en">The colour under the pointer is shown while you select; <kbd>C</kbd> copies it as HEX, RGB or HSL.</span>
+          <span class="zh">選取時就看得到指標下的顏色；按 <kbd>C</kbd> 複製成 HEX、RGB 或 HSL。</span>
+        </li>
+        <li>
+          <span class="en">Pinned images resize with the scroll wheel and fade with <kbd>⌘</kbd>-scroll.</span>
+          <span class="zh">釘在螢幕上的圖片用滾輪縮放、<kbd>⌘</kbd> 加滾輪調整透明度。</span>
+        </li>
+        <li>
+          <span class="en">Recognition uses the same overlay and runs on device: select a region and read its text or QR code, or copy it straight away.</span>
+          <span class="zh">文字辨識用同一個覆蓋層，完全在本機執行：選一塊區域，讀出裡面的文字或 QR 碼，也可以直接複製。</span>
+        </li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="pad" id="install">
+    <div class="wrap">
+      <div class="sect-head">
+        <h2><span class="en">Install</span><span class="zh">安裝</span></h2>
+        <p>
+          <span class="en">Releases are built by CI and signed with a self-signed certificate rather than a paid Developer ID, and they are not notarized. macOS blocks the first launch — once, not every time.</span>
+          <span class="zh">release 由 CI 建置，用固定的自簽憑證簽章，而不是付費的 Apple Developer ID，也沒有 notarize。所以 macOS 會擋下第一次啟動——只有一次，不是每次。</span>
+        </p>
+      </div>
+      <div class="install">
+        <ol class="steps">
+          <li>
+            <span class="en">Download the zip from <a href="https://github.com/jwcrystal/panelumi/releases/latest">Releases</a> and move <strong>Panelumi.app</strong> to <code>/Applications</code>.</span>
+            <span class="zh">從 <a href="https://github.com/jwcrystal/panelumi/releases/latest">Releases</a> 下載 zip，把 <strong>Panelumi.app</strong> 放進 <code>/Applications</code>。</span>
+          </li>
+          <li>
+            <span class="en">Double-click it, click <strong>Done</strong> on the warning, then allow it under System Settings › Privacy &amp; Security › <strong>Open Anyway</strong>.</span>
+            <span class="zh">點兩下開啟，警告視窗按 <strong>Done</strong>，再到系統設定 › 隱私權與安全性 › <strong>仍要打開</strong>。</span>
+          </li>
+          <li>
+            <span class="en">Grant Accessibility, Screen Recording, Automation and Microphone once in the setup window. Later updates keep them.</span>
+            <span class="zh">在設定視窗裡一次授予輔助使用、螢幕錄製、自動化與麥克風權限。之後更新都會保留。</span>
+          </li>
+          <li>
+            <span class="en"><strong>Check for Updates…</strong> in the menu compares the running version with the latest GitHub release. It never checks on its own.</span>
+            <span class="zh">選單裡的 <strong>檢查更新…</strong> 會拿目前版本和 GitHub 上最新的 release 比較。Panelumi 不會自己檢查。</span>
+          </li>
+        </ol>
+        <div class="build">
+          <h3><span class="en">Or build it from source</span><span class="zh">或從原始碼建置</span></h3>
+          <pre><code>git clone https://github.com/jwcrystal/panelumi.git
+cd panelumi
+swift test
+./scripts/build-app.sh
+open build/Panelumi.app</code></pre>
+          <p>
+            <span class="en">Needs macOS 14+ and the Xcode command line tools. <code>./scripts/setup-signing.sh</code> makes a local certificate so every rebuild keeps its permission grants.</span>
+            <span class="zh">需要 macOS 14 以上與 Xcode 命令列工具。<code>./scripts/setup-signing.sh</code> 會建立本機憑證，讓每次重建都保留權限。</span>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="pad">
+    <div class="wrap">
+      <div class="sect-head">
+        <h2><span class="en">The details</span><span class="zh">一些細節</span></h2>
+      </div>
+      <dl class="details">
+        <div>
+          <dt><span class="en">Requirements</span><span class="zh">系統需求</span></dt>
+          <dd><span class="en">macOS 14 Sonoma or later.</span><span class="zh">macOS 14 Sonoma 以上。</span></dd>
+        </div>
+        <div>
+          <dt><span class="en">Built with</span><span class="zh">技術</span></dt>
+          <dd><span class="en">Swift 5.9, AppKit and SwiftUI, no third-party dependencies.</span><span class="zh">Swift 5.9、AppKit 與 SwiftUI，沒有第三方相依。</span></dd>
+        </div>
+        <div>
+          <dt><span class="en">Network</span><span class="zh">連線</span></dt>
+          <dd><span class="en">One request to GitHub, only when you choose Check for Updates. No analytics, no accounts.</span><span class="zh">只有你按「檢查更新…」時，才向 GitHub 發出一次請求。沒有分析工具，也沒有帳號。</span></dd>
+        </div>
+        <div>
+          <dt><span class="en">Languages</span><span class="zh">語言</span></dt>
+          <dd><span class="en">English and Traditional Chinese, switchable in Settings.</span><span class="zh">英文與繁體中文，可以在設定裡切換。</span></dd>
+        </div>
+        <div>
+          <dt><span class="en">License</span><span class="zh">授權</span></dt>
+          <dd><span class="en">Apache-2.0. Previously published MIT revisions stay MIT.</span><span class="zh">Apache-2.0；先前以 MIT 發佈的版本維持 MIT。</span></dd>
+        </div>
+        <div>
+          <dt><span class="en">Distribution</span><span class="zh">發佈方式</span></dt>
+          <dd><span class="en">GitHub releases only, not the Mac App Store: it uses private APIs, runs outside the sandbox and drives Finder through Apple Events.</span><span class="zh">只有 GitHub releases，不上 Mac App Store：它用到私有 API、在沙箱外執行，並透過 Apple Events 操作 Finder。</span></dd>
+        </div>
+      </dl>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Panelumi · Apache-2.0 · © 2026 Jared Wang</span>
+    <nav class="foot-links">
+      <a href="https://github.com/jwcrystal/panelumi/releases"><span class="en">Releases</span><span class="zh">版本</span></a>
+      <a href="https://github.com/jwcrystal/panelumi/issues"><span class="en">Issues</span><span class="zh">問題</span></a>
+      <a href="https://github.com/jwcrystal/panelumi/blob/main/README.md">README</a>
+      <a href="https://github.com/jwcrystal/panelumi/blob/main/TRADEMARKS.md"><span class="en">Trademarks</span><span class="zh">商標</span></a>
+    </nav>
+  </div>
+</footer>
+
+<script>
+const SWITCHES = [
+  { icon: 'eye', group: 0, check: true, en: 'Show Hidden Files', zh: '顯示隱藏檔案' },
+  { icon: 'hide-desktop', group: 0, en: 'Hide Desktop Icons', zh: '隱藏桌面圖示' },
+  { icon: 'dock', group: 0, check: true, en: 'Dock Autohide', zh: '自動隱藏 Dock' },
+  { icon: 'sparkles', group: 1, en: 'Screen Clean', zh: '螢幕清潔', sub: { en: 'Active', zh: '使用中' }, need: 'a11y' },
+  { icon: 'cup', group: 2, en: 'Keep Awake', zh: '保持清醒', sub: { en: 'Until 18:30', zh: '到 18:30' }, keys: '⌃⌥K' },
+  { icon: 'moon', group: 1, check: true, en: 'Dark Mode', zh: '深色模式', need: 'auto' },
+  { icon: 'speaker', group: 2, en: 'Mute Sound', zh: '靜音' },
+  { icon: 'mic', group: 2, en: 'Mute Microphone', zh: '麥克風靜音', sub: { en: 'Not available', zh: '無法使用' } },
+  { icon: 'keyboard', group: 2, en: 'Lock Keyboard', zh: '鎖定鍵盤', need: 'a11y' },
+  { icon: 'lock-display', group: 1, en: 'Lock Screen', zh: '鎖定螢幕' },
+  { icon: 'moon-stars', group: 1, en: 'Night Shift', zh: '夜覽' },
+  { icon: 'stage', group: 1, en: 'Stage Manager', zh: '幕前調度' },
+  { icon: 'stage-autohide', group: 1, en: 'Stage Manager Autohide', zh: '幕前調度自動隱藏' },
+  { icon: 'trash', group: 0, en: 'Empty Trash', zh: '清空垃圾桶', sub: { en: '101 items', zh: '101 個項目' }, need: 'auto' },
+  { icon: 'clipboard', group: 0, en: 'Empty Pasteboard', zh: '清空剪貼板', sub: { en: 'Empty', zh: '空的' } },
+  { icon: 'camera', group: 3, en: 'Screenshot', zh: '截圖', keys: '⌥E', need: 'screen' },
+  { icon: 'text-scan', group: 3, en: 'Recognize Text', zh: '文字辨識', keys: '⌃⌥R', need: 'screen' },
+  { icon: 'record', group: 2, en: 'Recording', zh: '錄音', sub: { en: '0:42', zh: '0:42' }, need: 'mic' },
+  { icon: 'quit-apps', group: 0, en: 'Quit All Apps', zh: '結束所有 App', sub: { en: '3 apps', zh: '3 個 App' } },
+  { icon: 'eject', group: 0, en: 'Eject Disk', zh: '退出磁碟', sub: { en: '2 disks', zh: '2 個磁碟' } }
+];
+
+const FOOTER = [
+  { icon: 'shield', en: 'Permissions…', zh: '權限…' },
+  { icon: 'down-circle', en: 'Check for Updates…', zh: '檢查更新…' },
+  { en: 'Version 0.12.1', zh: '版本 0.12.1', dim: true },
+  { icon: 'gear', en: 'Settings…', zh: '設定…' },
+  { en: 'Quit Panelumi', zh: '結束 Panelumi' }
+];
+
+const GROUPS = [
+  { en: 'Files and desktop', zh: '檔案與桌面' },
+  { en: 'Screen and appearance', zh: '螢幕與外觀' },
+  { en: 'Sound, keyboard and power', zh: '聲音、鍵盤與電源' },
+  { en: 'Capture', zh: '擷取' }
+];
+
+const NEEDS = {
+  a11y: { en: 'Accessibility', zh: '輔助使用' },
+  auto: { en: 'Automation', zh: '自動化' },
+  screen: { en: 'Screen Recording', zh: '螢幕錄製' },
+  mic: { en: 'Microphone', zh: '麥克風' }
+};
+
+const PANEL = { x: 69, y: 32, w: 300, row: 24, pad: 6, iconX: 27, textX: 50, right: 280, sep: 11 };
+const TITLES = {
+  en: 'Panelumi — Mac settings in the menu bar',
+  zh: 'Panelumi — 選單列裡的 Mac 設定'
+};
+
+function lang() {
+  return document.documentElement.dataset.lang === 'zh' ? 'zh' : 'en';
+}
+
+function escapeText(value) {
+  return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function renderMenu() {
+  const L = lang();
+  const out = [];
+  let index = 0;
+
+  const row = (item) => {
+    const y = PANEL.y + PANEL.pad + index * PANEL.row;
+    const cy = y + PANEL.row / 2;
+    if (item.check) {
+      out.push('<path d="M0 4.6 2.6 7.2 8 .8" fill="none" stroke="#f2f2f5" stroke-width="1.7" ' +
+        'stroke-linecap="round" stroke-linejoin="round" transform="translate(' + (PANEL.x + 11) + ',' + (cy - 4) + ')"/>');
+    }
+    if (item.icon) {
+      out.push('<use href="#g-' + item.icon + '" x="' + (PANEL.x + PANEL.iconX) + '" y="' + (cy - 7) +
+        '" width="14" height="14" style="color:#c9cad1"/>');
+    }
+    const titleFill = item.dim ? '#7d7d86' : '#ececf0';
+    out.push('<text x="' + (PANEL.x + PANEL.textX) + '" y="' + (cy + 4.4) +
+      '" font-size="12.5" fill="' + titleFill + '">' + escapeText(item[L]) + '</text>');
+    const sub = [item.sub ? item.sub[L] : null, item.keys].filter(Boolean).join('   ');
+    if (sub) {
+      out.push('<text x="' + (PANEL.x + PANEL.right) + '" y="' + (cy + 4.4) +
+        '" text-anchor="end" font-size="12" fill="#9a9aa3">' + escapeText(sub) + '</text>');
+    }
+    index += 1;
+  };
+
+  SWITCHES.forEach(row);
+
+  const sepY = PANEL.y + PANEL.pad + index * PANEL.row + PANEL.sep / 2;
+  out.push('<path d="M' + (PANEL.x + 4) + ' ' + sepY + 'H' + (PANEL.x + PANEL.w - 4) +
+    '" stroke="#fff" stroke-opacity=".12"/>');
+  index += 1;
+
+  FOOTER.forEach(row);
+
+  const height = PANEL.pad * 2 + PANEL.sep + index * PANEL.row;
+  document.getElementById('panel-bg').setAttribute('height', height);
+  document.getElementById('menu-rows').innerHTML = out.join('');
+}
+
+function renderGroups() {
+  const L = lang();
+  const host = document.getElementById('groups');
+  host.innerHTML = GROUPS.map((group, gi) => {
+    const items = SWITCHES.filter((s) => s.group === gi).map((s) => {
+      const need = s.need ? NEEDS[s.need][L] : '';
+      return '<li class="sw">' +
+        '<svg class="g" aria-hidden="true"><use href="#g-' + s.icon + '"/></svg>' +
+        '<span class="sw-name">' + escapeText(s[L]) + '</span>' +
+        (need ? '<span class="sw-tag">' + escapeText(need) + '</span>' : '') +
+        '</li>';
+    }).join('');
+    return '<div class="group"><h3>' + escapeText(group[L]) + '</h3><ul>' + items + '</ul></div>';
+  }).join('');
+}
+
+function applyLanguage(next) {
+  const html = document.documentElement;
+  html.dataset.lang = next;
+  html.lang = next === 'zh' ? 'zh-Hant' : 'en';
+  document.title = TITLES[next];
+  document.querySelectorAll('.lang button').forEach((button) => {
+    button.setAttribute('aria-pressed', String(button.dataset.setLang === next));
+  });
+  try {
+    localStorage.setItem('panelumi-site-lang', next);
+  } catch (error) {
+    /* Private browsing can refuse storage; the page still works. */
+  }
+  renderMenu();
+  renderGroups();
+}
+
+let initial = 'en';
+try {
+  const saved = localStorage.getItem('panelumi-site-lang');
+  if (saved === 'zh' || saved === 'en') {
+    initial = saved;
+  } else if ((navigator.language || '').toLowerCase().startsWith('zh')) {
+    initial = 'zh';
+  }
+} catch (error) {
+  /* Nothing saved, keep English. */
+}
+
+document.querySelectorAll('.lang button').forEach((button) => {
+  button.addEventListener('click', () => applyLanguage(button.dataset.setLang));
+});
+
+applyLanguage(initial);
+</script>
+</body>
+</html>
