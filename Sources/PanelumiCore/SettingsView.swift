@@ -1235,8 +1235,8 @@ private struct AboutPane: View {
                 .foregroundStyle(.secondary)
 
             Text(build.edition.isEmpty
-                ? t("Menu-bar switches for macOS.\nNo telemetry, no in-app purchase.")
-                : t("Menu-bar switches for macOS.\nNo telemetry."))
+                ? t("One menu instead of several apps.\nNo telemetry, no in-app purchase.")
+                : t("One menu instead of several apps.\nNo telemetry."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
