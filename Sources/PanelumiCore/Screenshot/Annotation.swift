@@ -59,6 +59,8 @@ struct AnnotationStyle: Equatable {
     var mosaicBlock: CGFloat = 14
     var numberStyle: NumberStyle = .circle
     var highlighterAlpha: CGFloat = 0.32
+    /// Highlighter band thickness relative to the image width.
+    var highlighterWidth: CGFloat = 0.024
 }
 
 /// A mark drawn on top of a screenshot.
@@ -77,6 +79,22 @@ struct Annotation: Equatable {
         case mosaic(from: CGPoint, to: CGPoint)
         case blur(from: CGPoint, to: CGPoint)
         case text(String, at: CGPoint)
+    }
+
+    /// How a highlighter band combines with the pixels under it.
+    ///
+    /// Chosen once when a stroke starts: re-deciding while the stroke grows
+    /// made the band change colour under the pointer.
+    enum HighlighterBlend: Equatable {
+        case multiply
+        case screen
+
+        var operation: NSCompositingOperation {
+            switch self {
+            case .multiply: return .multiply
+            case .screen: return .screen
+            }
+        }
     }
 
     var shape: Shape
@@ -98,6 +116,10 @@ struct Annotation: Equatable {
     var numberStyle: NumberStyle = .circle
     /// Highlighter opacity (0…1).
     var highlighterAlpha: CGFloat = 0.32
+    /// Highlighter band thickness relative to the image width.
+    var highlighterWidth: CGFloat = 0.024
+    /// Fixed when the stroke starts; only the highlighter reads it.
+    var highlighterBlend: HighlighterBlend = .multiply
 
     /// Normalised bounding box, used for selection and hit testing.
     var bounds: CGRect {
@@ -122,6 +144,12 @@ struct Annotation: Equatable {
         case .number(_, let at), .text(_, let at):
             return CGRect(x: at.x, y: at.y, width: 0.12, height: 0.04)
         }
+    }
+
+    /// A straight band that keeps the press point's row, for a Shift drag with
+    /// the highlighter.
+    static func horizontalBand(from start: CGPoint, to end: CGPoint) -> [CGPoint] {
+        [start, CGPoint(x: end.x, y: start.y)]
     }
 
     func contains(_ point: CGPoint, tolerance: CGFloat = 0.012) -> Bool {
@@ -193,7 +221,8 @@ extension Annotation {
                 linePattern: linePattern,
                 mosaicBlock: mosaicBlock,
                 numberStyle: numberStyle,
-                highlighterAlpha: highlighterAlpha
+                highlighterAlpha: highlighterAlpha,
+                highlighterWidth: highlighterWidth
             )
         }
         set {
@@ -207,6 +236,7 @@ extension Annotation {
             mosaicBlock = newValue.mosaicBlock
             numberStyle = newValue.numberStyle
             highlighterAlpha = newValue.highlighterAlpha
+            highlighterWidth = newValue.highlighterWidth
         }
     }
 
@@ -222,7 +252,8 @@ extension Annotation {
             linePattern: style.linePattern,
             mosaicBlock: style.mosaicBlock,
             numberStyle: style.numberStyle,
-            highlighterAlpha: style.highlighterAlpha
+            highlighterAlpha: style.highlighterAlpha,
+            highlighterWidth: style.highlighterWidth
         )
     }
 }
@@ -421,16 +452,23 @@ enum AnnotationRenderer {
 
         case .highlighter(let points):
             guard let first = points.first else { return }
+            let context = NSGraphicsContext.current
+            let savedOperation = context?.compositingOperation
+            context?.compositingOperation = annotation.highlighterBlend.operation
             color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
-            path.lineWidth = max(2, rect.width * annotation.lineWidth * 5)
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
+            path.lineWidth = max(2, rect.width * annotation.highlighterWidth)
+            // Flat ends and corners read as a marker band rather than a pen dot.
+            path.lineCapStyle = .butt
+            path.lineJoinStyle = .miter
             path.move(to: point(first))
             for p in points.dropFirst() {
                 path.line(to: point(p))
             }
             path.stroke()
+            if let savedOperation {
+                context?.compositingOperation = savedOperation
+            }
 
         case .number(let value, let at):
             let center = point(at)
@@ -474,6 +512,51 @@ enum AnnotationRenderer {
                 .foregroundColor: layout.textColor,
             ]).draw(at: layout.textBox.origin)
         }
+    }
+
+    /// The blend a stroke should use, read once from the paper where the press
+    /// landed. Sampling per frame made the band flip colour mid-stroke.
+    static func highlighterBlend(
+        in base: CGImage?,
+        at point: CGPoint
+    ) -> Annotation.HighlighterBlend {
+        guard let base, let value = paperLuminance(of: base, at: point) else { return .multiply }
+        return value > 0.5 ? .multiply : .screen
+    }
+
+    /// The paper around a point, as the median of a 15×15 patch. A glyph under
+    /// the press is the minority there: darker than the paper on a light
+    /// capture, brighter on a dark one, so the vote still lands on the paper.
+    private static func paperLuminance(of image: CGImage, at point: CGPoint) -> CGFloat? {
+        let radius = 7
+        let x = Int(point.x * CGFloat(image.width))
+        let y = Int(point.y * CGFloat(image.height))
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        let box = CGRect(
+            x: x - radius, y: y - radius,
+            width: radius * 2 + 1, height: radius * 2 + 1
+        ).intersection(bounds)
+        let width = Int(box.width), height = Int(box.height)
+        guard width > 0, height > 0, let cropped = image.cropping(to: box) else { return nil }
+
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var values: [CGFloat] = []
+        values.reserveCapacity(width * height)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let r = CGFloat(pixels[index])
+            let g = CGFloat(pixels[index + 1])
+            let b = CGFloat(pixels[index + 2])
+            values.append((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255)
+        }
+        values.sort()
+        return values[values.count / 2]
     }
 
     // MARK: - Watermark

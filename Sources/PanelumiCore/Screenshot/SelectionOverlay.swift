@@ -652,7 +652,13 @@ final class SelectionView: NSView {
     /// region or a window delivers it straight away with this output.
     var finishOnSelect: CaptureSession.Output?
 
-    private(set) var selection: CGRect?
+    private(set) var selection: CGRect? {
+        didSet {
+            // A resized region changes every point value the toolbar shows.
+            guard selection?.size != oldValue?.size else { return }
+            session.imagePointSize = selection?.size ?? .zero
+        }
+    }
     private var interaction: Interaction = .none
     /// True once the overlay has a region to act on; used to pick the window
     /// that should hold the keyboard.
@@ -675,6 +681,8 @@ final class SelectionView: NSView {
     private var startPoint: CGPoint?
     private var draft: Annotation?
     private var penPoints: [CGPoint] = []
+    /// Chosen when a highlighter stroke starts and kept for the whole stroke.
+    private var highlighterBlend: Annotation.HighlighterBlend = .multiply
 
     private(set) var toolbarHost: CaptureToolbarHost?
     let popoverPlacement = ToolbarPopoverPlacement()
@@ -719,8 +727,40 @@ final class SelectionView: NSView {
     }
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+        addCursorRect(bounds, cursor: Self.cursor(for: session.tool))
     }
+
+    private static func cursor(for tool: CaptureSession.Tool) -> NSCursor {
+        tool == .highlighter ? markerCursor : .crosshair
+    }
+
+    /// The tool's cursor belongs to the region: outside it a drag starts a new
+    /// selection, which is what the crosshair says.
+    private func updateCursor() {
+        guard !(toolbarHost?.frame.contains(lastMousePoint) ?? false) else { return }
+        let inside = selection?.contains(lastMousePoint) ?? false
+        (inside ? Self.cursor(for: session.tool) : .crosshair).set()
+    }
+
+    /// A vertical marker, showing the height the band will take, instead of a
+    /// crosshair.
+    private static let markerCursor: NSCursor = {
+        let size = NSSize(width: 9, height: 26)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        let body = NSBezierPath(
+            roundedRect: NSRect(x: 1.5, y: 1, width: 6, height: 24),
+            xRadius: 3,
+            yRadius: 3
+        )
+        NSColor.white.withAlphaComponent(0.95).setFill()
+        body.fill()
+        NSColor.black.withAlphaComponent(0.7).setStroke()
+        body.lineWidth = 1.2
+        body.stroke()
+        image.unlockFocus()
+        return NSCursor(image: image, hotSpot: NSPoint(x: 4.5, y: 13))
+    }()
 
     // MARK: - Drawing
 
@@ -1193,6 +1233,7 @@ final class SelectionView: NSView {
             return
         }
         session.annotations = []
+        updateImagePointSize()
         session.extensionToolbarItems = CaptureSession.toolbarEntries(for: session.captureExtensions)
         session.captureActionsAllowed = windowTargets.isEmpty
         session.onUndo = { [weak self] in self?.performHistory(.undo) }
@@ -1205,13 +1246,21 @@ final class SelectionView: NSView {
         installToolbar()
         sessionCancellable = session.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
-                self?.layoutToolbar()
-                self?.updateTextField()
-                self?.needsDisplay = true
+                guard let self else { return }
+                self.layoutToolbar()
+                self.updateTextField()
+                self.window?.invalidateCursorRects(for: self)
+                self.needsDisplay = true
             }
         }
         loadBase()
         needsDisplay = true
+    }
+
+    /// The width sliders show points, which scale with the region, so a resize
+    /// changes what a stored width means and the size has to follow it.
+    private func updateImagePointSize() {
+        session.imagePointSize = selection?.size ?? .zero
     }
 
     /// Freeze the selected pixels so mosaic and blur can be shown for real.
@@ -1542,6 +1591,9 @@ final class SelectionView: NSView {
         lastMousePoint = convert(event.locationInWindow, from: nil)
         updateHoverColor(at: lastMousePoint)
         updateHover(at: lastMousePoint)
+        // Cursor rects only refresh once they are invalidated, so the marker is
+        // set from the move itself.
+        updateCursor()
         // The colour readout follows the pointer, so a move always redraws
         // even when the window under it stays the same.
         needsDisplay = true
@@ -1553,7 +1605,9 @@ final class SelectionView: NSView {
         window?.makeKey()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        lastMousePoint = point
         commitTextFieldIfNeeded()
+        updateCursor()
 
         if editing, session.isPickingColor {
             // One click samples or gives up. No interaction starts, so the
@@ -1578,8 +1632,12 @@ final class SelectionView: NSView {
                     return
                 }
                 interaction = .drawing
-                startPoint = normalize(point, in: selection)
+                let start = normalize(point, in: selection)
+                startPoint = start
                 penPoints = []
+                if session.tool == .highlighter {
+                    highlighterBlend = AnnotationRenderer.highlighterBlend(in: baseImage, at: start)
+                }
                 if session.tool == .text {
                     showTextField(at: point)
                     interaction = .none
@@ -1636,6 +1694,7 @@ final class SelectionView: NSView {
 
         case .resizing(let handle, let rect):
             selection = clamp(resized(rect, handle: handle, to: point))
+            updateImagePointSize()
             layoutToolbar()
 
         case .drawing:
@@ -1704,7 +1763,11 @@ final class SelectionView: NSView {
                     commit(.number(nextNumber, at: end))
                 }
             case .pen, .highlighter:
-                commit(session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints))
+                if session.tool == .pen {
+                    commit(.pen(points: penPoints))
+                } else {
+                    commit(fittedHighlighter(penPoints))
+                }
             default:
                 commit(draftShape(from: start, to: end))
             }
@@ -1725,11 +1788,19 @@ final class SelectionView: NSView {
     private func updateDraft(from start: CGPoint, to current: CGPoint) {
         switch session.tool {
         case .pen, .highlighter:
-            penPoints.append(current)
-            draft = Annotation(
+            if session.tool == .highlighter, session.highlighterStraight {
+                penPoints = Annotation.horizontalBand(from: start, to: current)
+            } else {
+                penPoints.append(current)
+            }
+            var mark = Annotation(
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
                 style: session.defaultStyle
             )
+            if session.tool == .highlighter {
+                mark.highlighterBlend = highlighterBlend
+            }
+            draft = mark
         case .text, .number:
             break
         default:
@@ -1758,9 +1829,42 @@ final class SelectionView: NSView {
         }
     }
 
-    private func commit(_ shape: Annotation.Shape) {
+    private func commit(
+        _ shape: Annotation.Shape,
+        highlighterBlend: Annotation.HighlighterBlend? = nil
+    ) {
+        var annotation = Annotation(shape: shape, style: session.defaultStyle)
+        if let highlighterBlend {
+            annotation.highlighterBlend = highlighterBlend
+        }
+        commit(annotation)
+    }
+
+    private func commit(_ annotation: Annotation) {
         session.recordUndoSnapshot()
-        session.annotations.append(Annotation(shape: shape, style: session.defaultStyle))
+        session.annotations.append(annotation)
+    }
+
+    /// A straight band takes the height of the line it covers, so a mark over a
+    /// heading and one over body text both fit without touching the slider.
+    private func fittedHighlighter(_ points: [CGPoint]) -> Annotation {
+        var mark = Annotation(shape: .highlighter(points: points), style: session.defaultStyle)
+        mark.highlighterBlend = highlighterBlend
+        guard session.highlighterStraight,
+              let baseImage,
+              let selection,
+              selection.width > 0,
+              let fit = HighlighterLineFit.fit(
+                  in: baseImage,
+                  points: points,
+                  width: mark.highlighterWidth,
+                  pointScale: CGFloat(baseImage.width) / selection.width
+              )
+        else { return mark }
+
+        mark.highlighterWidth = fit.width
+        mark.shape = .highlighter(points: points.map { CGPoint(x: $0.x, y: fit.centerY) })
+        return mark
     }
 
     // MARK: - Text entry

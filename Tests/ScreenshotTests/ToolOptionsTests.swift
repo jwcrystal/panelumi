@@ -24,6 +24,37 @@ final class ToolOptionsTests: XCTestCase {
         }
     }
 
+    /// The width sliders show points; a region resized after entering the
+    /// editor changes the size those points are scaled by.
+    @MainActor
+    func testResizingTheRegionRescalesThePointWidths() throws {
+        _ = NSApplication.shared
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        let session = CaptureSession()
+        let view = SelectionView(screen: screen, session: session) { _, _ in nil }
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: view.frame.size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: true
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        defer { window.close() }
+
+        let region = CGRect(x: 40, y: 40, width: 320, height: 200)
+        view.presetSelection(region)
+        XCTAssertEqual(session.imagePointSize.width, region.width, accuracy: 0.5)
+
+        let handle = CGPoint(x: region.maxX, y: region.midY)
+        view.mouseDown(with: mouseEvent(.leftMouseDown, at: handle))
+        view.mouseDragged(with: mouseEvent(.leftMouseDragged, at: CGPoint(x: handle.x + 80, y: handle.y)))
+        view.mouseUp(with: mouseEvent(.leftMouseUp, at: CGPoint(x: handle.x + 80, y: handle.y)))
+
+        XCTAssertEqual(session.imagePointSize.width, region.width + 80, accuracy: 0.5)
+        XCTAssertEqual(session.imagePointSize.height, region.height, accuracy: 0.5)
+    }
+
     @MainActor
     func testSelectedAnnotationOptionsKeepTheToolbarCompact() {
         _ = NSApplication.shared
@@ -140,6 +171,22 @@ final class ToolOptionsTests: XCTestCase {
         XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.05), 10)
     }
 
+    func testWidthLabelsShowPointsOnceTheCaptureSizeIsKnown() {
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.024, in: CGSize(width: 800, height: 600), level: 4),
+            "19 pt"
+        )
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.05, in: CGSize(width: 1400, height: 900), level: 10),
+            "70 pt"
+        )
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.024, in: .zero, level: 4),
+            "4",
+            "the level is the fallback before the capture size is known"
+        )
+    }
+
     @MainActor
     func testHintBandDoesNotTakeClicks() {
         _ = NSApplication.shared
@@ -206,5 +253,40 @@ final class ToolOptionsTests: XCTestCase {
         host.cacheDisplay(in: host.bounds, to: bitmap)
         let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         try data.write(to: URL(fileURLWithPath: path))
+    }
+
+    @MainActor
+    func testStraightBandIconIsABandNotALine() throws {
+        _ = NSApplication.shared
+        let renderer = ImageRenderer(content: StraightBandIcon().frame(width: 21, height: 15))
+        renderer.scale = 2
+        let image = try XCTUnwrap(renderer.nsImage)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+
+        func ink(inRow row: Int) -> Int {
+            (0..<bitmap.pixelsWide).reduce(0) { count, x in
+                guard let color = bitmap.colorAt(x: x, y: row)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.5, color.redComponent < 0.5 else { return count }
+                return count + 1
+            }
+        }
+
+        XCTAssertGreaterThan(ink(inRow: bitmap.pixelsHigh / 2), bitmap.pixelsWide / 2,
+                             "the icon fills a band, not a hairline")
+        XCTAssertEqual(ink(inRow: 1), 0, "the band sits in the middle, clear of the edges")
+    }
+
+    private func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint) -> NSEvent {
+        NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )!
     }
 }

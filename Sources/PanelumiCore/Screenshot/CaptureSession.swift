@@ -108,12 +108,22 @@ final class CaptureSession: ObservableObject {
     /// starts editing (once per editing view; a selection spanning two displays
     /// reads the items for each). The toolbar body reads this instead of calling
     /// the extensions.
+    /// The size of the capture in screen points, so the toolbar can show a
+    /// width in points instead of a slider level. Zero until editing starts.
+    @Published var imagePointSize: CGSize = .zero
     @Published var extensionToolbarItems: [CaptureExtensionToolbarEntry] = []
     /// False while the selection is a set of windows: the toolbar actions need a
     /// region, and a window composite is not one.
     @Published var captureActionsAllowed = true
     @Published var defaultStyle = AnnotationStyle() {
         didSet { persistDefaultStyle(from: oldValue) }
+    }
+    /// The highlighter's drawing mode: freehand, or one straight band per drag.
+    @Published var highlighterStraight = true {
+        didSet {
+            guard hasLoadedPreferences, highlighterStraight != oldValue else { return }
+            ScreenshotPreferences.highlighterStraight = highlighterStraight
+        }
     }
     @Published private(set) var recentAnnotationColors: [String] = []
     /// True while a click on the screenshot samples a colour instead of
@@ -176,6 +186,8 @@ final class CaptureSession: ObservableObject {
             defaultStyle.color = color
         }
         defaultStyle.lineWidth = ScreenshotPreferences.annotationLineWidth
+        defaultStyle.highlighterWidth = ScreenshotPreferences.highlighterWidth
+        highlighterStraight = ScreenshotPreferences.highlighterStraight
         recentAnnotationColors = ScreenshotPreferences.recentAnnotationColors
         hasLoadedPreferences = true
     }
@@ -192,6 +204,9 @@ final class CaptureSession: ObservableObject {
         }
         if previous.lineWidth != defaultStyle.lineWidth {
             ScreenshotPreferences.annotationLineWidth = defaultStyle.lineWidth
+        }
+        if previous.highlighterWidth != defaultStyle.highlighterWidth {
+            ScreenshotPreferences.highlighterWidth = defaultStyle.highlighterWidth
         }
     }
 
@@ -775,7 +790,15 @@ struct CaptureToolbarView: View {
                 text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
             )
         case .highlighter:
-            lineWidthSlider
+            optionButton(t("Straight band"), selected: session.highlighterStraight) {
+                session.highlighterStraight = true
+            } label: {
+                StraightBandIcon().frame(width: 21, height: 15)
+            }
+            optionIcon("scribble", t("Freehand"), selected: !session.highlighterStraight) {
+                session.highlighterStraight = false
+            }
+            highlighterWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
             optionSlider(
                 t("Opacity"),
@@ -794,23 +817,62 @@ struct CaptureToolbarView: View {
     }
 
     private var lineWidthSlider: some View {
+        widthSlider(
+            session.styleBinding(\.lineWidth),
+            range: ScreenshotPreferences.annotationLineWidthRange,
+            text: Self.widthLabel(
+                for: session.activeStyle.lineWidth,
+                in: session.imagePointSize,
+                level: Self.lineWidthLevel(for: session.activeStyle.lineWidth)
+            )
+        )
+    }
+
+    private var highlighterWidthSlider: some View {
+        widthSlider(
+            session.styleBinding(\.highlighterWidth),
+            range: ScreenshotPreferences.highlighterWidthRange,
+            text: Self.widthLabel(
+                for: session.activeStyle.highlighterWidth,
+                in: session.imagePointSize,
+                level: Self.highlighterWidthLevel(for: session.activeStyle.highlighterWidth)
+            )
+        )
+    }
+
+    /// Widths are stored relative to the capture, so the points they come to
+    /// depend on it. Showing points lets the number be compared with a font
+    /// size; the level is the fallback before the capture size is known.
+    static func widthLabel(for width: CGFloat, in size: CGSize, level: Int) -> String {
+        guard size.width > 0 else { return "\(level)" }
+        return "\(Int((width * size.width).rounded())) pt"
+    }
+
+    private func widthSlider(
+        _ value: Binding<CGFloat>,
+        range: ClosedRange<CGFloat>,
+        text: String
+    ) -> some View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             Image(systemName: "lineweight").frame(width: 23)
-            optionSlider(
-                t("Line width"),
-                value: session.styleBinding(\.lineWidth),
-                range: 0.0015...0.016,
-                text: "\(Self.lineWidthLevel(for: session.activeStyle.lineWidth))"
-            )
+            optionSlider(t("Line width"), value: value, range: range, text: text)
         }
     }
 
-    /// Display-only 1…10 step for the stored width; what is stored keeps its
-    /// 0.0015…0.016 range.
+    /// Display-only 1…10 step for the stored width; what is stored keeps the
+    /// range of the preference it belongs to.
     static func lineWidthLevel(for width: CGFloat) -> Int {
-        let step = (0.016 - 0.0015) / 9
-        let level = ((width - 0.0015) / step).rounded() + 1
+        widthLevel(for: width, range: ScreenshotPreferences.annotationLineWidthRange)
+    }
+
+    static func highlighterWidthLevel(for width: CGFloat) -> Int {
+        widthLevel(for: width, range: ScreenshotPreferences.highlighterWidthRange)
+    }
+
+    private static func widthLevel(for width: CGFloat, range: ClosedRange<CGFloat>) -> Int {
+        let step = (range.upperBound - range.lowerBound) / 9
+        let level = ((width - range.lowerBound) / step).rounded() + 1
         return max(1, min(10, Int(level)))
     }
 
@@ -1502,6 +1564,13 @@ private struct ChannelSlider: View {
 /// view underneath, so the hosting view drops them before any SwiftUI button
 /// could claim them.
 final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
+    /// One cursor over the whole capture surface: the buttons keep the
+    /// crosshair, and a rect here is also what resets a cursor the drawing
+    /// view set further out.
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .crosshair)
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !isInHintBand(point) else { return nil }
         return super.hitTest(point)

@@ -25,6 +25,8 @@ enum ScreenshotPreferences {
     static let watermarkColorKey = "ScreenshotWatermarkColor"
     static let annotationColorKey = "ScreenshotAnnotationColor"
     static let annotationLineWidthKey = "ScreenshotAnnotationLineWidth"
+    static let highlighterWidthKey = "ScreenshotHighlighterWidth"
+    static let highlighterStraightKey = "ScreenshotHighlighterStraight"
     static let recentAnnotationColorsKey = "ScreenshotRecentAnnotationColors"
     static let silentRecognitionKey = "TextRecognitionSilent"
     static let autoCopyRecognitionKey = "TextRecognitionAutoCopy"
@@ -289,6 +291,11 @@ enum ScreenshotPreferences {
     static let defaultAnnotationColor = "#FF3B30"
     static let defaultAnnotationLineWidth: CGFloat = 0.004
     static let annotationLineWidthRange: ClosedRange<CGFloat> = 0.0015...0.016
+    /// The default matches the pen width the highlighter used when it shared
+    /// the pen's value with a ×5 factor; the range reaches past it so a band
+    /// can cover large text as well.
+    static let defaultHighlighterWidth: CGFloat = 0.024
+    static let highlighterWidthRange: ClosedRange<CGFloat> = 0.01...0.05
 
     static var annotationColor: String {
         get {
@@ -321,6 +328,37 @@ enum ScreenshotPreferences {
                 forKey: annotationLineWidthKey
             )
         }
+    }
+
+    /// Highlighter band thickness relative to the image, kept inside the
+    /// slider's range. A value that is not a number falls back to the default.
+    static var highlighterWidth: CGFloat {
+        get {
+            guard let stored = UserDefaults.standard.object(forKey: highlighterWidthKey) as? NSNumber
+            else { return defaultHighlighterWidth }
+            let value = CGFloat(stored.doubleValue)
+            guard value.isFinite else { return defaultHighlighterWidth }
+            return min(max(value, highlighterWidthRange.lowerBound), highlighterWidthRange.upperBound)
+        }
+        set {
+            let value = newValue.isFinite ? newValue : defaultHighlighterWidth
+            UserDefaults.standard.set(
+                Double(min(max(value, highlighterWidthRange.lowerBound), highlighterWidthRange.upperBound)),
+                forKey: highlighterWidthKey
+            )
+        }
+    }
+
+    /// True when the highlighter lays its band on one row instead of following
+    /// the pointer. Straight is the default: a band is nearly always drawn
+    /// across a line of text.
+    static var highlighterStraight: Bool {
+        get {
+            guard let stored = UserDefaults.standard.object(forKey: highlighterStraightKey) as? Bool
+            else { return true }
+            return stored
+        }
+        set { UserDefaults.standard.set(newValue, forKey: highlighterStraightKey) }
     }
 
     static var recentAnnotationColors: [String] {
