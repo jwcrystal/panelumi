@@ -61,7 +61,8 @@ and no live frame after it.
 - **Picks are matched against the list taken at the press.** Activating the
   overlay dismisses menus, popovers and menu bar panels before it can look, so
   every pickable window is listed once at the press and asked first; a window
-  that appeared after that still comes from the live list.
+  that appeared after that still comes from the live list. The list covers the
+  windows on layers 0–8 and 25–1000, minus the Dock and the menu bar.
 - **Window clicks are still captured per window** with
   `SCContentFilter(desktopIndependentWindow:)`. Cutting a window out of the
   frozen display would put occluding windows and their shadows into the shot,
