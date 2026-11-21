@@ -9,6 +9,7 @@ import PanelumiKit
 final class AppModel: ObservableObject {
     let catalog: SwitchCatalog
     private let store: ConfigStore
+    private let sections: [any MenuSectionProvider]
     private let hotkeys = HotkeyCenter()
 
     @Published private(set) var config: PanelumiConfig
@@ -18,9 +19,11 @@ final class AppModel: ObservableObject {
     /// Set by the menu controller: runs one switch by id, with error reporting.
     var runSwitch: ((String) -> Void)?
 
-    init(catalog: SwitchCatalog = .standard(), store: ConfigStore = ConfigStore()) {
+    init(catalog: SwitchCatalog = .standard(), store: ConfigStore = ConfigStore(),
+         sections: [any MenuSectionProvider] = []) {
         self.catalog = catalog
         self.store = store
+        self.sections = sections
         self.config = store.config
         seedScreenshotShortcutIfNeeded()
         registerHotkeys()
@@ -49,9 +52,19 @@ final class AppModel: ObservableObject {
         config.orderedIDs(from: catalog.ids).compactMap(catalog.item(id:))
     }
 
-    /// Only the switches shown in the menu.
-    var menuItems: [SwitchItem] {
+    /// Only the built-in switches shown in the menu. These are the only rows
+    /// that get shortcuts.
+    var catalogMenuItems: [SwitchItem] {
         orderedItems.filter { config.isEnabled($0.id) }
+    }
+
+    /// Everything the menu shows: the visible built-in switches, then the rows
+    /// the section providers add. An id that is already taken, by a built-in or
+    /// by an earlier provider row, is dropped.
+    var menuItems: [SwitchItem] {
+        var seen = Set(catalog.ids)
+        let injected = sections.flatMap(\.items).filter { seen.insert($0.id).inserted }
+        return catalogMenuItems + injected
     }
 
     func setEnabled(_ id: String, _ enabled: Bool) {
@@ -93,7 +106,7 @@ final class AppModel: ObservableObject {
         var issues: [String] = []
         var owners: [HotkeyBinding: String] = [:]
 
-        for item in menuItems {
+        for item in catalogMenuItems {
             guard let binding = config.hotkey(for: item.id) else { continue }
 
             guard binding.isUsable else {

@@ -29,6 +29,9 @@ final class MenuController: NSObject, NSMenuDelegate {
     /// periodic refresh only rebuilds when something actually changed.
     private var builtMissingPermissionCount = -1
 
+    /// The menu currently attached to the status item.
+    var currentMenu: NSMenu? { statusItem.menu }
+
     var openSettings: () -> Void = {}
     var openPermissions: () -> Void = {}
 
@@ -102,6 +105,10 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
+        // With auto-enabling on, AppKit re-enables any row whose target answers
+        // the action, which would ignore SwitchItem.isEnabled. Every row here
+        // sets its own state, so nothing relies on the automatic pass.
+        menu.autoenablesItems = false
 
         // Belt and braces: even if a config ever lists an id twice, the menu
         // shows each switch once.
@@ -110,6 +117,7 @@ final class MenuController: NSObject, NSMenuDelegate {
             let menuItem = NSMenuItem(title: item.title, action: #selector(runItem(_:)), keyEquivalent: "")
             menuItem.target = self
             menuItem.representedObject = ItemBox(item)
+            menuItem.isEnabled = item.isEnabled()
             menuItem.image = symbol(item.symbolName)
             menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
 

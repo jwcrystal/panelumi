@@ -8,17 +8,25 @@ public struct LaunchOptions: Equatable, Sendable {
     public var identity: AppIdentity
     /// Extensions for the capture toolbar. Empty by default; with none, capture behaves as before.
     public var captureExtensions: [any CaptureExtension]
+    /// Providers of extra status-bar menu rows. Empty by default; with none, the menu is unchanged.
+    public var menuSections: [any MenuSectionProvider]
 
-    public init(identity: AppIdentity = .standard, captureExtensions: [any CaptureExtension] = []) {
+    public init(
+        identity: AppIdentity = .standard,
+        captureExtensions: [any CaptureExtension] = [],
+        menuSections: [any MenuSectionProvider] = []
+    ) {
         self.identity = identity
         self.captureExtensions = captureExtensions
+        self.menuSections = menuSections
     }
 
     /// Two options are equal when they share an identity and list the same
-    /// extension identifiers in the same order.
+    /// extension and menu-section identifiers in the same order.
     public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
         lhs.identity == rhs.identity
             && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
+            && lhs.menuSections.map(\.identifier) == rhs.menuSections.map(\.identifier)
     }
 }
 
@@ -52,7 +60,7 @@ public enum PanelumiLauncher {
         }
 
         if arguments.contains("--menu") {
-            Dump.printMenu()
+            Dump.printMenu(sections: options.menuSections)
             return
         }
 
@@ -92,7 +100,7 @@ public enum PanelumiLauncher {
         }
 
         let application = NSApplication.shared
-        let delegate = AppDelegate(captureExtensions: options.captureExtensions)
+        let delegate = AppDelegate(captureExtensions: options.captureExtensions, menuSections: options.menuSections)
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()
@@ -145,10 +153,10 @@ enum Dump {
     /// Prints the menu exactly as the status item builds it, including hidden
     /// switches being absent. Useful when the menu looks wrong.
     @MainActor
-    static func printMenu() {
+    static func printMenu(sections: [any MenuSectionProvider] = []) {
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot))
+        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), sections: sections)
         var seen = Set<String>()
         let items = model.menuItems.filter { seen.insert($0.id).inserted }
 
@@ -156,7 +164,9 @@ enum Dump {
         for (index, item) in items.enumerated() {
             var parts = [item.title]
             if let subtitle = item.subtitle() { parts.append("(\(subtitle))") }
-            let shortcut = model.config.hotkey(for: item.id)?.displayString
+            let shortcut = model.catalog.item(id: item.id) == nil
+                ? nil
+                : model.config.hotkey(for: item.id)?.displayString
             if let shortcut { parts.append("[\(shortcut)]") }
             print(String(format: "%2d", index + 1), parts.joined(separator: " "))
         }
