@@ -217,17 +217,30 @@ final class AnnotationStyleTests: XCTestCase {
 
     @MainActor
     func testHighlighterWidthIgnoresThePenWidth() throws {
-        var annotation = Annotation(
-            shape: .highlighter(points: [CGPoint(x: 0.1, y: 0.5), CGPoint(x: 0.9, y: 0.5)]),
+        let (base, _) = try baseImage(.white)
+        var band = Annotation(
+            shape: .highlighter(points: [CGPoint(x: 0.1, y: 0.2), CGPoint(x: 0.9, y: 0.2)]),
             style: AnnotationStyle(color: .red)
         )
-        let defaultBand = try redPixelCount(annotation)
 
-        annotation.style.lineWidth = 0.016
-        XCTAssertEqual(try redPixelCount(annotation), defaultBand,
-                       "the pen width no longer sizes the band")
+        /// Tinted paper rows in a column through the band. Counting rows keeps
+        /// the check off colour-space conversions.
+        func tintedRows(_ mark: Annotation) throws -> Int {
+            let rendered = try bitmap([mark], over: base)
+            return (0..<rendered.pixelsHigh).filter { y in
+                guard let color = rendered.colorAt(x: 100, y: y)?.usingColorSpace(.deviceRGB)
+                else { return false }
+                return color.blueComponent < 0.95
+            }.count
+        }
 
-        annotation.style.highlighterWidth = 0.03
-        XCTAssertGreaterThan(Double(try redPixelCount(annotation)), Double(defaultBand) * 1.3)
+        let bandRows = try tintedRows(band)
+        XCTAssertGreaterThan(bandRows, 0)
+
+        band.style.lineWidth = 0.016
+        XCTAssertEqual(try tintedRows(band), bandRows, "the pen width no longer sizes the band")
+
+        band.style.highlighterWidth = 0.05
+        XCTAssertGreaterThan(try tintedRows(band), bandRows + 3)
     }
 }
