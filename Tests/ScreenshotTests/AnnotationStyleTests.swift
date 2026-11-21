@@ -149,7 +149,7 @@ final class AnnotationStyleTests: XCTestCase {
         return annotation
     }
 
-    func testShiftDragMakesAStraightHorizontalBand() {
+    func testStraightModeLaysTheBandOnOneRow() {
         let band = Annotation.horizontalBand(
             from: CGPoint(x: 0.2, y: 0.3),
             to: CGPoint(x: 0.8, y: 0.42)
