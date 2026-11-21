@@ -520,42 +520,43 @@ enum AnnotationRenderer {
         in base: CGImage?,
         at point: CGPoint
     ) -> Annotation.HighlighterBlend {
-        guard let base, let value = paperLuminance(of: base, at: point, radius: 4) else { return .multiply }
+        guard let base, let value = paperLuminance(of: base, at: point) else { return .multiply }
         return value > 0.5 ? .multiply : .screen
     }
 
-    /// The brightest pixel in a square patch, so a probe lands on the paper
-    /// between glyphs rather than on the glyph.
-    private static func paperLuminance(
-        of image: CGImage,
-        at point: CGPoint,
-        radius: Int
-    ) -> CGFloat? {
+    /// The paper around a point, as the median of a 15×15 patch. A glyph under
+    /// the press is the minority there: darker than the paper on a light
+    /// capture, brighter on a dark one, so the vote still lands on the paper.
+    private static func paperLuminance(of image: CGImage, at point: CGPoint) -> CGFloat? {
+        let radius = 7
         let x = Int(point.x * CGFloat(image.width))
         let y = Int(point.y * CGFloat(image.height))
-        var brightest: CGFloat?
-        for dy in -radius...radius {
-            for dx in -radius...radius {
-                guard let value = luminance(of: image, atX: x + dx, y: y + dy) else { continue }
-                brightest = max(brightest ?? value, value)
-            }
-        }
-        return brightest
-    }
+        let bounds = CGRect(x: 0, y: 0, width: image.width, height: image.height)
+        let box = CGRect(
+            x: x - radius, y: y - radius,
+            width: radius * 2 + 1, height: radius * 2 + 1
+        ).intersection(bounds)
+        let width = Int(box.width), height = Int(box.height)
+        guard width > 0, height > 0, let cropped = image.cropping(to: box) else { return nil }
 
-    private static func luminance(of image: CGImage, atX x: Int, y: Int) -> CGFloat? {
-        guard x >= 0, x < image.width, y >= 0, y < image.height,
-              let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
-        else { return nil }
-        var bytes: [UInt8] = [0, 0, 0, 0]
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
         guard let context = CGContext(
-            data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
-            space: CGColorSpaceCreateDeviceRGB(),
+            data: &pixels, width: width, height: height, bitsPerComponent: 8,
+            bytesPerRow: width * 4, space: CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
         ) else { return nil }
-        context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
-        let r = CGFloat(bytes[0]), g = CGFloat(bytes[1]), b = CGFloat(bytes[2])
-        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
+        context.draw(cropped, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var values: [CGFloat] = []
+        values.reserveCapacity(width * height)
+        for index in stride(from: 0, to: pixels.count, by: 4) {
+            let r = CGFloat(pixels[index])
+            let g = CGFloat(pixels[index + 1])
+            let b = CGFloat(pixels[index + 2])
+            values.append((0.2126 * r + 0.7152 * g + 0.0722 * b) / 255)
+        }
+        values.sort()
+        return values[values.count / 2]
     }
 
     // MARK: - Watermark

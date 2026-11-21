@@ -192,13 +192,20 @@ final class AnnotationStyleTests: XCTestCase {
 
     @MainActor
     func testHighlighterBlendIsPickedFromThePressPoint() throws {
-        let (light, _) = try baseImage(.white)
-        let (dark, _) = try baseImage(NSColor(white: 0.12, alpha: 1), ink: .white)
+        let (light, lightGlyphs) = try baseImage(.white)
+        let (dark, darkGlyphs) = try baseImage(NSColor(white: 0.12, alpha: 1), ink: .white)
         let middle = CGPoint(x: 0.5, y: 0.5)
 
         XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: light, at: middle), .multiply)
         XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: dark, at: middle), .screen)
         XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: nil, at: middle), .multiply)
+
+        // Pressing straight on a glyph must still read the paper: a bright glyph
+        // on a dark capture would otherwise pick multiply, which disappears.
+        let onLightGlyph = CGPoint(x: lightGlyphs[3].midX / 200, y: (160 - lightGlyphs[3].midY) / 160)
+        let onDarkGlyph = CGPoint(x: darkGlyphs[3].midX / 200, y: (160 - darkGlyphs[3].midY) / 160)
+        XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: light, at: onLightGlyph), .multiply)
+        XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: dark, at: onDarkGlyph), .screen)
     }
 
     @MainActor
