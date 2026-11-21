@@ -392,9 +392,7 @@ final class ScreenshotCoordinator {
               let id = info[kCGWindowNumber as String] as? CGWindowID,
               let dict = info[kCGWindowBounds as String] as? NSDictionary,
               let windowBounds = CGRect(dictionaryRepresentation: dict),
-              let screen = NSScreen.screens.first(where: {
-                  $0.frame.intersection(windowBounds).width >= $0.frame.width / 2
-              }),
+              let screen = Self.screen(covering: windowBounds),
               let strip = WindowPick.dockStrip(frame: screen.frame, visible: screen.visibleFrame)
         else { return nil }
 
@@ -538,6 +536,20 @@ final class ScreenshotCoordinator {
             canvas: canvas,
             scale: screen.backingScaleFactor
         )
+    }
+
+    /// The screen a full-display window belongs to: the one it covers most.
+    /// Comparing areas rather than widths matters when two displays are the same
+    /// width but stacked, or one is rotated.
+    private static func screen(covering rect: CGRect) -> NSScreen? {
+        func overlap(_ screen: NSScreen) -> CGFloat {
+            let hit = screen.frame.intersection(rect)
+            return hit.isNull ? 0 : hit.width * hit.height
+        }
+        guard let best = NSScreen.screens.max(by: { overlap($0) < overlap($1) }),
+              overlap(best) > 0
+        else { return nil }
+        return best
     }
 
     /// Cuts a rect of the frame frozen at the press, for a window that is gone
