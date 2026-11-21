@@ -9,7 +9,8 @@ import PanelumiKit
 final class AppModel: ObservableObject {
     let catalog: SwitchCatalog
     private let store: ConfigStore
-    private let itemProviders: [any MenuItemProvider]
+    /// The providers in use, without repeated identifiers.
+    let itemProviders: [any MenuItemProvider]
     private let hotkeys = HotkeyCenter()
 
     @Published private(set) var config: PanelumiConfig
