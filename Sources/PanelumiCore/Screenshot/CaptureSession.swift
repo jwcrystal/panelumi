@@ -332,31 +332,25 @@ final class CaptureSession: ObservableObject {
 
     // MARK: - History
 
-    private struct HistoryState: Equatable {
-        var annotations: [Annotation]
-        var defaultStyle: AnnotationStyle
-    }
-
     private static let historyLimit = 50
 
     /// Published so the toolbar's undo and redo buttons follow the stacks.
     @Published private(set) var canUndo = false
     @Published private(set) var canRedo = false
 
-    private var undoStack: [HistoryState] = []
-    private var redoStack: [HistoryState] = []
-    private var pendingSnapshot: HistoryState?
+    /// Only the annotations are history. The style row belongs to the next
+    /// annotation and outlives the capture in Settings, so an undo that
+    /// carried it back would also rewrite the stored defaults.
+    private var undoStack: [[Annotation]] = []
+    private var redoStack: [[Annotation]] = []
+    private var pendingAnnotations: [Annotation]?
     private var isCoalescing = false
-
-    private var currentSnapshot: HistoryState {
-        HistoryState(annotations: annotations, defaultStyle: defaultStyle)
-    }
 
     /// Records the state before a discrete content change, such as adding an
     /// annotation, deleting one, or editing the selected annotation's style.
     func recordUndoSnapshot() {
         guard !isCoalescing else { return }
-        pushUndo(currentSnapshot)
+        pushUndo(annotations)
     }
 
     /// Starts a drag or slider gesture. The snapshot is only pushed by
@@ -365,7 +359,7 @@ final class CaptureSession: ObservableObject {
     func beginInteractiveChange() {
         guard !isCoalescing else { return }
         isCoalescing = true
-        pendingSnapshot = currentSnapshot
+        pendingAnnotations = annotations
     }
 
     func endInteractiveChange() {
@@ -376,7 +370,7 @@ final class CaptureSession: ObservableObject {
         guard canUndo else { return }
         resolveInteractiveChange()
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append(currentSnapshot)
+        redoStack.append(annotations)
         restore(previous)
     }
 
@@ -384,7 +378,7 @@ final class CaptureSession: ObservableObject {
         guard canRedo else { return }
         resolveInteractiveChange()
         guard let next = redoStack.popLast() else { return }
-        pushUndoWithoutClearingRedo(currentSnapshot)
+        pushUndoWithoutClearingRedo(annotations)
         restore(next)
     }
 
@@ -396,22 +390,21 @@ final class CaptureSession: ObservableObject {
         refreshHistoryAvailability()
     }
 
-    private func pushUndo(_ snapshot: HistoryState) {
-        pushUndoWithoutClearingRedo(snapshot)
+    private func pushUndo(_ previous: [Annotation]) {
+        pushUndoWithoutClearingRedo(previous)
         redoStack.removeAll()
         refreshHistoryAvailability()
     }
 
-    private func pushUndoWithoutClearingRedo(_ snapshot: HistoryState) {
-        undoStack.append(snapshot)
+    private func pushUndoWithoutClearingRedo(_ previous: [Annotation]) {
+        undoStack.append(previous)
         if undoStack.count > Self.historyLimit {
             undoStack.removeFirst(undoStack.count - Self.historyLimit)
         }
     }
 
-    private func restore(_ snapshot: HistoryState) {
-        annotations = snapshot.annotations
-        defaultStyle = snapshot.defaultStyle
+    private func restore(_ previous: [Annotation]) {
+        annotations = previous
         selectionIndex = nil
         refreshHistoryAvailability()
     }
@@ -423,26 +416,26 @@ final class CaptureSession: ObservableObject {
     private func resolveInteractiveChange() -> Bool {
         guard isCoalescing else { return false }
         isCoalescing = false
-        guard let snapshot = pendingSnapshot else { return false }
-        pendingSnapshot = nil
-        guard snapshot.annotations != annotations else {
+        guard let previous = pendingAnnotations else { return false }
+        pendingAnnotations = nil
+        guard previous != annotations else {
             refreshHistoryAvailability()
             return false
         }
-        pushUndo(snapshot)
+        pushUndo(previous)
         return true
     }
 
     private func cancelInteractiveChange() {
         isCoalescing = false
-        pendingSnapshot = nil
+        pendingAnnotations = nil
     }
 
     /// A gesture in progress counts as undoable as soon as it changes content,
     /// and temporarily hides redo so the toolbar and the keyboard agree.
     private var pendingContentChanged: Bool {
-        guard let pendingSnapshot else { return false }
-        return pendingSnapshot.annotations != annotations
+        guard let pendingAnnotations else { return false }
+        return pendingAnnotations != annotations
     }
 
     private func refreshHistoryAvailability() {

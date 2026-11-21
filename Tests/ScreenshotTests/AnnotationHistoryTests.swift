@@ -188,7 +188,7 @@ final class AnnotationHistoryTests: XCTestCase {
     }
 
     @MainActor
-    func testUndoRestoresDefaultStyle() {
+    func testUndoLeavesTheToolbarStyleAlone() {
         let session = makeSession([arrow()])
         session.selectionIndex = 0
         session.activeStyle.color = .blue
@@ -196,7 +196,36 @@ final class AnnotationHistoryTests: XCTestCase {
 
         session.undo()
 
-        XCTAssertEqual(session.defaultStyle.color, .red)
+        XCTAssertEqual(session.annotations[0].color, .red)
+        XCTAssertEqual(session.defaultStyle.color, .blue,
+                       "undo takes back the mark, not the colour for the next one")
+    }
+
+    @MainActor
+    func testUndoDoesNotWriteTheStyleBackToPreferences() {
+        let key = ScreenshotPreferences.annotationLineWidthKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer {
+            if let saved {
+                UserDefaults.standard.set(saved, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+        ScreenshotPreferences.annotationLineWidth = 0.009
+        let session = CaptureSession()
+        session.prepareForCapture()
+        session.annotations = [arrow()]
+        session.selectionIndex = 0
+        session.activeStyle.lineWidth = 0.014
+        XCTAssertEqual(ScreenshotPreferences.annotationLineWidth, 0.014, accuracy: 1e-9)
+
+        session.undo()
+
+        XCTAssertEqual(session.annotations[0].lineWidth, 0.004)
+        XCTAssertEqual(session.defaultStyle.lineWidth, 0.014)
+        XCTAssertEqual(ScreenshotPreferences.annotationLineWidth, 0.014, accuracy: 1e-9,
+                       "the stored default is not part of the capture's history")
     }
 
     @MainActor
