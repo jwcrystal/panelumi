@@ -61,6 +61,7 @@ final class AnnotationStyleTests: XCTestCase {
         style.mosaicBlock = 20
         style.numberStyle = .square
         style.highlighterAlpha = 0.5
+        style.highlighterWidth = 0.012
 
         var annotation = Annotation(
             shape: .rectangle(from: CGPoint(x: 0.1, y: 0.1), to: CGPoint(x: 0.9, y: 0.9)),
@@ -78,6 +79,7 @@ final class AnnotationStyleTests: XCTestCase {
         XCTAssertEqual(annotation.mosaicBlock, 20)
         XCTAssertEqual(annotation.numberStyle, .square)
         XCTAssertEqual(annotation.highlighterAlpha, 0.5)
+        XCTAssertEqual(annotation.highlighterWidth, 0.012)
 
         annotation.style.numberStyle = .circle
         annotation.style.lineWidth = 0.006
@@ -102,5 +104,92 @@ final class AnnotationStyleTests: XCTestCase {
         annotation.style.color = .red
         annotation.style.fillStyle = .solid
         XCTAssertGreaterThan(try redPixelCount(annotation), outline)
+    }
+
+    @MainActor
+    private func bitmap(_ annotations: [Annotation], over base: CGImage) throws -> NSBitmapImageRep {
+        _ = NSApplication.shared
+        let rendered = AnnotationRenderer.render(base: base, annotations: annotations)
+        return try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(rendered.tiffRepresentation)))
+    }
+
+    /// A 200×160 page with a row of glyph-like blocks across the middle, the
+    /// way a line of text looks to a pixel probe: mostly paper, some ink.
+    private func baseImage(_ background: NSColor, ink: NSColor = .black) throws -> (CGImage, [NSRect]) {
+        let context = try XCTUnwrap(CGContext(
+            data: nil, width: 200, height: 160, bitsPerComponent: 8, bytesPerRow: 0,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ))
+        context.setFillColor(background.cgColor)
+        context.fill(CGRect(x: 0, y: 0, width: 200, height: 160))
+        let glyphs = stride(from: 6, to: 190, by: 26).map {
+            NSRect(x: CGFloat($0), y: 72, width: 6, height: 16)
+        }
+        context.setFillColor(ink.cgColor)
+        for glyph in glyphs {
+            context.fill(glyph)
+        }
+        return (try XCTUnwrap(context.makeImage()), glyphs)
+    }
+
+    /// `colorAt` counts rows from the top, the glyph rects from the bottom.
+    private func pixel(_ bitmap: NSBitmapImageRep, at point: CGPoint) throws -> NSColor {
+        try XCTUnwrap(bitmap.colorAt(x: Int(point.x), y: Int(160 - point.y))?.usingColorSpace(.deviceRGB))
+    }
+
+    @MainActor
+    private func wideBand() -> Annotation {
+        var annotation = Annotation(
+            shape: .highlighter(points: [CGPoint(x: 0.02, y: 0.5), CGPoint(x: 0.98, y: 0.5)]),
+            color: .yellow
+        )
+        annotation.highlighterWidth = 0.15
+        annotation.highlighterAlpha = 0.5
+        return annotation
+    }
+
+    @MainActor
+    func testHighlighterLeavesDarkPixelsUnderTheBandDark() throws {
+        // The band has to multiply into a light image instead of painting over
+        // it, or the text under a highlighter goes grey.
+        let (base, glyphs) = try baseImage(.white)
+        let rendered = try bitmap([wideBand()], over: base)
+        let onGlyph = try pixel(rendered, at: CGPoint(x: glyphs[3].midX, y: glyphs[3].midY))
+        let onPaper = try pixel(rendered, at: CGPoint(x: glyphs[3].maxX + 5, y: glyphs[3].midY))
+
+        XCTAssertLessThan(onGlyph.redComponent, 0.1, "dark pixels under the band stay dark")
+        XCTAssertGreaterThan(onPaper.redComponent, 0.9, "the band still tints light paper")
+        XCTAssertLessThan(onPaper.blueComponent, 0.85)
+    }
+
+    @MainActor
+    func testHighlighterKeepsLightPixelsOnDarkContentLight() throws {
+        // A multiplied band would disappear into a dark capture, so the stroke
+        // screens into dark content instead.
+        let (base, glyphs) = try baseImage(NSColor(white: 0.12, alpha: 1), ink: .white)
+        let rendered = try bitmap([wideBand()], over: base)
+        let onGlyph = try pixel(rendered, at: CGPoint(x: glyphs[3].midX, y: glyphs[3].midY))
+        let onPaper = try pixel(rendered, at: CGPoint(x: glyphs[3].maxX + 5, y: glyphs[3].midY))
+
+        XCTAssertGreaterThan(onGlyph.redComponent, 0.9, "light pixels under the band stay light")
+        XCTAssertGreaterThan(onPaper.redComponent, 0.4, "the band still shows on dark paper")
+        XCTAssertLessThan(onPaper.blueComponent, onPaper.redComponent - 0.1)
+    }
+
+    @MainActor
+    func testHighlighterWidthIgnoresThePenWidth() throws {
+        var annotation = Annotation(
+            shape: .highlighter(points: [CGPoint(x: 0.1, y: 0.5), CGPoint(x: 0.9, y: 0.5)]),
+            style: AnnotationStyle(color: .red)
+        )
+        let defaultBand = try redPixelCount(annotation)
+
+        annotation.style.lineWidth = 0.016
+        XCTAssertEqual(try redPixelCount(annotation), defaultBand,
+                       "the pen width no longer sizes the band")
+
+        annotation.style.highlighterWidth = 0.03
+        XCTAssertGreaterThan(Double(try redPixelCount(annotation)), Double(defaultBand) * 1.3)
     }
 }

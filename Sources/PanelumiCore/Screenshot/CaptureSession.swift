@@ -176,6 +176,7 @@ final class CaptureSession: ObservableObject {
             defaultStyle.color = color
         }
         defaultStyle.lineWidth = ScreenshotPreferences.annotationLineWidth
+        defaultStyle.highlighterWidth = ScreenshotPreferences.highlighterWidth
         recentAnnotationColors = ScreenshotPreferences.recentAnnotationColors
         hasLoadedPreferences = true
     }
@@ -192,6 +193,9 @@ final class CaptureSession: ObservableObject {
         }
         if previous.lineWidth != defaultStyle.lineWidth {
             ScreenshotPreferences.annotationLineWidth = defaultStyle.lineWidth
+        }
+        if previous.highlighterWidth != defaultStyle.highlighterWidth {
+            ScreenshotPreferences.highlighterWidth = defaultStyle.highlighterWidth
         }
     }
 
@@ -775,7 +779,7 @@ struct CaptureToolbarView: View {
                 text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
             )
         case .highlighter:
-            lineWidthSlider
+            highlighterWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
             optionSlider(
                 t("Opacity"),
@@ -794,23 +798,46 @@ struct CaptureToolbarView: View {
     }
 
     private var lineWidthSlider: some View {
+        widthSlider(
+            session.styleBinding(\.lineWidth),
+            range: ScreenshotPreferences.annotationLineWidthRange,
+            text: "\(Self.lineWidthLevel(for: session.activeStyle.lineWidth))"
+        )
+    }
+
+    private var highlighterWidthSlider: some View {
+        widthSlider(
+            session.styleBinding(\.highlighterWidth),
+            range: ScreenshotPreferences.highlighterWidthRange,
+            text: "\(Self.highlighterWidthLevel(for: session.activeStyle.highlighterWidth))"
+        )
+    }
+
+    private func widthSlider(
+        _ value: Binding<CGFloat>,
+        range: ClosedRange<CGFloat>,
+        text: String
+    ) -> some View {
         HStack(spacing: 3) {
             Divider().frame(height: 18)
             Image(systemName: "lineweight").frame(width: 23)
-            optionSlider(
-                t("Line width"),
-                value: session.styleBinding(\.lineWidth),
-                range: 0.0015...0.016,
-                text: "\(Self.lineWidthLevel(for: session.activeStyle.lineWidth))"
-            )
+            optionSlider(t("Line width"), value: value, range: range, text: text)
         }
     }
 
-    /// Display-only 1…10 step for the stored width; what is stored keeps its
-    /// 0.0015…0.016 range.
+    /// Display-only 1…10 step for the stored width; what is stored keeps the
+    /// range of the preference it belongs to.
     static func lineWidthLevel(for width: CGFloat) -> Int {
-        let step = (0.016 - 0.0015) / 9
-        let level = ((width - 0.0015) / step).rounded() + 1
+        widthLevel(for: width, range: ScreenshotPreferences.annotationLineWidthRange)
+    }
+
+    static func highlighterWidthLevel(for width: CGFloat) -> Int {
+        widthLevel(for: width, range: ScreenshotPreferences.highlighterWidthRange)
+    }
+
+    private static func widthLevel(for width: CGFloat, range: ClosedRange<CGFloat>) -> Int {
+        let step = (range.upperBound - range.lowerBound) / 9
+        let level = ((width - range.lowerBound) / step).rounded() + 1
         return max(1, min(10, Int(level)))
     }
 

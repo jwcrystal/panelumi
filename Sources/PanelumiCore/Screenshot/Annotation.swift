@@ -59,6 +59,8 @@ struct AnnotationStyle: Equatable {
     var mosaicBlock: CGFloat = 14
     var numberStyle: NumberStyle = .circle
     var highlighterAlpha: CGFloat = 0.32
+    /// Highlighter band thickness relative to the image width.
+    var highlighterWidth: CGFloat = 0.02
 }
 
 /// A mark drawn on top of a screenshot.
@@ -98,6 +100,8 @@ struct Annotation: Equatable {
     var numberStyle: NumberStyle = .circle
     /// Highlighter opacity (0…1).
     var highlighterAlpha: CGFloat = 0.32
+    /// Highlighter band thickness relative to the image width.
+    var highlighterWidth: CGFloat = 0.02
 
     /// Normalised bounding box, used for selection and hit testing.
     var bounds: CGRect {
@@ -193,7 +197,8 @@ extension Annotation {
                 linePattern: linePattern,
                 mosaicBlock: mosaicBlock,
                 numberStyle: numberStyle,
-                highlighterAlpha: highlighterAlpha
+                highlighterAlpha: highlighterAlpha,
+                highlighterWidth: highlighterWidth
             )
         }
         set {
@@ -207,6 +212,7 @@ extension Annotation {
             mosaicBlock = newValue.mosaicBlock
             numberStyle = newValue.numberStyle
             highlighterAlpha = newValue.highlighterAlpha
+            highlighterWidth = newValue.highlighterWidth
         }
     }
 
@@ -222,7 +228,8 @@ extension Annotation {
             linePattern: style.linePattern,
             mosaicBlock: style.mosaicBlock,
             numberStyle: style.numberStyle,
-            highlighterAlpha: style.highlighterAlpha
+            highlighterAlpha: style.highlighterAlpha,
+            highlighterWidth: style.highlighterWidth
         )
     }
 }
@@ -421,16 +428,23 @@ enum AnnotationRenderer {
 
         case .highlighter(let points):
             guard let first = points.first else { return }
+            let context = NSGraphicsContext.current
+            let savedOperation = context?.compositingOperation
+            context?.compositingOperation = highlighterOperation(for: points, base: base)
             color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
-            path.lineWidth = max(2, rect.width * annotation.lineWidth * 5)
-            path.lineCapStyle = .round
-            path.lineJoinStyle = .round
+            path.lineWidth = max(2, rect.width * annotation.highlighterWidth)
+            // Flat ends and corners read as a marker band rather than a pen dot.
+            path.lineCapStyle = .butt
+            path.lineJoinStyle = .miter
             path.move(to: point(first))
             for p in points.dropFirst() {
                 path.line(to: point(p))
             }
             path.stroke()
+            if let savedOperation {
+                context?.compositingOperation = savedOperation
+            }
 
         case .number(let value, let at):
             let center = point(at)
@@ -474,6 +488,51 @@ enum AnnotationRenderer {
                 .foregroundColor: layout.textColor,
             ]).draw(at: layout.textBox.origin)
         }
+    }
+
+    /// A marker keeps whatever it crosses: dark text stays dark under a
+    /// multiplied band, light text stays light under a screened one. Picking
+    /// from the paper under the stroke keeps both themes readable.
+    private static func highlighterOperation(
+        for points: [CGPoint],
+        base: CGImage?
+    ) -> NSCompositingOperation {
+        guard let base, !points.isEmpty else { return .multiply }
+        let last = points.count - 1
+        let probes = (0..<5).map { points[$0 * last / 4] }
+        let values = probes.compactMap { paperLuminance(of: base, at: $0) }.sorted()
+        guard !values.isEmpty else { return .multiply }
+        return values[values.count / 2] > 0.5 ? .multiply : .screen
+    }
+
+    /// The brightest pixel in a 3×3 patch, so a probe lands on the paper
+    /// between glyphs rather than on the glyph.
+    private static func paperLuminance(of image: CGImage, at point: CGPoint) -> CGFloat? {
+        let x = Int(point.x * CGFloat(image.width))
+        let y = Int(point.y * CGFloat(image.height))
+        var brightest: CGFloat?
+        for dy in -1...1 {
+            for dx in -1...1 {
+                guard let value = luminance(of: image, atX: x + dx, y: y + dy) else { continue }
+                brightest = max(brightest ?? value, value)
+            }
+        }
+        return brightest
+    }
+
+    private static func luminance(of image: CGImage, atX x: Int, y: Int) -> CGFloat? {
+        guard x >= 0, x < image.width, y >= 0, y < image.height,
+              let pixel = image.cropping(to: CGRect(x: x, y: y, width: 1, height: 1))
+        else { return nil }
+        var bytes: [UInt8] = [0, 0, 0, 0]
+        guard let context = CGContext(
+            data: &bytes, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(pixel, in: CGRect(x: 0, y: 0, width: 1, height: 1))
+        let r = CGFloat(bytes[0]), g = CGFloat(bytes[1]), b = CGFloat(bytes[2])
+        return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255
     }
 
     // MARK: - Watermark
