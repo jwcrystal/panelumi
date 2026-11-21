@@ -43,6 +43,41 @@ final class HighlighterLineFitTests: XCTestCase {
                        "the band centres on the glyphs, not on the press point")
     }
 
+    func testFitsALineAtTheTopEdge() throws {
+        // The scan window runs past the image here; the fitted row has to be
+        // measured from where the pixels actually start.
+        let image = try base { glyphRow($0, topRow: 10, height: 22) }
+
+        let fit = try XCTUnwrap(HighlighterLineFit.fit(
+            in: image, points: band(atY: 20.5 / CGFloat(imageHeight)), width: 0.03, pointScale: 2
+        ))
+
+        XCTAssertEqual(fit.centerY, 20.5 / CGFloat(imageHeight), accuracy: 0.01,
+                       "the band stays on the line instead of above the image")
+        XCTAssertEqual(fit.width, 22 * 1.15 / CGFloat(imageWidth), accuracy: 0.004)
+    }
+
+    func testAscendersCountTowardsTheLineHeight() throws {
+        // A line is not only its dense middle: tall letters carry a few stems
+        // above it, and the band should reach them.
+        let image = try base { context in
+            context.setFillColor(NSColor.black.cgColor)
+            for x in stride(from: 64, to: 500, by: 128) {
+                context.fill(CGRect(x: x, y: imageHeight - 100 - 8, width: 3, height: 8))
+            }
+            for x in stride(from: 64, to: 576, by: 16) {
+                context.fill(CGRect(x: x, y: imageHeight - 108 - 14, width: 5, height: 14))
+            }
+        }
+
+        let fit = try XCTUnwrap(HighlighterLineFit.fit(
+            in: image, points: band(atY: 110.5 / CGFloat(imageHeight)), width: 0.03, pointScale: 2
+        ))
+
+        XCTAssertEqual(fit.width, 22 * 1.15 / CGFloat(imageWidth), accuracy: 0.004,
+                       "the sparse ascender rows join the dense ones")
+    }
+
     func testNoLineUnderTheBandLeavesTheMarkAlone() throws {
         let image = try base { _ in }
 
