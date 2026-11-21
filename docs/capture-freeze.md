@@ -58,14 +58,26 @@ and no live frame after it.
 
 ## What stays live
 
-- **Window clicks** are still captured per window with
+- **Picks are matched against the list taken at the press.** Activating the
+  overlay dismisses menus, popovers and menu bar panels before it can look, so
+  every pickable window is listed once at the press and asked first; a window
+  that appeared after that still comes from the live list.
+- **Window clicks are still captured per window** with
   `SCContentFilter(desktopIndependentWindow:)`. Cutting a window out of the
   frozen display would put occluding windows and their shadows into the shot,
   and composing several windows needs each window's own image. A window that
-  moved or closed between the press and the click is captured at its click-time
-  state. A picked window is that window alone: a menu, popover or hover tooltip
-  above it is a separate window, so it is neither offered by the picker nor part
-  of the shot. Drag a region over it when the capture has to keep one.
+  moved between the press and the click is captured at its click-time state;
+  one that closed has its pixels cut from the frozen frame, at the rect it was
+  picked at.
+- **Status items and menus are captured at the press.** They are gone by the
+  click, so each is captured window by window at the press and cropped to the
+  part that is actually drawn: a panel like Control Center lives in a window far
+  larger than itself, with the rest transparent.
+- **The Dock and the menu bar stay out.** The Dock's window covers the whole
+  display rather than the strip that is drawn, so a rect pick would take the
+  screen for the Dock and every point would answer "Dock". The menu bar is a
+  33-point strip across the top, which is where the pointer rests right after
+  its icon was clicked to open a panel. Drag a region for either.
 - **Extension live captures** (`CaptureContext.captureLive`) are live by
   contract; a takeover that needs several frames of a changing screen keeps
   getting them.
@@ -101,4 +113,6 @@ and no live frame after it.
 7. `Esc` mid-selection: no full-screen frame is left held.
 8. No Screen Recording grant: the checklist opens and no overlay appears.
 9. A window with a menu open: picking the window gives the window without the
-   menu, and a region over the same keeps it.
+   menu; picking the menu itself gives the menu. The same for a status item
+   popover (pointer inside the popover, not on its icon) and for a menu bar
+   panel such as Stats' CPU module.

@@ -336,8 +336,8 @@ enum Dump {
         RunLoop.main.run()
     }
 
-    /// Prints which application window or panel sits under the mouse, using the same
-    /// coordinate conversion as the selection overlay.
+    /// Prints the window a pick would land on under the mouse, using the same
+    /// coordinate conversion and layer rule as the selection overlay.
     @MainActor
     static func windowCheck() {
         let mouse = NSEvent.mouseLocation
@@ -356,17 +356,18 @@ enum Dump {
                   let id = info[kCGWindowNumber as String] as? CGWindowID,
                   !excluded.contains(id),
                   let layer = info[kCGWindowLayer as String] as? Int,
-                  layer >= NSWindow.Level.normal.rawValue,
-                  layer <= NSWindow.Level.modalPanel.rawValue,
+                  WindowPick.isPickable(layer: layer),
                   (info[kCGWindowAlpha as String] as? Double ?? 1) > 0
             else { continue }
             guard let dict = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: dict)
             else { continue }
-            guard rect.width >= 60, rect.height >= 60, rect.contains(topLeft) else { continue }
+            let minimum = WindowPick.minimumSize(layer: layer)
+            guard rect.width >= minimum, rect.height >= minimum, rect.contains(topLeft) else { continue }
 
             let owner = info[kCGWindowOwnerName as String] as? String ?? "?"
-            print("hit owner=\(owner) id=\(id) pid=\(pid) bounds=\(rect)")
+            let source = WindowPick.isFrozenOnly(layer: layer) ? "frozen frame" : "live window"
+            print("hit owner=\(owner) id=\(id) pid=\(pid) layer=\(layer) source=\(source) bounds=\(rect)")
             return
         }
         print("no window at cursor")
@@ -393,8 +394,11 @@ enum Dump {
             guard let id = info[kCGWindowNumber as String] as? CGWindowID,
                   !excluded.contains(id),
                   let layer = info[kCGWindowLayer as String] as? Int,
-                  layer >= NSWindow.Level.normal.rawValue,
-                  layer <= NSWindow.Level.modalPanel.rawValue,
+                  WindowPick.isPickable(layer: layer),
+                  // This debug path captures live windows only: it holds no
+                  // frozen frame, so a high-layer pick would have nothing to
+                  // cut its pixels from.
+                  !WindowPick.isFrozenOnly(layer: layer),
                   (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
                   let dict = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: dict)

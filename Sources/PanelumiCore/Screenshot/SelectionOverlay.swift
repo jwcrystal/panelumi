@@ -50,7 +50,9 @@ final class SelectionController {
     /// capture. The colour-copy toast stays out: it was always part of the
     /// captured pixels.
     static var overlayWindowIDs: Set<CGWindowID> {
-        var ids = Set(NSApp.windows.compactMap { window -> CGWindowID? in
+        // The diagnostic commands run before there is an NSApplication, and
+        // then there are no overlay windows to leave out.
+        var ids = Set((NSApp?.windows ?? []).compactMap { window -> CGWindowID? in
             guard window.contentView is SelectionView, window.windowNumber > 0 else { return nil }
             return CGWindowID(window.windowNumber)
         })
@@ -80,6 +82,7 @@ final class SelectionController {
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage?,
         initialSelection: CGRect? = nil,
         frozen: @escaping (NSScreen) -> CGImage? = { _ in nil },
+        pressWindows: [PressWindow] = [],
         finishOnSelect: CaptureSession.Output? = nil,
         captureLive: @escaping @MainActor (CGRect, NSScreen) async -> CGImage? = { _, _ in nil }
     ) {
@@ -105,7 +108,8 @@ final class SelectionController {
                 session: session,
                 captureWindows: captureWindows,
                 captureBase: captureBase,
-                frozenScreen: frozenScreen
+                frozenScreen: frozenScreen,
+                pressWindows: pressWindows
             )
             view.finishOnSelect = finishOnSelect
             view.onCapture = { [weak self] payload, output in
@@ -663,7 +667,11 @@ final class SelectionView: NSView {
     /// True once the overlay has a region to act on; used to pick the window
     /// that should hold the keyboard.
     var isEditing: Bool { editing }
-    private(set) var hovered: (id: CGWindowID, rect: CGRect)?
+    private(set) var hovered: CaptureWindowTarget?
+    /// What was on screen when the shortcut was pressed. A menu, a popover or a
+    /// menu bar panel is gone from the live list by the time the overlay is up,
+    /// so this is the only place it can still be picked.
+    private let pressWindows: [PressWindow]
     /// Windows picked with ⇧-click: composited together when editing starts.
     private var windowTargets: [CaptureWindowTarget] = []
     private var editing = false
@@ -697,13 +705,15 @@ final class SelectionView: NSView {
         session: CaptureSession,
         captureWindows: @escaping ([CaptureWindowTarget], CGRect, NSScreen) async -> CGImage? = { _, _, _ in nil },
         captureBase: @escaping (CGRect, NSScreen) async -> CGImage?,
-        frozenScreen: CGImage? = nil
+        frozenScreen: CGImage? = nil,
+        pressWindows: [PressWindow] = []
     ) {
         self.screen = screen
         self.session = session
         self.captureWindows = captureWindows
         self.captureBase = captureBase
         self.frozenScreen = frozenScreen
+        self.pressWindows = pressWindows
         super.init(frame: NSRect(origin: .zero, size: screen.frame.size))
         wantsLayer = true
     }
@@ -1878,7 +1888,7 @@ final class SelectionView: NSView {
                 if let hovered = windowUnderMouse(point) {
                     let targets = windowTargets.contains(where: { $0.id == hovered.id })
                         ? windowTargets
-                        : [CaptureWindowTarget(id: hovered.id, rect: hovered.rect)]
+                        : [hovered]
                     applyWindowTargets(targets, startEditing: true)
                 } else if windowTargets.isEmpty {
                     onCancel?()
@@ -2506,25 +2516,26 @@ final class SelectionView: NSView {
         // screen shows: the window under the pointer is already the one this
         // overlay was opened with.
         let picked = windowUnderMouse(point)
-        guard picked?.id != hovered?.id || picked?.rect != hovered?.rect else { return }
+        guard picked != hovered else { return }
         hovered = picked
         needsDisplay = true
     }
 
     /// Picks the window under the pointer into the pending set, or removes it.
-    private func toggleWindowTarget(_ hovered: (id: CGWindowID, rect: CGRect)) {
+    private func toggleWindowTarget(_ hovered: CaptureWindowTarget) {
         var targets = windowTargets
         if let index = targets.firstIndex(where: { $0.id == hovered.id }) {
             targets.remove(at: index)
         } else {
-            targets.append(CaptureWindowTarget(id: hovered.id, rect: hovered.rect))
+            targets.append(hovered)
         }
         applyWindowTargets(targets, startEditing: false)
     }
 
     private func applyWindowTargets(_ targets: [CaptureWindowTarget], startEditing shouldEdit: Bool) {
         windowTargets = targets
-        guard let canvas = WindowComposer.canvas(for: targets, screenBounds: bounds) else {
+        let canvas = WindowComposer.canvas(for: targets, screenBounds: bounds)
+        guard let canvas else {
             windowTargets = []
             selection = nil
             needsDisplay = true
@@ -2545,10 +2556,26 @@ final class SelectionView: NSView {
         return NSScreen.main?.frame.height ?? NSScreen.screens.first?.frame.height ?? 0
     }
 
-    private func windowUnderMouse(_ point: CGPoint) -> (id: CGWindowID, rect: CGRect)? {
+    private func windowUnderMouse(_ point: CGPoint) -> CaptureWindowTarget? {
         let global = CGPoint(x: point.x + screen.frame.minX, y: point.y + screen.frame.minY)
         let mainHeight = primaryHeight
         let topLeftPoint = CGPoint(x: global.x, y: mainHeight - global.y)
+
+        /// A window list rect (global, top-left origin) in the overlay's space.
+        func local(_ rect: CGRect) -> CGRect {
+            CGRect(
+                x: rect.minX - screen.frame.minX,
+                y: (mainHeight - rect.maxY) - screen.frame.minY,
+                width: rect.width,
+                height: rect.height
+            )
+        }
+
+        // What was on screen at the press answers first: a menu, a popover or a
+        // menu bar panel is gone from the live list by now, and it was on top.
+        if let pressed = WindowPick.window(at: topLeftPoint, in: pressWindows) {
+            return CaptureWindowTarget(id: pressed.id, rect: local(pressed.bounds))
+        }
 
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         let excluded = SelectionController.overlayWindowIDs
@@ -2557,22 +2584,16 @@ final class SelectionView: NSView {
             guard let id = info[kCGWindowNumber as String] as? CGWindowID,
                   !excluded.contains(id),
                   let layer = info[kCGWindowLayer as String] as? Int,
-                  layer >= NSWindow.Level.normal.rawValue,
-                  layer <= NSWindow.Level.modalPanel.rawValue,
+                  WindowPick.liveLayers.contains(layer),
                   (info[kCGWindowAlpha as String] as? Double ?? 1) > 0
             else { continue }
             guard let boundsDict = info[kCGWindowBounds as String] as? NSDictionary,
                   let rect = CGRect(dictionaryRepresentation: boundsDict)
             else { continue }
-            guard rect.width >= 60, rect.height >= 60, rect.contains(topLeftPoint) else { continue }
+            let minimum = WindowPick.minimumSize(layer: layer)
+            guard rect.width >= minimum, rect.height >= minimum, rect.contains(topLeftPoint) else { continue }
 
-            let local = CGRect(
-                x: rect.minX - screen.frame.minX,
-                y: (mainHeight - rect.maxY) - screen.frame.minY,
-                width: rect.width,
-                height: rect.height
-            )
-            return (id, local)
+            return CaptureWindowTarget(id: id, rect: local(rect))
         }
         return nil
     }

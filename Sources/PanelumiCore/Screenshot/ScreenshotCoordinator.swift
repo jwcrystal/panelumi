@@ -39,6 +39,9 @@ final class ScreenshotCoordinator {
     /// moves under the cursor while the region is chosen. Internal so a capture
     /// can be checked against a seeded frame.
     var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
+    /// The pixels of each menu, popover or status item captured before the app
+    /// activated, by window id. They are gone from the screen by click time.
+    private var frozenWindowImages: [CGWindowID: CGImage] = [:]
     private let recognitionWindow = TextRecognitionWindowController()
 
     /// Creates the coordinator; extensions are offered to the capture toolbar.
@@ -267,16 +270,25 @@ final class ScreenshotCoordinator {
         pendingFreeze?.cancel()
         pendingFreeze = Task { [weak self] in
             guard let self else { return }
+            // Before anything activates, while a menu or a panel is still up.
+            let candidates = Self.windowSnapshot()
             let frozen = await self.captureEveryScreen()
+            let windows = await self.capturedWindows(from: candidates)
             guard !Task.isCancelled else { return }
             self.pendingFreeze = nil
-            self.start(initialSelection: initialSelection, frozen: frozen, finishOnSelect: finishOnSelect)
+            self.start(
+                initialSelection: initialSelection,
+                frozen: frozen,
+                pressWindows: windows,
+                finishOnSelect: finishOnSelect
+            )
         }
     }
 
     private func start(
         initialSelection: CGRect?,
         frozen: [CGDirectDisplayID: CGImage] = [:],
+        pressWindows: [PressWindow] = [],
         finishOnSelect: CaptureSession.Output? = nil
     ) {
         guard !selections.isActive else { return }
@@ -295,6 +307,7 @@ final class ScreenshotCoordinator {
             },
             onCancel: { [weak self] in
                 self?.frozenScreens.removeAll()
+                self?.frozenWindowImages.removeAll()
             },
             captureBase: { [weak self] rect, screen in
                 await self?.captureRegion(rect, screen)
@@ -312,6 +325,7 @@ final class ScreenshotCoordinator {
                 guard let self, let id = Self.displayID(for: screen) else { return nil }
                 return self.frozenScreens[id]
             },
+            pressWindows: pressWindows,
             finishOnSelect: finishOnSelect,
             captureLive: { [weak self] rect, screen in
                 await self?.captureLiveRegion(rect, screen)
@@ -343,6 +357,47 @@ final class ScreenshotCoordinator {
         permissionGranted
             ? .captureFailed(t("The selected area was empty."))
             : .permission
+    }
+
+    /// The menu, popover and status item windows on screen right now, as ids
+    /// and frames. Taken at the press: activating the app is what dismisses
+    /// them, so a list read after that has nothing left to answer with.
+    private static func windowSnapshot() -> [PressWindow] {
+        let list = CGWindowListCopyWindowInfo(
+            [.optionOnScreenOnly, .excludeDesktopElements],
+            kCGNullWindowID
+        ) as? [[String: Any]] ?? []
+        let excluded = SelectionController.overlayWindowIDs
+        let snapshot = WindowPick.pressSnapshot(from: list, excluding: excluded)
+        return snapshot
+    }
+
+    /// Captures the windows a live list cannot be asked about any more, on
+    /// their own, then crops to what they draw: a panel like Control Center sits
+    /// in a window far larger than itself with the rest transparent, so its
+    /// frame is not what the user aimed at. Ordinary windows are left to the
+    /// click, so a window that moved is captured where it is by then.
+    private func capturedWindows(from candidates: [PressWindow]) async -> [PressWindow] {
+        var captured: [PressWindow] = []
+        for candidate in candidates {
+            guard WindowPick.isFrozenOnly(layer: candidate.layer) else {
+                captured.append(candidate)
+                continue
+            }
+            guard let image = try? await capture.captureWindow(windowID: candidate.id) else {
+                // Still pickable: the click can cut it from the frozen frame.
+                captured.append(candidate)
+                continue
+            }
+            guard let trimmed = WindowTrim.content(of: image, in: candidate.bounds),
+                  trimmed.rect.width >= 8, trimmed.rect.height >= 8
+            else { continue }
+            frozenWindowImages[candidate.id] = trimmed.image
+            captured.append(
+                PressWindow(id: candidate.id, layer: candidate.layer, bounds: trimmed.rect)
+            )
+        }
+        return captured
     }
 
     /// One frame per display, taken while the desktop is still untouched.
@@ -418,8 +473,20 @@ final class ScreenshotCoordinator {
 
         var shots: [(image: CGImage, rect: CGRect)] = []
         for target in targets {
-            guard let image = try? await capture.captureWindow(windowID: target.id) else { return nil }
-            shots.append((image, target.rect))
+            let shot: (image: CGImage, rect: CGRect)?
+            if let image = frozenWindowImages[target.id] {
+                shot = (image, target.rect)
+            } else if let image = try? await capture.captureWindow(windowID: target.id) {
+                shot = (image, target.rect)
+            } else {
+                // A panel that is not on a frozen layer but still closes the
+                // moment the overlay takes the keyboard: the press-time frame
+                // has it where it was picked, on screen.
+                let visible = target.rect.intersection(CGRect(origin: .zero, size: screen.frame.size))
+                shot = frozenPixels(of: visible, on: screen).map { ($0, visible) }
+            }
+            guard let shot else { return nil }
+            shots.append(shot)
         }
         guard !shots.isEmpty else { return nil }
 
@@ -430,10 +497,23 @@ final class ScreenshotCoordinator {
         )
     }
 
+    /// Cuts a rect of the frame frozen at the press, for a window that is gone
+    /// by the time it would be captured live.
+    private func frozenPixels(of rect: CGRect, on screen: NSScreen) -> CGImage? {
+        guard rect.width >= 1, rect.height >= 1,
+              let displayID = Self.displayID(for: screen),
+              let frame = frozenScreens[displayID] else { return nil }
+        let global = rect.offsetBy(dx: screen.frame.minX, dy: screen.frame.minY)
+        return ScreenCaptureService.crop(image: frame, to: global, screenFrame: screen.frame)
+    }
+
     // MARK: - Finish
 
     private func finish(_ payload: CapturePayload, _ output: CaptureSession.Output) async {
-        defer { frozenScreens.removeAll() }
+        defer {
+            frozenScreens.removeAll()
+            frozenWindowImages.removeAll()
+        }
         do {
             // The overlay already froze the region for live mosaic/blur; only
             // capture again if that never arrived.

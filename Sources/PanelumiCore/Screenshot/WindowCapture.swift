@@ -8,6 +8,151 @@ struct CaptureWindowTarget: Equatable {
     let rect: CGRect
 }
 
+/// A window that was on screen when the freeze was taken. The pointer is
+/// matched against this list first, because activating the overlay dismisses
+/// menus, popovers and panels before the overlay can ask about them.
+struct PressWindow: Equatable {
+    let id: CGWindowID
+    let layer: Int
+    /// What the window actually draws, in global top-left coordinates. A panel
+    /// like Control Center lives in a window far larger than itself, with the
+    /// rest transparent, so this is the trimmed rect, not the window's frame.
+    let bounds: CGRect
+}
+
+/// The part of a captured window that is really drawn.
+enum WindowTrim {
+    /// Crops a window capture to its non-transparent content.
+    ///
+    /// `bounds` is the window's frame in global top-left coordinates. A window
+    /// without alpha keeps all of it.
+    static func content(of image: CGImage, in bounds: CGRect) -> (image: CGImage, rect: CGRect)? {
+        guard hasAlpha(image) else { return (image, bounds) }
+        // An alpha channel with nothing drawn in it is an empty window, and an
+        // empty shot is worse than no pick at all.
+        guard let box = alphaBounds(of: image) else { return nil }
+        let scale = CGFloat(image.width) / max(1, bounds.width)
+        guard let cropped = image.cropping(to: box) else { return nil }
+        return (
+            cropped,
+            CGRect(
+                x: bounds.minX + box.minX / scale,
+                y: bounds.minY + box.minY / scale,
+                width: box.width / scale,
+                height: box.height / scale
+            )
+        )
+    }
+
+    static func hasAlpha(_ image: CGImage) -> Bool {
+        switch image.alphaInfo {
+        case .none, .noneSkipFirst, .noneSkipLast:
+            return false
+        default:
+            return true
+        }
+    }
+
+    /// The bounding box of the pixels that are not transparent, in the image's
+    /// own top-left space. Nil when nothing is drawn.
+    static func alphaBounds(of image: CGImage) -> CGRect? {
+        let width = image.width
+        let height = image.height
+        guard width > 0, height > 0,
+              let context = CGContext(
+                data: nil,
+                width: width,
+                height: height,
+                bitsPerComponent: 8,
+                bytesPerRow: width,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue
+              ) else { return nil }
+
+        // Drawing over black leaves transparent pixels at zero and everything
+        // else at its own luminance, so the box is where anything is drawn.
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let data = context.data else { return nil }
+        let row = context.bytesPerRow
+        let pixels = data.bindMemory(to: UInt8.self, capacity: row * height)
+
+        var minX = width, minY = height, maxX = -1, maxY = -1
+        for y in 0..<height {
+            let start = y * row
+            for x in 0..<width where pixels[start + x] > 8 {
+                if x < minX { minX = x }
+                if x > maxX { maxX = x }
+                if y < minY { minY = y }
+                if y > maxY { maxY = y }
+            }
+        }
+        guard maxX >= minX, maxY >= minY else { return nil }
+        return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
+    }
+}
+
+/// Which windows a pick may land on.
+enum WindowPick {
+    /// Application windows. They are still on screen when the click lands, so
+    /// they are captured live and keep their own pixels.
+    static let liveLayers = NSWindow.Level.normal.rawValue...NSWindow.Level.modalPanel.rawValue
+
+    /// Status items (25), menus and popovers (101) and the floating widgets
+    /// apps put at the screen saver level (1000), like a desktop dashboard.
+    /// They are gone once the overlay takes the keyboard, so only a snapshot
+    /// taken before that can still answer for them.
+    ///
+    /// Two neighbours stay out on purpose. The Dock (20) covers the whole
+    /// display rather than the strip it draws, so picking it by rect would take
+    /// the screen and every point on it would answer "Dock". The menu bar (24)
+    /// is a 33-point strip across the top, which is what the pointer rests on
+    /// right after its icon was clicked to open a panel, so it would answer
+    /// instead of the panel the user is aiming at. The cursor sits above the
+    /// ceiling and never qualifies.
+    static let frozenLayers = NSWindow.Level.statusBar.rawValue...NSWindow.Level.screenSaver.rawValue
+
+    static func isPickable(layer: Int) -> Bool {
+        liveLayers.contains(layer) || frozenLayers.contains(layer)
+    }
+
+    static func isFrozenOnly(layer: Int) -> Bool {
+        frozenLayers.contains(layer)
+    }
+
+    /// A sliver of an application window is not something a user aims at, but a
+    /// menu or a tooltip can legitimately be smaller.
+    static func minimumSize(layer: Int) -> CGFloat {
+        isFrozenOnly(layer: layer) ? 16 : 60
+    }
+
+    /// Keeps every pickable window on screen, in the list's own order: front to
+    /// back. Taken at the press, because a panel that closes the moment the
+    /// overlay activates is not in any list read afterwards.
+    static func pressSnapshot(
+        from list: [[String: Any]],
+        excluding: Set<CGWindowID> = []
+    ) -> [PressWindow] {
+        list.compactMap { info in
+            guard let id = info[kCGWindowNumber as String] as? CGWindowID,
+                  !excluding.contains(id),
+                  let layer = info[kCGWindowLayer as String] as? Int,
+                  isPickable(layer: layer),
+                  (info[kCGWindowAlpha as String] as? Double ?? 1) > 0,
+                  let dict = info[kCGWindowBounds as String] as? NSDictionary,
+                  let bounds = CGRect(dictionaryRepresentation: dict),
+                  bounds.width >= minimumSize(layer: layer),
+                  bounds.height >= minimumSize(layer: layer)
+            else { return nil }
+            return PressWindow(id: id, layer: layer, bounds: bounds)
+        }
+    }
+
+    /// The topmost window under a point.
+    static func window(at point: CGPoint, in snapshot: [PressWindow]) -> PressWindow? {
+        snapshot.first { $0.bounds.contains(point) }
+    }
+}
+
 /// Composes one capture per window into a single image, keeping the windows at
 /// their on-screen positions and drawing the shadow itself.
 ///
