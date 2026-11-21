@@ -109,6 +109,25 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
     }
 
+    func testMenuShowsShortcutsForBuiltInRowsOnly() throws {
+        let model = makeModel(
+            itemProviders: [FakeProvider("one") { [self.row("x", title: "Injected")] }],
+            bindings: ["x": binding(105), "a": binding(106)]
+        )
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        let menu = try XCTUnwrap(controller.currentMenu)
+        func title(_ prefix: String) throws -> String {
+            try XCTUnwrap(menu.items.compactMap { $0.attributedTitle?.string }.first { $0.hasPrefix(prefix) })
+        }
+        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("a").contains(binding(106).displayString))
+
+        controller.menuWillOpen(menu)
+        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("a").contains(binding(106).displayString))
+        controller.menuDidClose(menu)
+    }
+
     func testCatalogHotkeyRegistrationIsUnchangedByProviders() {
         let shared = binding(105)
         // One model at a time: a second live model would hit the first one's

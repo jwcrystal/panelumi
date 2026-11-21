@@ -67,6 +67,13 @@ final class AppModel: ObservableObject {
         orderedItems.filter { config.isEnabled($0.id) }
     }
 
+    /// The shortcut to show next to a row. Rows added by providers never get
+    /// one, even if the config holds a binding under their id, because they
+    /// are never registered.
+    func shortcutLabel(for id: String) -> String? {
+        catalog.item(id: id) == nil ? nil : config.hotkey(for: id)?.displayString
+    }
+
     /// Everything the menu shows: the visible built-in switches, then the rows
     /// the item providers add. An id that is already taken, by a built-in
     /// (hidden or not) or by an earlier provider row, is dropped. Providers that

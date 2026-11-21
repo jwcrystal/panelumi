@@ -172,9 +172,7 @@ enum Dump {
         for (index, item) in items.enumerated() {
             var parts = [item.title]
             if let subtitle = item.subtitle() { parts.append("(\(subtitle))") }
-            let shortcut = model.catalog.item(id: item.id) == nil
-                ? nil
-                : model.config.hotkey(for: item.id)?.displayString
+            let shortcut = model.shortcutLabel(for: item.id)
             if let shortcut { parts.append("[\(shortcut)]") }
             lines.append(String(format: "%2d", index + 1) + " " + parts.joined(separator: " "))
         }

@@ -81,7 +81,7 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private func menuSubtitle(for item: SwitchItem) -> String? {
         let parts = [
             item.subtitle(),
-            model.config.hotkey(for: item.id)?.displayString,
+            model.shortcutLabel(for: item.id),
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
