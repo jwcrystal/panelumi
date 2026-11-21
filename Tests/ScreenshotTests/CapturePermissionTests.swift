@@ -8,6 +8,8 @@ final class CapturePermissionTests: XCTestCase {
     @MainActor
     func testCaptureDoesNotOpenWithoutTheScreenRecordingGrant() {
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         var permissionRequests = 0
         coordinator.screenRecordingGranted = { false }
         coordinator.onPermissionFailure = { permissionRequests += 1 }
@@ -21,6 +23,8 @@ final class CapturePermissionTests: XCTestCase {
     @MainActor
     func testTextRecognitionDoesNotOpenWithoutTheScreenRecordingGrant() {
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         var permissionRequests = 0
         coordinator.screenRecordingGranted = { false }
         coordinator.onPermissionFailure = { permissionRequests += 1 }
@@ -34,6 +38,8 @@ final class CapturePermissionTests: XCTestCase {
     @MainActor
     func testCaptureOpensWhenTheGrantIsPresent() async throws {
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         coordinator.screenRecordingGranted = { true }
         // The freeze and the overlay's colour sample would otherwise reach
         // ScreenCaptureKit: a test process must never trigger a TCC request.

@@ -13,6 +13,8 @@ final class CaptureFreezeTests: XCTestCase {
         let frames = try framesByDisplayID(red: 0.9, green: 0.2, blue: 0.2)
 
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         coordinator.screenRecordingGranted = { true }
         var captured: [CGDirectDisplayID] = []
         coordinator.displayCaptureHook = { displayID in
@@ -51,6 +53,8 @@ final class CaptureFreezeTests: XCTestCase {
     @MainActor
     func testASecondPressCallsOffTheCaptureBeforeTheOverlayOpens() async throws {
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         coordinator.screenRecordingGranted = { true }
         let pending = SuspendedFreeze(frames: try framesByDisplayID(red: 0.2, green: 0.9, blue: 0.2))
         coordinator.displayCaptureHook = { displayID in
@@ -72,6 +76,8 @@ final class CaptureFreezeTests: XCTestCase {
     func testCancellingTheOverlayDropsTheFrozenFrames() async throws {
         let frames = try framesByDisplayID(red: 0.2, green: 0.2, blue: 0.9)
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         coordinator.screenRecordingGranted = { true }
         coordinator.displayCaptureHook = { frames[$0] }
 
@@ -92,6 +98,8 @@ final class CaptureFreezeTests: XCTestCase {
         let frames = try framesByDisplayID(red: 0.9, green: 0.9, blue: 0.2)
 
         let coordinator = ScreenshotCoordinator()
+        // ScreenCaptureKit is not available in the test process.
+        coordinator.windowCaptureHook = { _ in nil }
         coordinator.screenRecordingGranted = { true }
         var captured: [CGDirectDisplayID] = []
         coordinator.displayCaptureHook = { displayID in

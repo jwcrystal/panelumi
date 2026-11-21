@@ -38,6 +38,11 @@ final class ScreenshotCoordinator {
     /// overlay's activation dismisses are still in the picture, and nothing
     /// moves under the cursor while the region is chosen. Internal so a capture
     /// can be checked against a seeded frame.
+    /// Captures one window for the press-time list. Tests inject this so the
+    /// press path never waits on ScreenCaptureKit; nil pixels mean the window
+    /// was not captured, and the pick falls back to the frozen frame.
+    var windowCaptureHook: ((CGWindowID) async -> CGImage?)?
+
     var frozenScreens: [CGDirectDisplayID: CGImage] = [:]
     /// The pixels of each menu, popover or status item captured before the app
     /// activated, by window id. They are gone from the screen by click time.
@@ -416,17 +421,13 @@ final class ScreenshotCoordinator {
     /// frame is not what the user aimed at. Ordinary windows are left to the
     /// click, so a window that moved is captured where it is by then.
     private func capturedWindows(from candidates: [PressWindow]) async -> [PressWindow] {
-        // Without the grant a window capture cannot succeed, and the call can
-        // stall the overlay; the pick falls back to the frozen frame at the
-        // click, which has the same pixels for these windows.
-        guard CGPreflightScreenCaptureAccess() else { return candidates }
         var captured: [PressWindow] = []
         for candidate in candidates {
             guard WindowPick.isFrozenOnly(layer: candidate.layer) else {
                 captured.append(candidate)
                 continue
             }
-            guard let image = try? await capture.captureWindow(windowID: candidate.id) else {
+            guard let image = await capturedImage(for: candidate.id) else {
                 // Still pickable: the click can cut it from the frozen frame.
                 captured.append(candidate)
                 continue
@@ -521,18 +522,14 @@ final class ScreenshotCoordinator {
             } else if frameOnlyWindows.contains(target.id) {
                 let visible = target.rect.intersection(CGRect(origin: .zero, size: screen.frame.size))
                 shot = frozenPixels(of: visible, on: screen).map { ($0, visible) }
-            } else if let image = try? await capture.captureWindow(windowID: target.id) {
+            } else if let image = await capturedImage(for: target.id) {
                 shot = (image, target.rect)
-            } else if CGPreflightScreenCaptureAccess() {
+            } else {
                 // A panel that is not on a frozen layer but still closes the
                 // moment the overlay takes the keyboard: the press-time frame
-                // has it where it was picked, on screen. Without the grant no
-                // window was capturable in the first place, so a missing image
-                // says nothing about the window and the frame is not used.
+                // has it where it was picked, on screen.
                 let visible = target.rect.intersection(CGRect(origin: .zero, size: screen.frame.size))
                 shot = frozenPixels(of: visible, on: screen).map { ($0, visible) }
-            } else {
-                shot = nil
             }
             guard let shot else { return nil }
             shots.append(shot)
@@ -558,6 +555,11 @@ final class ScreenshotCoordinator {
               overlap(best) > 0
         else { return nil }
         return best
+    }
+
+    private func capturedImage(for id: CGWindowID) async -> CGImage? {
+        if let windowCaptureHook { return await windowCaptureHook(id) }
+        return try? await capture.captureWindow(windowID: id)
     }
 
     /// Cuts a rect of the frame frozen at the press, for a window that is gone
