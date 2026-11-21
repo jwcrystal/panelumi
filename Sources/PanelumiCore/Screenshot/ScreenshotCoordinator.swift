@@ -452,11 +452,19 @@ final class ScreenshotCoordinator {
             }
 
             let visibleWatermark = payload.watermarkVisible ? payload.watermark : nil
+            // The saved density is decided here, once for copy, save and pin:
+            // pixels the display cannot back are never tagged as if it could.
+            let (base, scale) = CaptureDensity.fitted(
+                cropped,
+                for: payload.rect.size,
+                deviceScale: payload.screen.backingScaleFactor
+            )
+            reportDensity(of: cropped, fitted: base, scale: scale, payload: payload)
             let image = AnnotationRenderer.render(
-                base: cropped,
+                base: base,
                 annotations: payload.annotations,
                 watermark: visibleWatermark,
-                pointScale: CGFloat(cropped.width) / max(1, payload.rect.width)
+                pointScale: scale
             )
 
             switch output {
@@ -472,6 +480,24 @@ final class ScreenshotCoordinator {
         } catch {
             present(error)
         }
+    }
+
+    /// `PANELUMI_CAPTURE_DIAGNOSTICS=1` prints what the capture returned next
+    /// to what the overlay selected, so a density that disagrees with the
+    /// display can be traced to the frozen frame, the live capture or a window
+    /// composite instead of being silently rescaled.
+    private func reportDensity(
+        of cropped: CGImage,
+        fitted: CGImage,
+        scale: CGFloat,
+        payload: CapturePayload
+    ) {
+        guard ProcessInfo.processInfo.environment["PANELUMI_CAPTURE_DIAGNOSTICS"] == "1" else { return }
+        print(
+            "capture density: rect \(payload.rect.width)x\(payload.rect.height) pt, "
+                + "pixels \(cropped.width)x\(cropped.height) -> \(fitted.width)x\(fitted.height), "
+                + "scale \(scale), display \(payload.screen.backingScaleFactor)"
+        )
     }
 
     private func recognizeText(in image: CGImage) async {
