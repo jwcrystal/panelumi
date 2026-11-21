@@ -775,6 +775,14 @@ final class SelectionView: NSView {
 
     private func updateCursor() {
         guard !session.takeoverActive else { return }
+        // Every display's overlay shares one session and one process-wide
+        // cursor, so a change reported to all of them may only be applied by
+        // the view the pointer is actually over.
+        if let window {
+            let point = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            guard bounds.contains(point) else { return }
+            lastMousePoint = point
+        }
         if isPointOnToolbar(lastMousePoint) {
             NSCursor.arrow.set()
             return
