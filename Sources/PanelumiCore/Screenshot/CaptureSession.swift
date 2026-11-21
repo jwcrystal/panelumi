@@ -790,8 +790,10 @@ struct CaptureToolbarView: View {
                 text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
             )
         case .highlighter:
-            optionIcon("minus", t("Straight band"), selected: session.highlighterStraight) {
+            optionButton(t("Straight band"), selected: session.highlighterStraight) {
                 session.highlighterStraight = true
+            } label: {
+                StraightBandIcon().frame(width: 21, height: 15)
             }
             optionIcon("scribble", t("Freehand"), selected: !session.highlighterStraight) {
                 session.highlighterStraight = false

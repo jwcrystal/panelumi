@@ -24,6 +24,26 @@ struct MosaicToolIcon: View {
     }
 }
 
+/// A filled band, the mark the straight mode leaves, so the two drawing modes
+/// differ by shape rather than by a hairline that reads as nothing.
+struct StraightBandIcon: View {
+    var body: some View {
+        Canvas { context, size in
+            let height = size.height * 0.46
+            let box = CGRect(
+                x: size.width * 0.04,
+                y: (size.height - height) / 2,
+                width: size.width * 0.92,
+                height: height
+            )
+            context.fill(
+                Path(roundedRect: box, cornerRadius: height * 0.3),
+                with: .foreground
+            )
+        }
+    }
+}
+
 /// A solid disc with a blurred edge, so it reads as soft next to the mosaic's
 /// hard squares. The filter keeps the icon in the surrounding foreground tint.
 struct BlurToolIcon: View {

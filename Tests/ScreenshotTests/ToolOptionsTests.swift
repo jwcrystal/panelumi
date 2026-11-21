@@ -223,4 +223,25 @@ final class ToolOptionsTests: XCTestCase {
         let data = try XCTUnwrap(bitmap.representation(using: .png, properties: [:]))
         try data.write(to: URL(fileURLWithPath: path))
     }
+
+    @MainActor
+    func testStraightBandIconIsABandNotALine() throws {
+        _ = NSApplication.shared
+        let renderer = ImageRenderer(content: StraightBandIcon().frame(width: 21, height: 15))
+        renderer.scale = 2
+        let image = try XCTUnwrap(renderer.nsImage)
+        let bitmap = try XCTUnwrap(NSBitmapImageRep(data: try XCTUnwrap(image.tiffRepresentation)))
+
+        func ink(inRow row: Int) -> Int {
+            (0..<bitmap.pixelsWide).reduce(0) { count, x in
+                guard let color = bitmap.colorAt(x: x, y: row)?.usingColorSpace(.deviceRGB),
+                      color.alphaComponent > 0.5, color.redComponent < 0.5 else { return count }
+                return count + 1
+            }
+        }
+
+        XCTAssertGreaterThan(ink(inRow: bitmap.pixelsHigh / 2), bitmap.pixelsWide / 2,
+                             "the icon fills a band, not a hairline")
+        XCTAssertEqual(ink(inRow: 1), 0, "the band sits in the middle, clear of the edges")
+    }
 }
