@@ -96,7 +96,7 @@ Settings › Recording picks the folder and the microphone. `AVAudioRecorder` on
 - Colours come from a shared 10-colour palette with recently used and a custom page (hex or RGB); `I` is an eyedropper. Colour and line width are remembered between launches.
 - While selecting, the colour and pixel coordinates under the pointer are shown; `⌥` cycles HEX / RGB / HSL and `C` copies the value and leaves capture mode.
 - The whole screen freezes the moment the shortcut is pressed, so an open menu or a tooltip is still in the picture and mosaic and blur are exactly what gets saved. A delayed capture counts down in a small pill; press the shortcut again to cancel it.
-- `Enter` copies, `Space` saves (`~/Downloads`, PNG by default), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo, `Esc` closes; the folder, file-name prefix, format, quality and delay live in Settings › Screenshot.
+- `Enter` copies, `Space` saves (`~/Downloads`, PNG by default), `P` pins on screen, `⌘Z` / `⇧⌘Z` undo and redo the marks (the style row keeps the colour and width you set), `Esc` closes; the folder, file-name prefix, format, quality and delay live in Settings › Screenshot.
 - The signature button adds a watermark (the macOS full user name, or text from Settings) with a sub-bar for on/off, position (or tiled), size and colour, clipped to the capture; **More…** has the rest, including hiding it from the image while keeping the text in the file metadata. Settings › Screenshot sets the default position, size, angle, opacity and colour.
 - Pinned images: the corner × or `Esc` closes, scroll resizes, `⌘`-scroll changes opacity.
 
