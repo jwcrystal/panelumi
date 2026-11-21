@@ -728,6 +728,14 @@ final class SelectionView: NSView {
         tool == .highlighter ? markerCursor : .crosshair
     }
 
+    /// The tool's cursor belongs to the region: outside it a drag starts a new
+    /// selection, which is what the crosshair says.
+    private func updateCursor() {
+        guard !(toolbarHost?.frame.contains(lastMousePoint) ?? false) else { return }
+        let inside = selection?.contains(lastMousePoint) ?? false
+        (inside ? Self.cursor(for: session.tool) : .crosshair).set()
+    }
+
     /// A vertical marker, showing the height the band will take, instead of a
     /// crosshair.
     private static let markerCursor: NSCursor = {
@@ -1571,12 +1579,9 @@ final class SelectionView: NSView {
         lastMousePoint = convert(event.locationInWindow, from: nil)
         updateHoverColor(at: lastMousePoint)
         updateHover(at: lastMousePoint)
-        // Cursor rects only refresh once they are invalidated, which is easy to
-        // miss while the pointer sits still; setting it here keeps the marker
-        // in step with the tool across the whole screen.
-        if !(toolbarHost?.frame.contains(lastMousePoint) ?? false) {
-            Self.cursor(for: session.tool).set()
-        }
+        // Cursor rects only refresh once they are invalidated, so the marker is
+        // set from the move itself.
+        updateCursor()
         // The colour readout follows the pointer, so a move always redraws
         // even when the window under it stays the same.
         needsDisplay = true
@@ -1588,7 +1593,9 @@ final class SelectionView: NSView {
         window?.makeKey()
         window?.makeFirstResponder(self)
         let point = convert(event.locationInWindow, from: nil)
+        lastMousePoint = point
         commitTextFieldIfNeeded()
+        updateCursor()
 
         if editing, session.isPickingColor {
             // One click samples or gives up. No interaction starts, so the

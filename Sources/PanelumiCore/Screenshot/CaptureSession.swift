@@ -790,11 +790,11 @@ struct CaptureToolbarView: View {
                 text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
             )
         case .highlighter:
-            optionIcon("scribble", t("Freehand"), selected: !session.highlighterStraight) {
-                session.highlighterStraight = false
-            }
             optionIcon("minus", t("Straight band"), selected: session.highlighterStraight) {
                 session.highlighterStraight = true
+            }
+            optionIcon("scribble", t("Freehand"), selected: !session.highlighterStraight) {
+                session.highlighterStraight = false
             }
             highlighterWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
