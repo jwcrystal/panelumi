@@ -81,6 +81,22 @@ struct Annotation: Equatable {
         case text(String, at: CGPoint)
     }
 
+    /// How a highlighter band combines with the pixels under it.
+    ///
+    /// Chosen once when a stroke starts: re-deciding while the stroke grows
+    /// made the band change colour under the pointer.
+    enum HighlighterBlend: Equatable {
+        case multiply
+        case screen
+
+        var operation: NSCompositingOperation {
+            switch self {
+            case .multiply: return .multiply
+            case .screen: return .screen
+            }
+        }
+    }
+
     var shape: Shape
     var color: Color
     /// Stroke width relative to the image width.
@@ -102,6 +118,8 @@ struct Annotation: Equatable {
     var highlighterAlpha: CGFloat = 0.32
     /// Highlighter band thickness relative to the image width.
     var highlighterWidth: CGFloat = 0.02
+    /// Fixed when the stroke starts; only the highlighter reads it.
+    var highlighterBlend: HighlighterBlend = .multiply
 
     /// Normalised bounding box, used for selection and hit testing.
     var bounds: CGRect {
@@ -430,7 +448,7 @@ enum AnnotationRenderer {
             guard let first = points.first else { return }
             let context = NSGraphicsContext.current
             let savedOperation = context?.compositingOperation
-            context?.compositingOperation = highlighterOperation(for: points, base: base)
+            context?.compositingOperation = annotation.highlighterBlend.operation
             color.withAlphaComponent(annotation.highlighterAlpha).setStroke()
             let path = NSBezierPath()
             path.lineWidth = max(2, rect.width * annotation.highlighterWidth)
@@ -490,29 +508,28 @@ enum AnnotationRenderer {
         }
     }
 
-    /// A marker keeps whatever it crosses: dark text stays dark under a
-    /// multiplied band, light text stays light under a screened one. Picking
-    /// from the paper under the stroke keeps both themes readable.
-    private static func highlighterOperation(
-        for points: [CGPoint],
-        base: CGImage?
-    ) -> NSCompositingOperation {
-        guard let base, !points.isEmpty else { return .multiply }
-        let last = points.count - 1
-        let probes = (0..<5).map { points[$0 * last / 4] }
-        let values = probes.compactMap { paperLuminance(of: base, at: $0) }.sorted()
-        guard !values.isEmpty else { return .multiply }
-        return values[values.count / 2] > 0.5 ? .multiply : .screen
+    /// The blend a stroke should use, read once from the paper where the press
+    /// landed. Sampling per frame made the band flip colour mid-stroke.
+    static func highlighterBlend(
+        in base: CGImage?,
+        at point: CGPoint
+    ) -> Annotation.HighlighterBlend {
+        guard let base, let value = paperLuminance(of: base, at: point, radius: 4) else { return .multiply }
+        return value > 0.5 ? .multiply : .screen
     }
 
-    /// The brightest pixel in a 3×3 patch, so a probe lands on the paper
+    /// The brightest pixel in a square patch, so a probe lands on the paper
     /// between glyphs rather than on the glyph.
-    private static func paperLuminance(of image: CGImage, at point: CGPoint) -> CGFloat? {
+    private static func paperLuminance(
+        of image: CGImage,
+        at point: CGPoint,
+        radius: Int
+    ) -> CGFloat? {
         let x = Int(point.x * CGFloat(image.width))
         let y = Int(point.y * CGFloat(image.height))
         var brightest: CGFloat?
-        for dy in -1...1 {
-            for dx in -1...1 {
+        for dy in -radius...radius {
+            for dx in -radius...radius {
                 guard let value = luminance(of: image, atX: x + dx, y: y + dy) else { continue }
                 brightest = max(brightest ?? value, value)
             }

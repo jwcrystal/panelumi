@@ -675,6 +675,8 @@ final class SelectionView: NSView {
     private var startPoint: CGPoint?
     private var draft: Annotation?
     private var penPoints: [CGPoint] = []
+    /// Chosen when a highlighter stroke starts and kept for the whole stroke.
+    private var highlighterBlend: Annotation.HighlighterBlend = .multiply
 
     private(set) var toolbarHost: CaptureToolbarHost?
     let popoverPlacement = ToolbarPopoverPlacement()
@@ -719,8 +721,32 @@ final class SelectionView: NSView {
     }
 
     override func resetCursorRects() {
-        addCursorRect(bounds, cursor: .crosshair)
+        addCursorRect(bounds, cursor: Self.cursor(for: session.tool))
     }
+
+    private static func cursor(for tool: CaptureSession.Tool) -> NSCursor {
+        tool == .highlighter ? markerCursor : .crosshair
+    }
+
+    /// A vertical marker, showing the height the band will take, instead of a
+    /// crosshair.
+    private static let markerCursor: NSCursor = {
+        let size = NSSize(width: 9, height: 26)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        let body = NSBezierPath(
+            roundedRect: NSRect(x: 1.5, y: 1, width: 6, height: 24),
+            xRadius: 3,
+            yRadius: 3
+        )
+        NSColor.white.withAlphaComponent(0.95).setFill()
+        body.fill()
+        NSColor.black.withAlphaComponent(0.7).setStroke()
+        body.lineWidth = 1.2
+        body.stroke()
+        image.unlockFocus()
+        return NSCursor(image: image, hotSpot: NSPoint(x: 4.5, y: 13))
+    }()
 
     // MARK: - Drawing
 
@@ -1205,9 +1231,11 @@ final class SelectionView: NSView {
         installToolbar()
         sessionCancellable = session.objectWillChange.sink { [weak self] _ in
             DispatchQueue.main.async {
-                self?.layoutToolbar()
-                self?.updateTextField()
-                self?.needsDisplay = true
+                guard let self else { return }
+                self.layoutToolbar()
+                self.updateTextField()
+                self.window?.invalidateCursorRects(for: self)
+                self.needsDisplay = true
             }
         }
         loadBase()
@@ -1578,8 +1606,12 @@ final class SelectionView: NSView {
                     return
                 }
                 interaction = .drawing
-                startPoint = normalize(point, in: selection)
+                let start = normalize(point, in: selection)
+                startPoint = start
                 penPoints = []
+                if session.tool == .highlighter {
+                    highlighterBlend = AnnotationRenderer.highlighterBlend(in: baseImage, at: start)
+                }
                 if session.tool == .text {
                     showTextField(at: point)
                     interaction = .none
@@ -1704,7 +1736,11 @@ final class SelectionView: NSView {
                     commit(.number(nextNumber, at: end))
                 }
             case .pen, .highlighter:
-                commit(session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints))
+                if session.tool == .pen {
+                    commit(.pen(points: penPoints))
+                } else {
+                    commit(.highlighter(points: penPoints), highlighterBlend: highlighterBlend)
+                }
             default:
                 commit(draftShape(from: start, to: end))
             }
@@ -1726,10 +1762,14 @@ final class SelectionView: NSView {
         switch session.tool {
         case .pen, .highlighter:
             penPoints.append(current)
-            draft = Annotation(
+            var mark = Annotation(
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
                 style: session.defaultStyle
             )
+            if session.tool == .highlighter {
+                mark.highlighterBlend = highlighterBlend
+            }
+            draft = mark
         case .text, .number:
             break
         default:
@@ -1758,9 +1798,16 @@ final class SelectionView: NSView {
         }
     }
 
-    private func commit(_ shape: Annotation.Shape) {
+    private func commit(
+        _ shape: Annotation.Shape,
+        highlighterBlend: Annotation.HighlighterBlend? = nil
+    ) {
         session.recordUndoSnapshot()
-        session.annotations.append(Annotation(shape: shape, style: session.defaultStyle))
+        var annotation = Annotation(shape: shape, style: session.defaultStyle)
+        if let highlighterBlend {
+            annotation.highlighterBlend = highlighterBlend
+        }
+        session.annotations.append(annotation)
     }
 
     // MARK: - Text entry

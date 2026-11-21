@@ -168,13 +168,40 @@ final class AnnotationStyleTests: XCTestCase {
         // A multiplied band would disappear into a dark capture, so the stroke
         // screens into dark content instead.
         let (base, glyphs) = try baseImage(NSColor(white: 0.12, alpha: 1), ink: .white)
-        let rendered = try bitmap([wideBand()], over: base)
+        var band = wideBand()
+        band.highlighterBlend = .screen
+        let rendered = try bitmap([band], over: base)
         let onGlyph = try pixel(rendered, at: CGPoint(x: glyphs[3].midX, y: glyphs[3].midY))
         let onPaper = try pixel(rendered, at: CGPoint(x: glyphs[3].maxX + 5, y: glyphs[3].midY))
 
         XCTAssertGreaterThan(onGlyph.redComponent, 0.9, "light pixels under the band stay light")
         XCTAssertGreaterThan(onPaper.redComponent, 0.4, "the band still shows on dark paper")
         XCTAssertLessThan(onPaper.blueComponent, onPaper.redComponent - 0.1)
+    }
+
+    @MainActor
+    func testHighlighterBlendIsPickedFromThePressPoint() throws {
+        let (light, _) = try baseImage(.white)
+        let (dark, _) = try baseImage(NSColor(white: 0.12, alpha: 1), ink: .white)
+        let middle = CGPoint(x: 0.5, y: 0.5)
+
+        XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: light, at: middle), .multiply)
+        XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: dark, at: middle), .screen)
+        XCTAssertEqual(AnnotationRenderer.highlighterBlend(in: nil, at: middle), .multiply)
+    }
+
+    @MainActor
+    func testHighlighterKeepsTheBlendStoredOnTheMark() throws {
+        // The renderer must not re-read the image per frame: that made the
+        // band change colour as the stroke grew.
+        let (base, glyphs) = try baseImage(.white)
+        var band = wideBand()
+        band.highlighterBlend = .screen
+        let rendered = try bitmap([band], over: base)
+        let onGlyph = try pixel(rendered, at: CGPoint(x: glyphs[3].midX, y: glyphs[3].midY))
+
+        XCTAssertGreaterThan(onGlyph.redComponent, 0.4,
+                             "the stored blend wins: screen lightens the glyph under a band on light paper")
     }
 
     @MainActor
