@@ -24,6 +24,37 @@ final class ToolOptionsTests: XCTestCase {
         }
     }
 
+    /// The width sliders show points; a region resized after entering the
+    /// editor changes the size those points are scaled by.
+    @MainActor
+    func testResizingTheRegionRescalesThePointWidths() throws {
+        _ = NSApplication.shared
+        let screen = try XCTUnwrap(NSScreen.screens.first)
+        let session = CaptureSession()
+        let view = SelectionView(screen: screen, session: session) { _, _ in nil }
+        let window = NSWindow(
+            contentRect: NSRect(origin: .zero, size: view.frame.size),
+            styleMask: [.borderless],
+            backing: .buffered,
+            defer: true
+        )
+        window.isReleasedWhenClosed = false
+        window.contentView = view
+        defer { window.close() }
+
+        let region = CGRect(x: 40, y: 40, width: 320, height: 200)
+        view.presetSelection(region)
+        XCTAssertEqual(session.imagePointSize.width, region.width, accuracy: 0.5)
+
+        let handle = CGPoint(x: region.maxX, y: region.midY)
+        view.mouseDown(with: mouseEvent(.leftMouseDown, at: handle))
+        view.mouseDragged(with: mouseEvent(.leftMouseDragged, at: CGPoint(x: handle.x + 80, y: handle.y)))
+        view.mouseUp(with: mouseEvent(.leftMouseUp, at: CGPoint(x: handle.x + 80, y: handle.y)))
+
+        XCTAssertEqual(session.imagePointSize.width, region.width + 80, accuracy: 0.5)
+        XCTAssertEqual(session.imagePointSize.height, region.height, accuracy: 0.5)
+    }
+
     @MainActor
     func testSelectedAnnotationOptionsKeepTheToolbarCompact() {
         _ = NSApplication.shared
@@ -243,5 +274,19 @@ final class ToolOptionsTests: XCTestCase {
         XCTAssertGreaterThan(ink(inRow: bitmap.pixelsHigh / 2), bitmap.pixelsWide / 2,
                              "the icon fills a band, not a hairline")
         XCTAssertEqual(ink(inRow: 1), 0, "the band sits in the middle, clear of the edges")
+    }
+
+    private func mouseEvent(_ type: NSEvent.EventType, at point: NSPoint) -> NSEvent {
+        NSEvent.mouseEvent(
+            with: type,
+            location: point,
+            modifierFlags: [],
+            timestamp: 0,
+            windowNumber: 0,
+            context: nil,
+            eventNumber: 0,
+            clickCount: 1,
+            pressure: 1
+        )!
     }
 }

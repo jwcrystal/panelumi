@@ -652,7 +652,13 @@ final class SelectionView: NSView {
     /// region or a window delivers it straight away with this output.
     var finishOnSelect: CaptureSession.Output?
 
-    private(set) var selection: CGRect?
+    private(set) var selection: CGRect? {
+        didSet {
+            // A resized region changes every point value the toolbar shows.
+            guard selection?.size != oldValue?.size else { return }
+            session.imagePointSize = selection?.size ?? .zero
+        }
+    }
     private var interaction: Interaction = .none
     /// True once the overlay has a region to act on; used to pick the window
     /// that should hold the keyboard.
@@ -1227,7 +1233,7 @@ final class SelectionView: NSView {
             return
         }
         session.annotations = []
-        session.imagePointSize = selection?.size ?? .zero
+        updateImagePointSize()
         session.extensionToolbarItems = CaptureSession.toolbarEntries(for: session.captureExtensions)
         session.captureActionsAllowed = windowTargets.isEmpty
         session.onUndo = { [weak self] in self?.performHistory(.undo) }
@@ -1249,6 +1255,12 @@ final class SelectionView: NSView {
         }
         loadBase()
         needsDisplay = true
+    }
+
+    /// The width sliders show points, which scale with the region, so a resize
+    /// changes what a stored width means and the size has to follow it.
+    private func updateImagePointSize() {
+        session.imagePointSize = selection?.size ?? .zero
     }
 
     /// Freeze the selected pixels so mosaic and blur can be shown for real.
@@ -1682,6 +1694,7 @@ final class SelectionView: NSView {
 
         case .resizing(let handle, let rect):
             selection = clamp(resized(rect, handle: handle, to: point))
+            updateImagePointSize()
             layoutToolbar()
 
         case .drawing:
