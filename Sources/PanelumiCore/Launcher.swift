@@ -9,24 +9,24 @@ public struct LaunchOptions: Equatable, Sendable {
     /// Extensions for the capture toolbar. Empty by default; with none, capture behaves as before.
     public var captureExtensions: [any CaptureExtension]
     /// Providers of extra status-bar menu rows. Empty by default; with none, the menu is unchanged.
-    public var menuSections: [any MenuSectionProvider]
+    public var menuItemProviders: [any MenuItemProvider]
 
     public init(
         identity: AppIdentity = .standard,
         captureExtensions: [any CaptureExtension] = [],
-        menuSections: [any MenuSectionProvider] = []
+        menuItemProviders: [any MenuItemProvider] = []
     ) {
         self.identity = identity
         self.captureExtensions = captureExtensions
-        self.menuSections = menuSections
+        self.menuItemProviders = menuItemProviders
     }
 
     /// Two options are equal when they share an identity and list the same
-    /// extension and menu-section identifiers in the same order.
+    /// extension and menu item provider identifiers in the same order.
     public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
         lhs.identity == rhs.identity
             && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
-            && lhs.menuSections.map(\.identifier) == rhs.menuSections.map(\.identifier)
+            && lhs.menuItemProviders.map(\.identifier) == rhs.menuItemProviders.map(\.identifier)
     }
 }
 
@@ -60,7 +60,7 @@ public enum PanelumiLauncher {
         }
 
         if arguments.contains("--menu") {
-            Dump.printMenu(sections: options.menuSections)
+            Dump.printMenu(itemProviders: options.menuItemProviders)
             return
         }
 
@@ -100,7 +100,7 @@ public enum PanelumiLauncher {
         }
 
         let application = NSApplication.shared
-        let delegate = AppDelegate(captureExtensions: options.captureExtensions, menuSections: options.menuSections)
+        let delegate = AppDelegate(captureExtensions: options.captureExtensions, menuItemProviders: options.menuItemProviders)
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()
@@ -153,14 +153,22 @@ enum Dump {
     /// Prints the menu exactly as the status item builds it, including hidden
     /// switches being absent. Useful when the menu looks wrong.
     @MainActor
-    static func printMenu(sections: [any MenuSectionProvider] = []) {
+    static func printMenu(itemProviders: [any MenuItemProvider] = []) {
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), sections: sections)
+        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders)
+        for line in menuLines(model: model) { print(line) }
+    }
+
+    /// The lines `--menu` prints: a header, then one line per row in menu order.
+    /// Shortcuts are shown for built-in rows only, because only those are registered.
+    @MainActor
+    static func menuLines(model: AppModel) -> [String] {
         var seen = Set<String>()
         let items = model.menuItems.filter { seen.insert($0.id).inserted }
+        let builtIn = items.filter { model.catalog.item(id: $0.id) != nil }.count
 
-        print("menu items: \(items.count) (of \(model.catalog.items.count) switches, \(model.config.disabled.count) hidden)")
+        var lines = ["menu items: \(items.count) (\(builtIn) of \(model.catalog.items.count) switches, \(model.config.disabled.count) hidden; \(items.count - builtIn) added)"]
         for (index, item) in items.enumerated() {
             var parts = [item.title]
             if let subtitle = item.subtitle() { parts.append("(\(subtitle))") }
@@ -168,8 +176,9 @@ enum Dump {
                 ? nil
                 : model.config.hotkey(for: item.id)?.displayString
             if let shortcut { parts.append("[\(shortcut)]") }
-            print(String(format: "%2d", index + 1), parts.joined(separator: " "))
+            lines.append(String(format: "%2d", index + 1) + " " + parts.joined(separator: " "))
         }
+        return lines
     }
 
     /// Prints the permission state the app itself sees. Also writes

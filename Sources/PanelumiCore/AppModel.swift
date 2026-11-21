@@ -9,7 +9,7 @@ import PanelumiKit
 final class AppModel: ObservableObject {
     let catalog: SwitchCatalog
     private let store: ConfigStore
-    private let sections: [any MenuSectionProvider]
+    private let itemProviders: [any MenuItemProvider]
     private let hotkeys = HotkeyCenter()
 
     @Published private(set) var config: PanelumiConfig
@@ -20,10 +20,19 @@ final class AppModel: ObservableObject {
     var runSwitch: ((String) -> Void)?
 
     init(catalog: SwitchCatalog = .standard(), store: ConfigStore = ConfigStore(),
-         sections: [any MenuSectionProvider] = []) {
+         itemProviders: [any MenuItemProvider] = []) {
         self.catalog = catalog
         self.store = store
-        self.sections = sections
+        var seenProviders = Set<String>()
+        self.itemProviders = itemProviders.filter { provider in
+            let isNew = seenProviders.insert(provider.identifier).inserted
+            #if DEBUG
+            if !isNew {
+                NSLog("Panelumi: %@", "menu item provider \(provider.identifier) is listed more than once; only the first is used.")
+            }
+            #endif
+            return isNew
+        }
         self.config = store.config
         seedScreenshotShortcutIfNeeded()
         registerHotkeys()
@@ -59,12 +68,31 @@ final class AppModel: ObservableObject {
     }
 
     /// Everything the menu shows: the visible built-in switches, then the rows
-    /// the section providers add. An id that is already taken, by a built-in or
-    /// by an earlier provider row, is dropped.
+    /// the item providers add. An id that is already taken, by a built-in
+    /// (hidden or not) or by an earlier provider row, is dropped. Providers that
+    /// repeat an identifier were already dropped in `init`.
     var menuItems: [SwitchItem] {
         var seen = Set(catalog.ids)
-        let injected = sections.flatMap(\.items).filter { seen.insert($0.id).inserted }
+        var injected: [SwitchItem] = []
+        for provider in itemProviders {
+            for item in provider.items {
+                if seen.insert(item.id).inserted {
+                    injected.append(item)
+                } else {
+                    reportDroppedDuplicate(item.id, provider: provider.identifier)
+                }
+            }
+        }
         return catalogMenuItems + injected
+    }
+
+    private var reportedDuplicateIDs = Set<String>()
+
+    private func reportDroppedDuplicate(_ id: String, provider: String) {
+        #if DEBUG
+        guard reportedDuplicateIDs.insert(id).inserted else { return }
+        NSLog("Panelumi: %@", "menu item provider \(provider) returned id \(id), which is already taken; the row is dropped.")
+        #endif
     }
 
     func setEnabled(_ id: String, _ enabled: Bool) {

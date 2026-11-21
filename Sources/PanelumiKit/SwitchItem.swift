@@ -46,8 +46,8 @@ public struct SwitchItem {
     /// Empty means the item gets no submenu.
     public let actions: () -> [MenuAction]
     public let perform: () throws -> Void
-    /// Read when the menu is built; false greys the row out. The reason belongs
-    /// in `subtitle`.
+    /// Read when the menu is built and each time it opens; false greys the row
+    /// out. The reason belongs in `subtitle`.
     public let isEnabled: () -> Bool
 
     public init(

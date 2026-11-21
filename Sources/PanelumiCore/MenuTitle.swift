@@ -10,7 +10,9 @@ enum MenuTitle {
     static let column: CGFloat = 230
     private static let minimumGap: CGFloat = 24
 
-    static func make(_ title: String, subtitle: String?) -> NSAttributedString {
+    /// `enabled: false` leaves the subtitle colour unset so AppKit's disabled
+    /// greying applies to the whole row.
+    static func make(_ title: String, subtitle: String?, enabled: Bool = true) -> NSAttributedString {
         let titleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 0)]
         let result = NSMutableAttributedString(string: title, attributes: titleAttributes)
 
@@ -22,13 +24,9 @@ enum MenuTitle {
         let paragraph = NSMutableParagraphStyle()
         paragraph.tabStops = [NSTextTab(textAlignment: .right, location: column, options: [:])]
 
-        result.append(NSAttributedString(
-            string: "\t" + fitted,
-            attributes: [
-                .font: NSFont.menuFont(ofSize: 0),
-                .foregroundColor: NSColor.secondaryLabelColor,
-            ]
-        ))
+        var subtitleAttributes: [NSAttributedString.Key: Any] = [.font: NSFont.menuFont(ofSize: 0)]
+        if enabled { subtitleAttributes[.foregroundColor] = NSColor.secondaryLabelColor }
+        result.append(NSAttributedString(string: "\t" + fitted, attributes: subtitleAttributes))
         result.addAttribute(
             .paragraphStyle,
             value: paragraph,

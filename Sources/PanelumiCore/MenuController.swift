@@ -4,7 +4,7 @@ import PanelumiKit
 
 /// Builds and owns the status-bar menu.
 @MainActor
-final class MenuController: NSObject, NSMenuDelegate {
+final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private final class ItemBox: NSObject {
         let item: SwitchItem
         init(_ item: SwitchItem) { self.item = item }
@@ -105,10 +105,6 @@ final class MenuController: NSObject, NSMenuDelegate {
 
         let menu = NSMenu()
         menu.delegate = self
-        // With auto-enabling on, AppKit re-enables any row whose target answers
-        // the action, which would ignore SwitchItem.isEnabled. Every row here
-        // sets its own state, so nothing relies on the automatic pass.
-        menu.autoenablesItems = false
 
         // Belt and braces: even if a config ever lists an id twice, the menu
         // shows each switch once.
@@ -117,9 +113,8 @@ final class MenuController: NSObject, NSMenuDelegate {
             let menuItem = NSMenuItem(title: item.title, action: #selector(runItem(_:)), keyEquivalent: "")
             menuItem.target = self
             menuItem.representedObject = ItemBox(item)
-            menuItem.isEnabled = item.isEnabled()
             menuItem.image = symbol(item.symbolName)
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), enabled: item.isEnabled())
 
             let actions = item.actions()
             if !actions.isEmpty {
@@ -209,13 +204,17 @@ final class MenuController: NSObject, NSMenuDelegate {
             guard let box = menuItem.representedObject as? ItemBox else { continue }
             let item = box.item
             menuItem.state = (item.kind == .toggle && item.state()) ? .on : .off
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), enabled: item.isEnabled())
             // Submenus are built once per rebuild, so refresh their checkmarks here.
             for subitem in menuItem.submenu?.items ?? [] {
                 guard let action = subitem.representedObject as? ActionBox else { continue }
                 subitem.state = action.isChecked() ? .on : .off
             }
         }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        (menuItem.representedObject as? ItemBox)?.item.isEnabled() ?? true
     }
 
     func menuDidClose(_ menu: NSMenu) {
