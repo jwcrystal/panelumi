@@ -63,7 +63,9 @@ and no live frame after it.
   frozen display would put occluding windows and their shadows into the shot,
   and composing several windows needs each window's own image. A window that
   moved or closed between the press and the click is captured at its click-time
-  state.
+  state. A picked window is that window alone: a menu, popover or hover tooltip
+  above it is a separate window, so it is neither offered by the picker nor part
+  of the shot. Drag a region over it when the capture has to keep one.
 - **Extension live captures** (`CaptureContext.captureLive`) are live by
   contract; a takeover that needs several frames of a changing screen keeps
   getting them.
@@ -98,3 +100,5 @@ and no live frame after it.
 6. Text recognition over transient text (a hover popover) reads the frozen text.
 7. `Esc` mid-selection: no full-screen frame is left held.
 8. No Screen Recording grant: the checklist opens and no overlay appears.
+9. A window with a menu open: picking the window gives the window without the
+   menu, and a region over the same keeps it.
