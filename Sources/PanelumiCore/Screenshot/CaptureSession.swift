@@ -1564,6 +1564,13 @@ private struct ChannelSlider: View {
 /// view underneath, so the hosting view drops them before any SwiftUI button
 /// could claim them.
 final class CaptureToolbarHost: NSHostingView<CaptureToolbarView> {
+    /// One cursor over the whole capture surface: the buttons keep the
+    /// crosshair, and a rect here is also what resets a cursor the drawing
+    /// view set further out.
+    override func resetCursorRects() {
+        addCursorRect(bounds, cursor: .crosshair)
+    }
+
     override func hitTest(_ point: NSPoint) -> NSView? {
         guard !isInHintBand(point) else { return nil }
         return super.hitTest(point)
