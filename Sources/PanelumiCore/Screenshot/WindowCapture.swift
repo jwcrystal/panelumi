@@ -98,25 +98,50 @@ enum WindowPick {
     static let liveLayers = NSWindow.Level.normal.rawValue...NSWindow.Level.modalPanel.rawValue
 
     /// Status items (25), menus and popovers (101) and the floating widgets
-    /// apps put at the screen saver level (1000), like a desktop dashboard.
-    /// They are gone once the overlay takes the keyboard, so only a snapshot
-    /// taken before that can still answer for them.
+    /// apps put at the screen saver level (1000). They are gone once the
+    /// overlay takes the keyboard, so each is captured at the press.
     ///
-    /// Two neighbours stay out on purpose. The Dock (20) covers the whole
-    /// display rather than the strip it draws, so picking it by rect would take
-    /// the screen and every point on it would answer "Dock". The menu bar (24)
-    /// is a 33-point strip across the top, which is what the pointer rests on
-    /// right after its icon was clicked to open a panel, so it would answer
-    /// instead of the panel the user is aiming at. The cursor sits above the
-    /// ceiling and never qualifies.
-    static let frozenLayers = NSWindow.Level.statusBar.rawValue...NSWindow.Level.screenSaver.rawValue
-
-    static func isPickable(layer: Int) -> Bool {
-        liveLayers.contains(layer) || frozenLayers.contains(layer)
+    /// The menu bar (24) stays out on purpose: it is a 33-point strip across
+    /// the top, which is what the pointer rests on right after its icon was
+    /// clicked to open a panel, so it would answer instead of the panel the
+    /// user is aiming at. The cursor sits above the ceiling.
+    static func isFrozenOnly(layer: Int) -> Bool {
+        layer >= NSWindow.Level.statusBar.rawValue
+            && layer <= NSWindow.Level.screenSaver.rawValue
     }
 
-    static func isFrozenOnly(layer: Int) -> Bool {
-        frozenLayers.contains(layer)
+    static let dockLayer = Int(CGWindowLevelForKey(.dockWindow))
+
+    /// The Dock is picked, but not captured: its window is the whole display,
+    /// so the pick is `dockStrip(frame:visible:)` and its pixels come from the
+    /// frozen frame.
+    static func isDock(layer: Int) -> Bool {
+        layer == dockLayer
+    }
+
+    static func isPickable(layer: Int) -> Bool {
+        liveLayers.contains(layer) || isDock(layer: layer) || isFrozenOnly(layer: layer)
+    }
+
+    /// The strip the Dock draws, from the screen's frame and its visible frame.
+    ///
+    /// The Dock's window covers the whole display, so its own frame cannot be
+    /// the pick; what it covers is exactly what the screen loses to it. Nil when
+    /// the Dock is hidden, and then there is nothing to pick.
+    static func dockStrip(frame: CGRect, visible: CGRect) -> CGRect? {
+        let bottom = visible.minY - frame.minY
+        if bottom >= 1 {
+            return CGRect(x: frame.minX, y: frame.minY, width: frame.width, height: bottom)
+        }
+        let left = visible.minX - frame.minX
+        if left >= 1 {
+            return CGRect(x: frame.minX, y: visible.minY, width: left, height: visible.height)
+        }
+        let right = frame.maxX - visible.maxX
+        if right >= 1 {
+            return CGRect(x: visible.maxX, y: visible.minY, width: right, height: visible.height)
+        }
+        return nil
     }
 
     /// A sliver of an application window is not something a user aims at, but a

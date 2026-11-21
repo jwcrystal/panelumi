@@ -42,6 +42,10 @@ final class ScreenshotCoordinator {
     /// The pixels of each menu, popover or status item captured before the app
     /// activated, by window id. They are gone from the screen by click time.
     private var frozenWindowImages: [CGWindowID: CGImage] = [:]
+    /// Picks whose pixels come from the frozen frame, not a window capture.
+    /// The Dock is one: its window is the whole display, the strip it draws is
+    /// the pick.
+    private var frameOnlyWindows: Set<CGWindowID> = []
     private let recognitionWindow = TextRecognitionWindowController()
 
     /// Creates the coordinator; extensions are offered to the capture toolbar.
@@ -271,7 +275,7 @@ final class ScreenshotCoordinator {
         pendingFreeze = Task { [weak self] in
             guard let self else { return }
             // Before anything activates, while a menu or a panel is still up.
-            let candidates = Self.windowSnapshot()
+            let candidates = self.windowSnapshot()
             let frozen = await self.captureEveryScreen()
             let windows = await self.capturedWindows(from: candidates)
             guard !Task.isCancelled else { return }
@@ -308,6 +312,7 @@ final class ScreenshotCoordinator {
             onCancel: { [weak self] in
                 self?.frozenScreens.removeAll()
                 self?.frozenWindowImages.removeAll()
+                self?.frameOnlyWindows.removeAll()
             },
             captureBase: { [weak self] rect, screen in
                 await self?.captureRegion(rect, screen)
@@ -362,14 +367,49 @@ final class ScreenshotCoordinator {
     /// The menu, popover and status item windows on screen right now, as ids
     /// and frames. Taken at the press: activating the app is what dismisses
     /// them, so a list read after that has nothing left to answer with.
-    private static func windowSnapshot() -> [PressWindow] {
+    private func windowSnapshot() -> [PressWindow] {
         let list = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
         ) as? [[String: Any]] ?? []
-        let excluded = SelectionController.overlayWindowIDs
-        let snapshot = WindowPick.pressSnapshot(from: list, excluding: excluded)
+        let dockLevel = Int(CGWindowLevelForKey(.dockWindow))
+        let dockInfo = list.first { ($0[kCGWindowLayer as String] as? Int) == dockLevel }
+        let dockID = dockInfo?[kCGWindowNumber as String] as? CGWindowID
+        var excluded = SelectionController.overlayWindowIDs
+        if let dockID { excluded.insert(dockID) }
+        var snapshot = WindowPick.pressSnapshot(from: list, excluding: excluded)
+        if let dock = Self.dockPick(from: dockInfo) {
+            frameOnlyWindows.insert(dock.id)
+            snapshot.append(dock)
+        }
         return snapshot
+    }
+
+    /// The Dock as a pick, in the list's own top-left space. Its window covers
+    /// the whole display, so the strip comes from the screen's frames instead.
+    private static func dockPick(from info: [String: Any]?) -> PressWindow? {
+        guard let info,
+              let id = info[kCGWindowNumber as String] as? CGWindowID,
+              let dict = info[kCGWindowBounds as String] as? NSDictionary,
+              let windowBounds = CGRect(dictionaryRepresentation: dict),
+              let screen = NSScreen.screens.first(where: {
+                  $0.frame.intersection(windowBounds).width >= $0.frame.width / 2
+              }),
+              let strip = WindowPick.dockStrip(frame: screen.frame, visible: screen.visibleFrame)
+        else { return nil }
+
+        let primaryHeight = NSScreen.screens.first(where: { $0.frame.origin == .zero })?.frame.height
+            ?? screen.frame.height
+        return PressWindow(
+            id: id,
+            layer: Int(CGWindowLevelForKey(.dockWindow)),
+            bounds: CGRect(
+                x: strip.minX,
+                y: primaryHeight - strip.maxY,
+                width: strip.width,
+                height: strip.height
+            )
+        )
     }
 
     /// Captures the windows a live list cannot be asked about any more, on
@@ -476,6 +516,9 @@ final class ScreenshotCoordinator {
             let shot: (image: CGImage, rect: CGRect)?
             if let image = frozenWindowImages[target.id] {
                 shot = (image, target.rect)
+            } else if frameOnlyWindows.contains(target.id) {
+                let visible = target.rect.intersection(CGRect(origin: .zero, size: screen.frame.size))
+                shot = frozenPixels(of: visible, on: screen).map { ($0, visible) }
             } else if let image = try? await capture.captureWindow(windowID: target.id) {
                 shot = (image, target.rect)
             } else {
@@ -513,6 +556,7 @@ final class ScreenshotCoordinator {
         defer {
             frozenScreens.removeAll()
             frozenWindowImages.removeAll()
+            frameOnlyWindows.removeAll()
         }
         do {
             // The overlay already froze the region for live mosaic/blur; only

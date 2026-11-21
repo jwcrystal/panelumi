@@ -366,6 +366,13 @@ enum Dump {
             guard rect.width >= minimum, rect.height >= minimum, rect.contains(topLeft) else { continue }
 
             let owner = info[kCGWindowOwnerName as String] as? String ?? "?"
+            if WindowPick.isDock(layer: layer) {
+                // The Dock's window is the whole display; the pick is its strip.
+                let screen = NSScreen.screens.first { $0.frame.contains(mouse) } ?? primary
+                let strip = WindowPick.dockStrip(frame: screen.frame, visible: screen.visibleFrame)
+                print("hit owner=\(owner) id=\(id) pid=\(pid) layer=\(layer) source=dock strip bounds=\(String(describing: strip))")
+                return
+            }
             let source = WindowPick.isFrozenOnly(layer: layer) ? "frozen frame" : "live window"
             print("hit owner=\(owner) id=\(id) pid=\(pid) layer=\(layer) source=\(source) bounds=\(rect)")
             return

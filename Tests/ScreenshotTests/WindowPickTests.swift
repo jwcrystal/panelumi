@@ -30,16 +30,27 @@ final class WindowPickTests: XCTestCase {
         }
     }
 
-    func testDockCursorAndScreenSaverStayOutOfThePicker() {
+    func testTheDockIsPickedButNotCaptured() {
+        let dock = Int(CGWindowLevelForKey(.dockWindow))
+        XCTAssertTrue(WindowPick.isPickable(layer: dock))
+        // Its window covers the whole display, so the pixels come from the
+        // frozen frame over the strip instead of a capture of that window.
+        XCTAssertTrue(WindowPick.isDock(layer: dock))
+        XCTAssertFalse(WindowPick.isFrozenOnly(layer: dock))
+    }
+
+    func testTheMenuBarCursorAndTheGapStayOutOfThePicker() {
         let unpickable = [
-            // Its window covers the whole display, so a rect pick would answer
-            // "Dock" for every point on the screen.
-            Int(CGWindowLevelForKey(.dockWindow)),
             // The strip the pointer rests on right after its icon was clicked:
             // answering it would hide the panel the user is aiming at.
             Int(CGWindowLevelForKey(.mainMenuWindow)),
             Int(CGWindowLevelForKey(.cursorWindow)),
             Int(CGWindowLevelForKey(.desktopIconWindow)),
+            // Between a modal panel (8) and the Dock (20), nothing.
+            9, 12, 19,
+            // The notification centre's window is the whole display; paying a
+            // capture of it on every press is not worth what it offers.
+            21,
         ]
         for layer in unpickable {
             XCTAssertFalse(WindowPick.isPickable(layer: layer), "layer \(layer) must not be pickable")
@@ -86,6 +97,30 @@ final class WindowPickTests: XCTestCase {
         XCTAssertEqual(WindowPick.window(at: CGPoint(x: 150, y: 150), in: snapshot)?.id, 9)
         XCTAssertEqual(WindowPick.window(at: CGPoint(x: 10, y: 10), in: snapshot)?.id, 8)
         XCTAssertNil(WindowPick.window(at: CGPoint(x: 900, y: 900), in: snapshot))
+    }
+
+    func testTheDockStripIsWhatTheScreenLosesToIt() {
+        let frame = CGRect(x: 0, y: 0, width: 1512, height: 982)
+
+        // At the bottom, under the visible area.
+        XCTAssertEqual(
+            WindowPick.dockStrip(frame: frame, visible: CGRect(x: 0, y: 72, width: 1512, height: 877)),
+            CGRect(x: 0, y: 0, width: 1512, height: 72)
+        )
+        // On the left.
+        XCTAssertEqual(
+            WindowPick.dockStrip(frame: frame, visible: CGRect(x: 80, y: 0, width: 1432, height: 949)),
+            CGRect(x: 0, y: 0, width: 80, height: 949)
+        )
+        // On the right.
+        XCTAssertEqual(
+            WindowPick.dockStrip(frame: frame, visible: CGRect(x: 0, y: 0, width: 1432, height: 949)),
+            CGRect(x: 1432, y: 0, width: 80, height: 949)
+        )
+        // Hidden: the visible frame is the whole frame minus the menu bar.
+        XCTAssertNil(
+            WindowPick.dockStrip(frame: frame, visible: CGRect(x: 0, y: 0, width: 1512, height: 949))
+        )
     }
 
     /// A window list entry shaped like `CGWindowListCopyWindowInfo` output.

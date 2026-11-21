@@ -62,7 +62,7 @@ and no live frame after it.
   overlay dismisses menus, popovers and menu bar panels before it can look, so
   every pickable window is listed once at the press and asked first; a window
   that appeared after that still comes from the live list. The list covers the
-  windows on layers 0–8 and 25–1000, minus the Dock and the menu bar.
+  windows on layers 0–8, the Dock and layers 25–1000, minus the menu bar.
 - **Window clicks are still captured per window** with
   `SCContentFilter(desktopIndependentWindow:)`. Cutting a window out of the
   frozen display would put occluding windows and their shadows into the shot,
@@ -74,11 +74,14 @@ and no live frame after it.
   click, so each is captured window by window at the press and cropped to the
   part that is actually drawn: a panel like Control Center lives in a window far
   larger than itself, with the rest transparent.
-- **The Dock and the menu bar stay out.** The Dock's window covers the whole
-  display rather than the strip that is drawn, so a rect pick would take the
-  screen for the Dock and every point would answer "Dock". The menu bar is a
-  33-point strip across the top, which is where the pointer rests right after
-  its icon was clicked to open a panel. Drag a region for either.
+- **The Dock is a strip, not a window.** Its window covers the whole display
+  rather than the strip it draws, so the pick is the part of the screen its
+  `visibleFrame` gives up, and its pixels are cut from the frozen frame. Nothing
+  about it is captured on every press, and a hidden Dock is simply not there.
+- **The menu bar stays out.** It is a 33-point strip across the top, which is
+  where the pointer rests right after its icon was clicked to open a panel, so
+  it would answer instead of the panel the user is aiming at. Drag a region for
+  it.
 - **Extension live captures** (`CaptureContext.captureLive`) are live by
   contract; a takeover that needs several frames of a changing screen keeps
   getting them.
@@ -115,5 +118,5 @@ and no live frame after it.
 8. No Screen Recording grant: the checklist opens and no overlay appears.
 9. A window with a menu open: picking the window gives the window without the
    menu; picking the menu itself gives the menu. The same for a status item
-   popover (pointer inside the popover, not on its icon) and for a menu bar
-   panel such as Stats' CPU module.
+   popover (pointer inside the popover, not on its icon), for a menu bar panel
+   such as Stats' CPU module, and for the Dock.
