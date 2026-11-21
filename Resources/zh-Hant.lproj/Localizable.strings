@@ -178,7 +178,6 @@
 "C Copy colour · ⌥ HEX / RGB / HSL" = "C 複製色值 · ⌥ HEX / RGB / HSL";
 "↩ Copy · Space Save · P Pin · ⌘Z Undo · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · Esc 關閉";
 "↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close" = "↩ 複製 · Space 儲存 · P 釘選 · ⌘Z 復原 · ⌫ 刪除 · ⇥ 隱藏 · Esc 關閉";
-"⇧ Shift: straight band · ↩ Copy · Space Save · Esc Close" = "⇧ Shift 水平色帶 · ↩ 複製 · Space 儲存 · Esc 關閉";
 "The selected area was empty." = "選取的範圍是空的。";
 "Capture failed: %@" = "截圖失敗：%@";
 "The display could not be found for this capture." = "找不到這次截圖要用的顯示器。";
@@ -194,6 +193,7 @@
 "Line" = "直線";
 "Arrow" = "箭頭";
 "Freehand" = "手繪";
+"Straight band" = "水平色帶";
 "Highlighter" = "螢光筆";
 "Number" = "編號";
 "Mosaic" = "馬賽克";

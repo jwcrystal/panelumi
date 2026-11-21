@@ -5,6 +5,7 @@ import XCTest
 final class HighlighterPreferencesTests: XCTestCase {
     private let keys = [
         ScreenshotPreferences.highlighterWidthKey,
+        ScreenshotPreferences.highlighterStraightKey,
         ScreenshotPreferences.annotationLineWidthKey,
     ]
     private var saved: [String: Any] = [:]
@@ -73,5 +74,19 @@ final class HighlighterPreferencesTests: XCTestCase {
         XCTAssertEqual(CaptureToolbarView.highlighterWidthLevel(for: range.upperBound), 10)
         XCTAssertEqual(CaptureToolbarView.highlighterWidthLevel(for: 0), 1)
         XCTAssertEqual(CaptureToolbarView.highlighterWidthLevel(for: 1), 10)
+    }
+
+    @MainActor
+    func testStraightModeIsRememberedBetweenCaptures() {
+        let session = CaptureSession()
+        session.prepareForCapture()
+        XCTAssertFalse(session.highlighterStraight, "freehand is the default")
+
+        session.highlighterStraight = true
+        XCTAssertTrue(ScreenshotPreferences.highlighterStraight)
+
+        let next = CaptureSession()
+        next.prepareForCapture()
+        XCTAssertTrue(next.highlighterStraight, "the mode survives the next capture")
     }
 }

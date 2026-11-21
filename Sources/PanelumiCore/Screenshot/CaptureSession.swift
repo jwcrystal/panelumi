@@ -118,6 +118,13 @@ final class CaptureSession: ObservableObject {
     @Published var defaultStyle = AnnotationStyle() {
         didSet { persistDefaultStyle(from: oldValue) }
     }
+    /// The highlighter's drawing mode: freehand, or one straight band per drag.
+    @Published var highlighterStraight = false {
+        didSet {
+            guard hasLoadedPreferences, highlighterStraight != oldValue else { return }
+            ScreenshotPreferences.highlighterStraight = highlighterStraight
+        }
+    }
     @Published private(set) var recentAnnotationColors: [String] = []
     /// True while a click on the screenshot samples a colour instead of
     /// drawing. Reset with every capture.
@@ -180,6 +187,7 @@ final class CaptureSession: ObservableObject {
         }
         defaultStyle.lineWidth = ScreenshotPreferences.annotationLineWidth
         defaultStyle.highlighterWidth = ScreenshotPreferences.highlighterWidth
+        highlighterStraight = ScreenshotPreferences.highlighterStraight
         recentAnnotationColors = ScreenshotPreferences.recentAnnotationColors
         hasLoadedPreferences = true
     }
@@ -552,9 +560,6 @@ struct CaptureToolbarView: View {
             if session.isPickingColor {
                 return t("Click the screenshot to pick a colour · Esc cancels")
             }
-            if session.displayTool == .highlighter {
-                return t("⇧ Shift: straight band · ↩ Copy · Space Save · Esc Close")
-            }
             return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close")
         }
     }
@@ -785,6 +790,12 @@ struct CaptureToolbarView: View {
                 text: "\(Int(session.activeStyle.mosaicBlock.rounded()))"
             )
         case .highlighter:
+            optionIcon("scribble", t("Freehand"), selected: !session.highlighterStraight) {
+                session.highlighterStraight = false
+            }
+            optionIcon("minus", t("Straight band"), selected: session.highlighterStraight) {
+                session.highlighterStraight = true
+            }
             highlighterWidthSlider
             Image(systemName: "circle.lefthalf.filled").frame(width: 22)
             optionSlider(

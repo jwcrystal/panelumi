@@ -26,6 +26,7 @@ enum ScreenshotPreferences {
     static let annotationColorKey = "ScreenshotAnnotationColor"
     static let annotationLineWidthKey = "ScreenshotAnnotationLineWidth"
     static let highlighterWidthKey = "ScreenshotHighlighterWidth"
+    static let highlighterStraightKey = "ScreenshotHighlighterStraight"
     static let recentAnnotationColorsKey = "ScreenshotRecentAnnotationColors"
     static let silentRecognitionKey = "TextRecognitionSilent"
     static let autoCopyRecognitionKey = "TextRecognitionAutoCopy"
@@ -346,6 +347,13 @@ enum ScreenshotPreferences {
                 forKey: highlighterWidthKey
             )
         }
+    }
+
+    /// True when the highlighter lays its band on one row instead of following
+    /// the pointer.
+    static var highlighterStraight: Bool {
+        get { UserDefaults.standard.bool(forKey: highlighterStraightKey) }
+        set { UserDefaults.standard.set(newValue, forKey: highlighterStraightKey) }
     }
 
     static var recentAnnotationColors: [String] {
