@@ -350,9 +350,14 @@ enum ScreenshotPreferences {
     }
 
     /// True when the highlighter lays its band on one row instead of following
-    /// the pointer.
+    /// the pointer. Straight is the default: a band is nearly always drawn
+    /// across a line of text.
     static var highlighterStraight: Bool {
-        get { UserDefaults.standard.bool(forKey: highlighterStraightKey) }
+        get {
+            guard let stored = UserDefaults.standard.object(forKey: highlighterStraightKey) as? Bool
+            else { return true }
+            return stored
+        }
         set { UserDefaults.standard.set(newValue, forKey: highlighterStraightKey) }
     }
 

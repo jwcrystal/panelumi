@@ -80,13 +80,13 @@ final class HighlighterPreferencesTests: XCTestCase {
     func testStraightModeIsRememberedBetweenCaptures() {
         let session = CaptureSession()
         session.prepareForCapture()
-        XCTAssertFalse(session.highlighterStraight, "freehand is the default")
+        XCTAssertTrue(session.highlighterStraight, "the straight band is the default")
 
-        session.highlighterStraight = true
-        XCTAssertTrue(ScreenshotPreferences.highlighterStraight)
+        session.highlighterStraight = false
+        XCTAssertFalse(ScreenshotPreferences.highlighterStraight)
 
         let next = CaptureSession()
         next.prepareForCapture()
-        XCTAssertTrue(next.highlighterStraight, "the mode survives the next capture")
+        XCTAssertFalse(next.highlighterStraight, "the mode survives the next capture")
     }
 }

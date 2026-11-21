@@ -119,7 +119,7 @@ final class CaptureSession: ObservableObject {
         didSet { persistDefaultStyle(from: oldValue) }
     }
     /// The highlighter's drawing mode: freehand, or one straight band per drag.
-    @Published var highlighterStraight = false {
+    @Published var highlighterStraight = true {
         didSet {
             guard hasLoadedPreferences, highlighterStraight != oldValue else { return }
             ScreenshotPreferences.highlighterStraight = highlighterStraight
