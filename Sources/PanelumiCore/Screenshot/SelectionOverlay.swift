@@ -1219,6 +1219,7 @@ final class SelectionView: NSView {
             return
         }
         session.annotations = []
+        session.imagePointSize = selection?.size ?? .zero
         session.extensionToolbarItems = CaptureSession.toolbarEntries(for: session.captureExtensions)
         session.captureActionsAllowed = windowTargets.isEmpty
         session.onUndo = { [weak self] in self?.performHistory(.undo) }

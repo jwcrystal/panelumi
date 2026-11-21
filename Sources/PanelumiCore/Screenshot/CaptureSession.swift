@@ -108,6 +108,9 @@ final class CaptureSession: ObservableObject {
     /// starts editing (once per editing view; a selection spanning two displays
     /// reads the items for each). The toolbar body reads this instead of calling
     /// the extensions.
+    /// The size of the capture in screen points, so the toolbar can show a
+    /// width in points instead of a slider level. Zero until editing starts.
+    @Published var imagePointSize: CGSize = .zero
     @Published var extensionToolbarItems: [CaptureExtensionToolbarEntry] = []
     /// False while the selection is a set of windows: the toolbar actions need a
     /// region, and a window composite is not one.
@@ -549,6 +552,9 @@ struct CaptureToolbarView: View {
             if session.isPickingColor {
                 return t("Click the screenshot to pick a colour · Esc cancels")
             }
+            if session.displayTool == .highlighter {
+                return t("⇧ Shift: straight band · ↩ Copy · Space Save · Esc Close")
+            }
             return t("↩ Copy · Space Save · P Pin · ⌘Z Undo · ⌫ Delete · ⇥ Hide · Esc Close")
         }
     }
@@ -801,7 +807,11 @@ struct CaptureToolbarView: View {
         widthSlider(
             session.styleBinding(\.lineWidth),
             range: ScreenshotPreferences.annotationLineWidthRange,
-            text: "\(Self.lineWidthLevel(for: session.activeStyle.lineWidth))"
+            text: Self.widthLabel(
+                for: session.activeStyle.lineWidth,
+                in: session.imagePointSize,
+                level: Self.lineWidthLevel(for: session.activeStyle.lineWidth)
+            )
         )
     }
 
@@ -809,8 +819,20 @@ struct CaptureToolbarView: View {
         widthSlider(
             session.styleBinding(\.highlighterWidth),
             range: ScreenshotPreferences.highlighterWidthRange,
-            text: "\(Self.highlighterWidthLevel(for: session.activeStyle.highlighterWidth))"
+            text: Self.widthLabel(
+                for: session.activeStyle.highlighterWidth,
+                in: session.imagePointSize,
+                level: Self.highlighterWidthLevel(for: session.activeStyle.highlighterWidth)
+            )
         )
+    }
+
+    /// Widths are stored relative to the capture, so the points they come to
+    /// depend on it. Showing points lets the number be compared with a font
+    /// size; the level is the fallback before the capture size is known.
+    static func widthLabel(for width: CGFloat, in size: CGSize, level: Int) -> String {
+        guard size.width > 0 else { return "\(level)" }
+        return "\(Int((width * size.width).rounded())) pt"
     }
 
     private func widthSlider(

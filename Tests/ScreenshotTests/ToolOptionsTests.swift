@@ -140,6 +140,22 @@ final class ToolOptionsTests: XCTestCase {
         XCTAssertEqual(CaptureToolbarView.lineWidthLevel(for: 0.05), 10)
     }
 
+    func testWidthLabelsShowPointsOnceTheCaptureSizeIsKnown() {
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.024, in: CGSize(width: 800, height: 600), level: 4),
+            "19 pt"
+        )
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.05, in: CGSize(width: 1400, height: 900), level: 10),
+            "70 pt"
+        )
+        XCTAssertEqual(
+            CaptureToolbarView.widthLabel(for: 0.024, in: .zero, level: 4),
+            "4",
+            "the level is the fallback before the capture size is known"
+        )
+    }
+
     @MainActor
     func testHintBandDoesNotTakeClicks() {
         _ = NSApplication.shared
