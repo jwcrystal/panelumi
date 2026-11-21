@@ -6,16 +6,19 @@ import PanelumiKit
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let screenshot: ScreenshotCoordinator
     private lazy var model: AppModel = {
-        AppModel(catalog: AppCatalog.make(screenshot: screenshot))
+        AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: menuItemProviders)
     }()
+    private let menuItemProviders: [any MenuItemProvider]
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
 
-    /// Creates the delegate; extensions are handed to the screenshot coordinator.
-    init(captureExtensions: [any CaptureExtension] = []) {
+    /// Creates the delegate; extensions are handed to the screenshot coordinator
+    /// and menu item providers to the model that builds the status-bar menu.
+    init(captureExtensions: [any CaptureExtension] = [], menuItemProviders: [any MenuItemProvider] = []) {
+        self.menuItemProviders = menuItemProviders
         screenshot = ScreenshotCoordinator(captureExtensions: captureExtensions)
         super.init()
     }

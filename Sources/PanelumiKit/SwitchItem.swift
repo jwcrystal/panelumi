@@ -46,6 +46,9 @@ public struct SwitchItem {
     /// Empty means the item gets no submenu.
     public let actions: () -> [MenuAction]
     public let perform: () throws -> Void
+    /// Read when the menu is built and each time it opens; false greys the row
+    /// out. The reason belongs in `subtitle`.
+    public let isEnabled: () -> Bool
 
     public init(
         id: String,
@@ -55,6 +58,7 @@ public struct SwitchItem {
         state: @escaping () -> Bool = { false },
         subtitle: @escaping () -> String? = { nil },
         actions: @escaping () -> [MenuAction] = { [] },
+        isEnabled: @escaping () -> Bool = { true },
         perform: @escaping () throws -> Void
     ) {
         self.id = id
@@ -64,6 +68,7 @@ public struct SwitchItem {
         self.state = state
         self.subtitle = subtitle
         self.actions = actions
+        self.isEnabled = isEnabled
         self.perform = perform
     }
 }

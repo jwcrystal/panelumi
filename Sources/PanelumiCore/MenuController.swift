@@ -4,7 +4,7 @@ import PanelumiKit
 
 /// Builds and owns the status-bar menu.
 @MainActor
-final class MenuController: NSObject, NSMenuDelegate {
+final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private final class ItemBox: NSObject {
         let item: SwitchItem
         init(_ item: SwitchItem) { self.item = item }
@@ -28,6 +28,9 @@ final class MenuController: NSObject, NSMenuDelegate {
     /// The permission count the menu was built with, so the setup window's
     /// periodic refresh only rebuilds when something actually changed.
     private var builtMissingPermissionCount = -1
+
+    /// The menu currently attached to the status item.
+    var currentMenu: NSMenu? { statusItem.menu }
 
     var openSettings: () -> Void = {}
     var openPermissions: () -> Void = {}
@@ -78,7 +81,7 @@ final class MenuController: NSObject, NSMenuDelegate {
     private func menuSubtitle(for item: SwitchItem) -> String? {
         let parts = [
             item.subtitle(),
-            model.config.hotkey(for: item.id)?.displayString,
+            model.shortcutLabel(for: item.id),
         ].compactMap { $0 }
         return parts.isEmpty ? nil : parts.joined(separator: "  ")
     }
@@ -111,7 +114,7 @@ final class MenuController: NSObject, NSMenuDelegate {
             menuItem.target = self
             menuItem.representedObject = ItemBox(item)
             menuItem.image = symbol(item.symbolName)
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), enabled: item.isEnabled())
 
             let actions = item.actions()
             if !actions.isEmpty {
@@ -201,13 +204,17 @@ final class MenuController: NSObject, NSMenuDelegate {
             guard let box = menuItem.representedObject as? ItemBox else { continue }
             let item = box.item
             menuItem.state = (item.kind == .toggle && item.state()) ? .on : .off
-            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item))
+            menuItem.attributedTitle = MenuTitle.make(item.title, subtitle: menuSubtitle(for: item), enabled: item.isEnabled())
             // Submenus are built once per rebuild, so refresh their checkmarks here.
             for subitem in menuItem.submenu?.items ?? [] {
                 guard let action = subitem.representedObject as? ActionBox else { continue }
                 subitem.state = action.isChecked() ? .on : .off
             }
         }
+    }
+
+    func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
+        (menuItem.representedObject as? ItemBox)?.item.isEnabled() ?? true
     }
 
     func menuDidClose(_ menu: NSMenu) {
