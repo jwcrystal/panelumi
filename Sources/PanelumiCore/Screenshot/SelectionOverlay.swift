@@ -1761,7 +1761,11 @@ final class SelectionView: NSView {
     private func updateDraft(from start: CGPoint, to current: CGPoint) {
         switch session.tool {
         case .pen, .highlighter:
-            penPoints.append(current)
+            if session.tool == .highlighter, NSEvent.modifierFlags.contains(.shift) {
+                penPoints = Annotation.horizontalBand(from: start, to: current)
+            } else {
+                penPoints.append(current)
+            }
             var mark = Annotation(
                 shape: session.tool == .pen ? .pen(points: penPoints) : .highlighter(points: penPoints),
                 style: session.defaultStyle

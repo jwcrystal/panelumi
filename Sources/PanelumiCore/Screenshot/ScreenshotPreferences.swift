@@ -291,9 +291,10 @@ enum ScreenshotPreferences {
     static let defaultAnnotationLineWidth: CGFloat = 0.004
     static let annotationLineWidthRange: ClosedRange<CGFloat> = 0.0015...0.016
     /// The default matches the pen width the highlighter used when it shared
-    /// the pen's value with a ×5 factor.
-    static let defaultHighlighterWidth: CGFloat = 0.02
-    static let highlighterWidthRange: ClosedRange<CGFloat> = 0.006...0.026
+    /// the pen's value with a ×5 factor; the range reaches past it so a band
+    /// can cover large text as well.
+    static let defaultHighlighterWidth: CGFloat = 0.024
+    static let highlighterWidthRange: ClosedRange<CGFloat> = 0.01...0.05
 
     static var annotationColor: String {
         get {

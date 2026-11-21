@@ -149,6 +149,17 @@ final class AnnotationStyleTests: XCTestCase {
         return annotation
     }
 
+    func testShiftDragMakesAStraightHorizontalBand() {
+        let band = Annotation.horizontalBand(
+            from: CGPoint(x: 0.2, y: 0.3),
+            to: CGPoint(x: 0.8, y: 0.42)
+        )
+
+        XCTAssertEqual(band.count, 2)
+        XCTAssertEqual(band[0], CGPoint(x: 0.2, y: 0.3))
+        XCTAssertEqual(band[1], CGPoint(x: 0.8, y: 0.3), "the row stays where the press landed")
+    }
+
     @MainActor
     func testHighlighterLeavesDarkPixelsUnderTheBandDark() throws {
         // The band has to multiply into a light image instead of painting over

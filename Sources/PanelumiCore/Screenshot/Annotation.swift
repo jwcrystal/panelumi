@@ -60,7 +60,7 @@ struct AnnotationStyle: Equatable {
     var numberStyle: NumberStyle = .circle
     var highlighterAlpha: CGFloat = 0.32
     /// Highlighter band thickness relative to the image width.
-    var highlighterWidth: CGFloat = 0.02
+    var highlighterWidth: CGFloat = 0.024
 }
 
 /// A mark drawn on top of a screenshot.
@@ -117,7 +117,7 @@ struct Annotation: Equatable {
     /// Highlighter opacity (0…1).
     var highlighterAlpha: CGFloat = 0.32
     /// Highlighter band thickness relative to the image width.
-    var highlighterWidth: CGFloat = 0.02
+    var highlighterWidth: CGFloat = 0.024
     /// Fixed when the stroke starts; only the highlighter reads it.
     var highlighterBlend: HighlighterBlend = .multiply
 
@@ -144,6 +144,12 @@ struct Annotation: Equatable {
         case .number(_, let at), .text(_, let at):
             return CGRect(x: at.x, y: at.y, width: 0.12, height: 0.04)
         }
+    }
+
+    /// A straight band that keeps the press point's row, for a Shift drag with
+    /// the highlighter.
+    static func horizontalBand(from start: CGPoint, to end: CGPoint) -> [CGPoint] {
+        [start, CGPoint(x: end.x, y: start.y)]
     }
 
     func contains(_ point: CGPoint, tolerance: CGFloat = 0.012) -> Bool {
