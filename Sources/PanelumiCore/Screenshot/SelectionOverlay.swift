@@ -1753,7 +1753,7 @@ final class SelectionView: NSView {
                 if session.tool == .pen {
                     commit(.pen(points: penPoints))
                 } else {
-                    commit(.highlighter(points: penPoints), highlighterBlend: highlighterBlend)
+                    commit(fittedHighlighter(penPoints))
                 }
             default:
                 commit(draftShape(from: start, to: end))
@@ -1820,12 +1820,38 @@ final class SelectionView: NSView {
         _ shape: Annotation.Shape,
         highlighterBlend: Annotation.HighlighterBlend? = nil
     ) {
-        session.recordUndoSnapshot()
         var annotation = Annotation(shape: shape, style: session.defaultStyle)
         if let highlighterBlend {
             annotation.highlighterBlend = highlighterBlend
         }
+        commit(annotation)
+    }
+
+    private func commit(_ annotation: Annotation) {
+        session.recordUndoSnapshot()
         session.annotations.append(annotation)
+    }
+
+    /// A straight band takes the height of the line it covers, so a mark over a
+    /// heading and one over body text both fit without touching the slider.
+    private func fittedHighlighter(_ points: [CGPoint]) -> Annotation {
+        var mark = Annotation(shape: .highlighter(points: points), style: session.defaultStyle)
+        mark.highlighterBlend = highlighterBlend
+        guard session.highlighterStraight,
+              let baseImage,
+              let selection,
+              selection.width > 0,
+              let fit = HighlighterLineFit.fit(
+                  in: baseImage,
+                  points: points,
+                  width: mark.highlighterWidth,
+                  pointScale: CGFloat(baseImage.width) / selection.width
+              )
+        else { return mark }
+
+        mark.highlighterWidth = fit.width
+        mark.shape = .highlighter(points: points.map { CGPoint(x: $0.x, y: fit.centerY) })
+        return mark
     }
 
     // MARK: - Text entry
