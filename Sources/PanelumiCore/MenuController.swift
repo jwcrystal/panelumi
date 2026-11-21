@@ -13,9 +13,11 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private final class ActionBox: NSObject {
         let run: () throws -> Void
         let isChecked: () -> Bool
-        init(_ run: @escaping () throws -> Void, isChecked: @escaping () -> Bool) {
+        let isEnabled: () -> Bool
+        init(_ run: @escaping () throws -> Void, isChecked: @escaping () -> Bool, isEnabled: @escaping () -> Bool) {
             self.run = run
             self.isChecked = isChecked
+            self.isEnabled = isEnabled
         }
     }
 
@@ -25,6 +27,7 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     private var cancellables: Set<AnyCancellable> = []
     private var isMenuOpen = false
     private var needsRebuild = false
+    private var isRebuilding = false
     /// The permission count the menu was built with, so the setup window's
     /// periodic refresh only rebuilds when something actually changed.
     private var builtMissingPermissionCount = -1
@@ -74,6 +77,10 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
         }
 
         rebuild()
+
+        for provider in model.itemProviders {
+            provider.bind { [weak self] in self?.rebuild() }
+        }
     }
 
     /// Subtitle column: live state first, then the shortcut, so the menu says
@@ -96,6 +103,11 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     }
 
     private func rebuild() {
+        // A provider that calls its rebuild closure from `items` would recurse.
+        guard !isRebuilding else { return }
+        isRebuilding = true
+        defer { isRebuilding = false }
+
         // Never mutate a menu that is on screen: AppKit keeps painting the old
         // rows and the list looks duplicated. Defer until the menu closes.
         guard !isMenuOpen else {
@@ -174,7 +186,7 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
             }
             let menuItem = NSMenuItem(title: action.title, action: #selector(runAction(_:)), keyEquivalent: "")
             menuItem.target = self
-            menuItem.representedObject = ActionBox(action.perform, isChecked: action.isChecked)
+            menuItem.representedObject = ActionBox(action.perform, isChecked: action.isChecked, isEnabled: action.isEnabled)
             menuItem.state = action.isChecked() ? .on : .off
             submenu.addItem(menuItem)
         }
@@ -214,7 +226,9 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
     }
 
     func validateMenuItem(_ menuItem: NSMenuItem) -> Bool {
-        (menuItem.representedObject as? ItemBox)?.item.isEnabled() ?? true
+        if let box = menuItem.representedObject as? ItemBox { return box.item.isEnabled() }
+        if let box = menuItem.representedObject as? ActionBox { return box.isEnabled() }
+        return true
     }
 
     func menuDidClose(_ menu: NSMenu) {

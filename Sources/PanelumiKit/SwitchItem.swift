@@ -21,16 +21,20 @@ public struct SwitchItem {
         /// Draws a separator above the entry.
         public let startsSection: Bool
         public let perform: () throws -> Void
+        /// Read each time the submenu opens; false greys the entry out.
+        public let isEnabled: () -> Bool
 
         public init(
             title: String,
             isChecked: @escaping () -> Bool = { false },
             startsSection: Bool = false,
+            isEnabled: @escaping () -> Bool = { true },
             perform: @escaping () throws -> Void
         ) {
             self.title = title
             self.isChecked = isChecked
             self.startsSection = startsSection
+            self.isEnabled = isEnabled
             self.perform = perform
         }
     }

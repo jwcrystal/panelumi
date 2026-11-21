@@ -13,6 +13,31 @@ private struct FakeProvider: MenuItemProvider {
     @MainActor var items: [SwitchItem] { make() }
 }
 
+private final class BindingProvider: MenuItemProvider, @unchecked Sendable {
+    let identifier: String
+    var rows: @MainActor () -> [SwitchItem]
+    private(set) var bindCount = 0
+    private(set) var rebuild: (@MainActor () -> Void)?
+    private(set) var itemsReads = 0
+    var callRebuildFromItems = false
+
+    init(_ identifier: String, rows: @escaping @MainActor () -> [SwitchItem] = { [] }) {
+        self.identifier = identifier
+        self.rows = rows
+    }
+
+    @MainActor var items: [SwitchItem] {
+        itemsReads += 1
+        if callRebuildFromItems { rebuild?() }
+        return rows()
+    }
+
+    @MainActor func bind(rebuildMenu: @escaping @MainActor () -> Void) {
+        bindCount += 1
+        rebuild = rebuildMenu
+    }
+}
+
 @MainActor
 final class MenuItemProviderTests: XCTestCase {
     private var urls: [URL] = []
@@ -255,5 +280,129 @@ final class MenuItemProviderTests: XCTestCase {
 
     func testSwitchItemIsEnabledDefaultsToTrue() {
         XCTAssertTrue(row("q").isEnabled())
+    }
+
+    // MARK: - bind(rebuildMenu:)
+
+    private func titles(_ controller: MenuController) throws -> [String] {
+        try XCTUnwrap(controller.currentMenu).items.compactMap { $0.attributedTitle?.string }
+    }
+
+    func testProviderWithoutBindLeavesMenuAndRebuildsUnchanged() throws {
+        let model = makeModel(itemProviders: [FakeProvider("one") { [self.row("x")] }])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        let menu = try XCTUnwrap(controller.currentMenu)
+        XCTAssertEqual(try titles(controller).filter { $0.hasPrefix("x") }.count, 1)
+        controller.menuWillOpen(menu)
+        controller.menuDidClose(menu)
+        XCTAssertTrue(controller.currentMenu === menu)
+    }
+
+    func testEachProviderIsBoundOnceAndDroppedDuplicateIsNot() {
+        let first = BindingProvider("same")
+        let duplicate = BindingProvider("same")
+        let other = BindingProvider("other")
+        let model = makeModel(itemProviders: [first, duplicate, other])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        XCTAssertEqual(first.bindCount, 1)
+        XCTAssertEqual(duplicate.bindCount, 0)
+        XCTAssertEqual(other.bindCount, 1)
+        first.rebuild?()
+        XCTAssertEqual(first.bindCount, 1)
+        withExtendedLifetime(controller) {}
+    }
+
+    func testRebuildClosureShowsNewRowsAndTitles() throws {
+        let provider = BindingProvider("one") { [self.row("x", title: "Old")] }
+        let model = makeModel(itemProviders: [provider])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        let before = try XCTUnwrap(controller.currentMenu)
+        XCTAssertEqual(try titles(controller).filter { $0.hasPrefix("Old") }.count, 1)
+
+        provider.rows = { [self.row("x", title: "New"), self.row("y", title: "Added")] }
+        provider.rebuild?()
+        let after = try titles(controller)
+        XCTAssertFalse(controller.currentMenu === before)
+        XCTAssertEqual(after.filter { $0.hasPrefix("Old") }.count, 0)
+        XCTAssertEqual(after.filter { $0.hasPrefix("New") }.count, 1)
+        XCTAssertEqual(after.filter { $0.hasPrefix("Added") }.count, 1)
+    }
+
+    func testRebuildClosureWhileMenuIsOpenWaitsForClose() throws {
+        let provider = BindingProvider("one") { [self.row("x", title: "Old")] }
+        let model = makeModel(itemProviders: [provider])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        let menu = try XCTUnwrap(controller.currentMenu)
+        controller.menuWillOpen(menu)
+
+        provider.rows = { [self.row("x", title: "New")] }
+        provider.rebuild?()
+        XCTAssertTrue(controller.currentMenu === menu)
+        XCTAssertEqual(try titles(controller).filter { $0.hasPrefix("New") }.count, 0)
+
+        controller.menuDidClose(menu)
+        XCTAssertFalse(controller.currentMenu === menu)
+        XCTAssertEqual(try titles(controller).filter { $0.hasPrefix("New") }.count, 1)
+    }
+
+    func testRebuildClosureCalledFromItemsDoesNotRecurse() throws {
+        let provider = BindingProvider("one") { [self.row("x", title: "Row")] }
+        let model = makeModel(itemProviders: [provider])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        provider.callRebuildFromItems = true
+        let readsBefore = provider.itemsReads
+
+        provider.rebuild?()
+        XCTAssertEqual(provider.itemsReads - readsBefore, 1)
+        XCTAssertEqual(try titles(controller).filter { $0.hasPrefix("Row") }.count, 1)
+    }
+
+    func testRebuildClosureAfterControllerReleasedDoesNothing() {
+        let provider = BindingProvider("one")
+        var controller: MenuController? = MenuController(
+            model: makeModel(itemProviders: [provider]), permissions: PermissionCenter())
+        let closure = provider.rebuild
+        XCTAssertNotNil(closure)
+        controller = nil
+        closure?()
+        XCTAssertNil(controller)
+    }
+
+    func testSubmenuEntryValidationFollowsIsEnabled() throws {
+        let flag = Flag()
+        let model = makeModel(itemProviders: [FakeProvider("one") {
+            [SwitchItem(id: "sub", title: "Sub", symbolName: "circle", kind: .action,
+                        actions: { [
+                            .init(title: "Gated", isEnabled: { flag.value }) {},
+                            .init(title: "Plain") {},
+                        ] }, perform: {})]
+        }])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        let menu = try XCTUnwrap(controller.currentMenu)
+        let sub = try XCTUnwrap(menu.items.first { ($0.attributedTitle?.string ?? "").hasPrefix("Sub") }?.submenu)
+        let gated = try XCTUnwrap(sub.items.first { $0.title == "Gated" })
+        let plain = try XCTUnwrap(sub.items.first { $0.title == "Plain" })
+
+        XCTAssertTrue(sub.autoenablesItems)
+        XCTAssertTrue(controller.validateMenuItem(plain))
+        XCTAssertFalse(controller.validateMenuItem(gated))
+        sub.update()
+        XCTAssertFalse(gated.isEnabled)
+        XCTAssertTrue(plain.isEnabled)
+
+        flag.value = true
+        XCTAssertTrue(controller.validateMenuItem(gated))
+        sub.update()
+        XCTAssertTrue(gated.isEnabled)
+    }
+
+    func testMenuActionIsEnabledDefaultsToTrue() {
+        XCTAssertTrue(SwitchItem.MenuAction(title: "T") {}.isEnabled())
+    }
+
+    func testMenuDumpDoesNotBindProviders() {
+        let provider = BindingProvider("one") { [self.row("x")] }
+        Dump.printMenu(itemProviders: [provider])
+        XCTAssertEqual(provider.bindCount, 0)
     }
 }

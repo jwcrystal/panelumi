@@ -21,7 +21,22 @@ public protocol MenuItemProvider: Sendable {
     ///
     /// Only `state`, `subtitle`, `isEnabled` and submenu checkmarks are
     /// refreshed when the menu opens. `title`, `symbolName`, `kind` and the
-    /// shape of `actions` are fixed until the next build, so anything that
-    /// changes belongs in `subtitle`.
+    /// shape of `actions` are fixed until the next build. Put anything that
+    /// changes often in `subtitle`; for a change to the fixed fields, ask for
+    /// a rebuild through the closure passed to `bind(rebuildMenu:)`.
     @MainActor var items: [SwitchItem] { get }
+
+    /// Called once, when the status-bar menu starts using this provider, with a
+    /// closure that rebuilds the menu. Call it after anything `items` returns
+    /// changes in a way the open-time refresh does not cover: rows added or
+    /// removed, a new `title`, `symbolName` or `kind`, or a different set of
+    /// submenu entries. Calling it while the menu is open rebuilds after it
+    /// closes. Do not call it from `items`.
+    ///
+    /// The default implementation ignores the closure.
+    @MainActor func bind(rebuildMenu: @escaping @MainActor () -> Void)
+}
+
+extension MenuItemProvider {
+    @MainActor public func bind(rebuildMenu: @escaping @MainActor () -> Void) {}
 }
