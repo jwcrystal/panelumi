@@ -602,7 +602,7 @@ final class SelectionView: NSView {
     /// uses the same value before the first draw.
     static let dimAlpha: CGFloat = 0.45
 
-    private enum Handle: CaseIterable {
+    enum Handle: CaseIterable {
         case topLeft, top, topRight, right, bottomRight, bottom, bottomLeft, left
     }
 
@@ -734,12 +734,130 @@ final class SelectionView: NSView {
         tool == .highlighter ? markerCursor : .crosshair
     }
 
-    /// The tool's cursor belongs to the region: outside it a drag starts a new
-    /// selection, which is what the crosshair says.
+    /// What a press at a point would start, resolved in `mouseDown` order but
+    /// without its side effects. The cursor reads the same answer, so a hover
+    /// cannot promise a drag the click will not begin.
+    enum PointerShape: Equatable {
+        case regionHandle(Handle)
+        case annotationHandle(Handle)
+        case annotation
+        case region
+        case nothing
+    }
+
+    func pointerShape(at point: CGPoint) -> PointerShape {
+        // The eyedropper owns the click wherever it lands.
+        if session.isPickingColor { return .nothing }
+        if let handle = regionHandle(at: point) { return .regionHandle(handle) }
+        guard let selection, selection.contains(point) else { return .nothing }
+        if !editing { return .region }
+        guard session.tool == .select else { return .region }
+        if let hit = selectedAnnotationHandle(at: point) { return .annotationHandle(hit.handle) }
+        if annotationIndex(at: point, in: selection) != nil { return .annotation }
+        return .region
+    }
+
+    private func cursor(for shape: PointerShape) -> NSCursor {
+        switch shape {
+        case .regionHandle(let handle), .annotationHandle(let handle):
+            return Self.resizeCursor(for: handle)
+        case .annotation:
+            return .openHand
+        case .region:
+            // Before editing the frame is dragged as a whole; after it, the
+            // region itself only resizes, so only the tool has something to do.
+            if !editing { return .openHand }
+            return session.tool == .select ? .arrow : Self.cursor(for: session.tool)
+        case .nothing:
+            return .crosshair
+        }
+    }
+
     private func updateCursor() {
-        guard !(toolbarHost?.frame.contains(lastMousePoint) ?? false) else { return }
-        let inside = selection?.contains(lastMousePoint) ?? false
-        (inside ? Self.cursor(for: session.tool) : .crosshair).set()
+        guard !session.takeoverActive else { return }
+        if isPointOnToolbar(lastMousePoint) {
+            NSCursor.arrow.set()
+            return
+        }
+        switch interaction {
+        case .moving, .movingAnnotation:
+            NSCursor.closedHand.set()
+        case .resizing(let handle, _), .resizingAnnotation(let handle, _, _, _):
+            Self.resizeCursor(for: handle).set()
+        case .none, .creating, .drawing:
+            cursor(for: pointerShape(at: lastMousePoint)).set()
+        }
+    }
+
+    private static func resizeCursor(for handle: Handle) -> NSCursor {
+        switch handle {
+        case .left, .right: return .resizeLeftRight
+        case .top, .bottom: return .resizeUpDown
+        default:
+            if #available(macOS 15.0, *) {
+                return .frameResize(position: frameResizePosition(for: handle), directions: .all)
+            }
+            return diagonalCursor(for: handle)
+        }
+    }
+
+    @available(macOS 15.0, *)
+    private static func frameResizePosition(for handle: Handle) -> NSCursor.FrameResizePosition {
+        switch handle {
+        case .topLeft: return .topLeft
+        case .top: return .top
+        case .topRight: return .topRight
+        case .right: return .right
+        case .bottomRight: return .bottomRight
+        case .bottom: return .bottom
+        case .bottomLeft: return .bottomLeft
+        case .left: return .left
+        }
+    }
+
+    /// macOS 14 has no corner resize cursors, so the diagonals are drawn here
+    /// with a white halo to stay visible over any screenshot.
+    private static func diagonalCursor(for handle: Handle) -> NSCursor {
+        switch handle {
+        case .topLeft, .bottomRight: return upLeftDownRightCursor
+        default: return upRightDownLeftCursor
+        }
+    }
+
+    private static let upLeftDownRightCursor = makeDiagonalCursor(
+        from: NSPoint(x: 3, y: 13), to: NSPoint(x: 13, y: 3)
+    )
+    private static let upRightDownLeftCursor = makeDiagonalCursor(
+        from: NSPoint(x: 3, y: 3), to: NSPoint(x: 13, y: 13)
+    )
+
+    private static func makeDiagonalCursor(from start: NSPoint, to end: NSPoint) -> NSCursor {
+        let size = NSSize(width: 16, height: 16)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        let path = NSBezierPath()
+        path.move(to: start)
+        path.line(to: end)
+        let angle = atan2(end.y - start.y, end.x - start.x)
+        for (tip, tipAngle) in [(start, angle), (end, angle + .pi)] {
+            for offset in [CGFloat.pi * 0.75, -CGFloat.pi * 0.75] {
+                path.move(to: tip)
+                path.line(to: NSPoint(
+                    x: tip.x + cos(tipAngle + offset) * 4.5,
+                    y: tip.y + sin(tipAngle + offset) * 4.5
+                ))
+            }
+        }
+        path.lineCapStyle = .round
+        path.lineJoinStyle = .round
+        NSColor.white.withAlphaComponent(0.95).setStroke()
+        path.lineWidth = 4
+        path.stroke()
+        NSColor.black.setStroke()
+        path.lineWidth = 1.8
+        path.stroke()
+        image.unlockFocus()
+        return NSCursor(image: image, hotSpot: NSPoint(x: 8, y: 8))
     }
 
     /// A vertical marker, showing the height the band will take, instead of a
@@ -1250,10 +1368,12 @@ final class SelectionView: NSView {
                 self.layoutToolbar()
                 self.updateTextField()
                 self.window?.invalidateCursorRects(for: self)
+                self.updateCursor()
                 self.needsDisplay = true
             }
         }
         loadBase()
+        updateCursor()
         needsDisplay = true
     }
 
@@ -1584,6 +1704,11 @@ final class SelectionView: NSView {
         lastMousePoint = convert(event.locationInWindow, from: nil)
         updateHoverColor(at: lastMousePoint)
         updateHover(at: lastMousePoint)
+        updateCursor()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        NSCursor.arrow.set()
     }
 
     override func mouseMoved(with event: NSEvent) {
@@ -1665,6 +1790,7 @@ final class SelectionView: NSView {
             }
             if selection.contains(point) {
                 interaction = .moving(start: point, rect: selection)
+                NSCursor.closedHand.set()
                 return
             }
         }
@@ -1729,7 +1855,10 @@ final class SelectionView: NSView {
         let point = convert(event.locationInWindow, from: nil)
         let previous = interaction
         interaction = .none
-        defer { needsDisplay = true }
+        defer {
+            needsDisplay = true
+            updateCursor()
+        }
 
         switch previous {
         case .creating:
@@ -2184,20 +2313,15 @@ final class SelectionView: NSView {
     // MARK: - Geometry
 
     private func beginSelectionInteraction(at point: CGPoint, in selection: CGRect) {
-        if let index = session.selectionIndex,
-           session.annotations.indices.contains(index),
-           hasResizeHandles(session.annotations[index].shape) {
-            let rect = annotationFrame(index, in: selection)
-            if let handle = handle(at: point, in: rect) {
-                session.beginInteractiveChange()
-                interaction = .resizingAnnotation(
-                    handle: handle,
-                    index: index,
-                    original: session.annotations[index],
-                    rect: rect
-                )
-                return
-            }
+        if let hit = selectedAnnotationHandle(at: point) {
+            session.beginInteractiveChange()
+            interaction = .resizingAnnotation(
+                handle: hit.handle,
+                index: hit.index,
+                original: session.annotations[hit.index],
+                rect: annotationFrame(hit.index, in: selection)
+            )
+            return
         }
 
         if let index = annotationIndex(at: point, in: selection) {
@@ -2208,6 +2332,7 @@ final class SelectionView: NSView {
                 index: index,
                 original: session.annotations[index]
             )
+            NSCursor.closedHand.set()
             needsDisplay = true
             return
         }
@@ -2306,6 +2431,25 @@ final class SelectionView: NSView {
             .bottomLeft: box(rect.minX, rect.minY),
             .left: box(rect.minX, rect.midY),
         ]
+    }
+
+    /// The region's resize handles: absent while a window set is being picked,
+    /// whose canvas is not resizable.
+    private func regionHandle(at point: CGPoint) -> Handle? {
+        guard let selection, windowTargets.isEmpty else { return nil }
+        return handle(at: point, in: selection)
+    }
+
+    /// The handle of the selected annotation under the point, which resizes
+    /// instead of moving it.
+    private func selectedAnnotationHandle(at point: CGPoint) -> (index: Int, handle: Handle)? {
+        guard let selection,
+              let index = session.selectionIndex,
+              session.annotations.indices.contains(index),
+              hasResizeHandles(session.annotations[index].shape),
+              let handle = handle(at: point, in: annotationFrame(index, in: selection))
+        else { return nil }
+        return (index, handle)
     }
 
     private func handle(at point: CGPoint, in rect: CGRect) -> Handle? {
