@@ -469,13 +469,6 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(resolve("nope").failureValue, .unknown)
         XCTAssertEqual(resolve("off").failureValue, .disabled(title: "Off"))
     }
-}
-
-private extension Result {
-    var failureValue: Failure? {
-        if case .failure(let error) = self { return error }
-        return nil
-    }
 
     @MainActor
     func testScratchModelCarriesTheUserConfigAndNeverWritesTheSource() throws {
@@ -501,5 +494,12 @@ private extension Result {
             .appendingPathComponent("panelumi-scratch-missing-\(UUID().uuidString).json")
         Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) { _ in }
         XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+    }
+}
+
+private extension Result {
+    var failureValue: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
     }
 }
