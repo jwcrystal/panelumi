@@ -4,9 +4,9 @@ import SwiftUI
 ///
 /// The host knows only the title, the symbol and a view to draw. The view is
 /// built on the main actor when the page is shown, so the extension keeps its
-/// own types and state. Sections appear after the built-in pages, in the order
+/// own types and state. Pages appear after the built-in pages, in the order
 /// their providers are listed.
-public struct SettingsSection: Identifiable, Sendable {
+public struct SettingsPage: Identifiable, Sendable {
     public let id: String
     /// Already localised; the host does not look it up.
     public let title: String
@@ -45,11 +45,11 @@ public struct SettingsSection: Identifiable, Sendable {
 
 /// Adds pages to Settings.
 ///
-/// Register providers with `LaunchOptions.settingsSectionProviders`. With none
+/// Register providers with `LaunchOptions.settingsPageProviders`. With none
 /// registered the window is exactly as it was. Conforming types must be
 /// `Sendable` because `LaunchOptions` is; a `@MainActor` conforming type must
 /// declare `identifier` as `nonisolated`.
-public protocol SettingsSectionProvider: Sendable {
+public protocol SettingsPageProvider: Sendable {
     /// Stable, unique name, for example a reverse-DNS string. Never shown to
     /// the user. Used to compare `LaunchOptions` values and to drop a provider
     /// whose identifier repeats an earlier one.
@@ -58,5 +58,5 @@ public protocol SettingsSectionProvider: Sendable {
     /// Pages appended to Settings, in order. Read each time the window opens;
     /// when the ids, titles or symbols differ from the last read, the window
     /// is rebuilt and returns to General.
-    @MainActor var sections: [SettingsSection] { get }
+    @MainActor var pages: [SettingsPage] { get }
 }

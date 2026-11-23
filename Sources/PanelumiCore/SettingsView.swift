@@ -9,22 +9,22 @@ struct SettingsView: View {
     /// What the sidebar can select: a built-in page or one an extension added.
     enum Page: Hashable {
         case builtin(Pane)
-        case section(String)
+        case injected(String)
     }
 
     @State private var page: Page?
 
-    private let sections: [SettingsSection]
+    private let pages: [SettingsPage]
 
     init(
         model: AppModel,
         permissions: PermissionCenter,
-        sections: [SettingsSection] = [],
+        pages: [SettingsPage] = [],
         initialPage: Page = .builtin(.general)
     ) {
         self.model = model
         self.permissions = permissions
-        self.sections = sections
+        self.pages = pages
         _page = State(initialValue: initialPage)
     }
 
@@ -66,11 +66,11 @@ struct SettingsView: View {
                         .tag(Page.builtin(item))
                 }
 
-                if !sections.isEmpty {
+                if !pages.isEmpty {
                     Section {
-                        ForEach(sections) { section in
-                            Label(section.title, systemImage: section.symbolName)
-                                .tag(Page.section(section.id))
+                        ForEach(pages) { page in
+                            Label(page.title, systemImage: page.symbolName)
+                                .tag(Page.injected(page.id))
                         }
                     }
                 }
@@ -93,9 +93,9 @@ struct SettingsView: View {
         switch page ?? .builtin(.general) {
         case .builtin(let pane):
             builtinDetail(pane)
-        case .section(let id):
-            if let section = sections.first(where: { $0.id == id }) {
-                section.makeView()
+        case .injected(let id):
+            if let page = pages.first(where: { $0.id == id }) {
+                page.makeView()
             }
         }
     }

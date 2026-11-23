@@ -9,11 +9,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: menuItemProviders)
     }()
     private let menuItemProviders: [any MenuItemProvider]
-    private let settingsSectionProviders: [any SettingsSectionProvider]
+    private let settingsPageProviders: [any SettingsPageProvider]
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
-    private var settingsSignature: [SettingsSection.Signature] = []
+    private var settingsSignature: [SettingsPage.Signature] = []
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
 
@@ -22,10 +22,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     init(
         captureExtensions: [any CaptureExtension] = [],
         menuItemProviders: [any MenuItemProvider] = [],
-        settingsSectionProviders: [any SettingsSectionProvider] = []
+        settingsPageProviders: [any SettingsPageProvider] = []
     ) {
         self.menuItemProviders = menuItemProviders
-        self.settingsSectionProviders = settingsSectionProviders
+        self.settingsPageProviders = settingsPageProviders
         screenshot = ScreenshotCoordinator(captureExtensions: captureExtensions)
         super.init()
     }
@@ -162,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// `--pane customize` opens Settings on a given page, built-in or injected;
     /// used for screenshots and quick checks.
-    private func initialPage(sections: [SettingsSection]) -> SettingsView.Page {
+    private func initialPage(pages: [SettingsPage]) -> SettingsView.Page {
         let arguments = CommandLine.arguments
         guard let index = arguments.firstIndex(of: "--pane"), arguments.indices.contains(index + 1) else {
             return .builtin(.general)
@@ -171,26 +171,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if let pane = SettingsView.Pane(rawValue: raw) {
             return .builtin(pane)
         }
-        if sections.contains(where: { $0.id == raw }) {
-            return .section(raw)
+        if pages.contains(where: { $0.id == raw }) {
+            return .injected(raw)
         }
         return .builtin(.general)
     }
 
-    private func settingsSections() -> [SettingsSection] {
-        Self.settingsSections(from: settingsSectionProviders)
+    private func settingsPages() -> [SettingsPage] {
+        Self.settingsPages(from: settingsPageProviders)
     }
 
     /// One list, in provider order. A provider whose identifier repeats an
-    /// earlier one is skipped, and a section id already taken is dropped, the
+    /// earlier one is skipped, and a page id already taken is dropped, the
     /// same rules the menu uses.
-    static func settingsSections(from providers: [any SettingsSectionProvider]) -> [SettingsSection] {
+    static func settingsPages(from providers: [any SettingsPageProvider]) -> [SettingsPage] {
         var seenProviders = Set<String>()
-        var seenSections = Set<String>()
-        var result: [SettingsSection] = []
+        var seenPages = Set<String>()
+        var result: [SettingsPage] = []
         for provider in providers where seenProviders.insert(provider.identifier).inserted {
-            for section in provider.sections where seenSections.insert(section.id).inserted {
-                result.append(section)
+            for page in provider.pages where seenPages.insert(page.id).inserted {
+                result.append(page)
             }
         }
         return result
@@ -211,21 +211,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    /// Sections are read on every open. The window is kept between opens, so
+    /// Pages are read on every open. The window is kept between opens, so
     /// its content is replaced only when the pages differ, which otherwise
     /// keeps the selected page and pane state. A new hosting controller, not a
     /// new rootView, because SwiftUI would keep a selection that may name a
     /// page that is gone.
     func showSettings() {
-        let sections = settingsSections()
-        let signature = sections.map(\.signature)
+        let pages = settingsPages()
+        let signature = pages.map(\.signature)
 
         if let window = settingsWindow {
             if signature != settingsSignature {
                 settingsSignature = signature
                 let frame = window.frame
                 window.contentViewController = NSHostingController(rootView: SettingsView(
-                    model: model, permissions: permissions, sections: sections
+                    model: model, permissions: permissions, pages: pages
                 ))
                 window.setFrame(frame, display: false)
             }
@@ -237,8 +237,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let hosting = NSHostingController(rootView: SettingsView(
             model: model,
             permissions: permissions,
-            sections: sections,
-            initialPage: initialPage(sections: sections)
+            pages: pages,
+            initialPage: initialPage(pages: pages)
         ))
         settingsSignature = signature
         let window = NSWindow(contentViewController: hosting)

@@ -11,28 +11,28 @@ public struct LaunchOptions: Equatable, Sendable {
     /// Providers of extra status-bar menu rows. Empty by default; with none, the menu is unchanged.
     public var menuItemProviders: [any MenuItemProvider]
     /// Providers of extra Settings pages. Empty by default; with none, the window is unchanged.
-    public var settingsSectionProviders: [any SettingsSectionProvider]
+    public var settingsPageProviders: [any SettingsPageProvider]
 
     public init(
         identity: AppIdentity = .standard,
         captureExtensions: [any CaptureExtension] = [],
         menuItemProviders: [any MenuItemProvider] = [],
-        settingsSectionProviders: [any SettingsSectionProvider] = []
+        settingsPageProviders: [any SettingsPageProvider] = []
     ) {
         self.identity = identity
         self.captureExtensions = captureExtensions
         self.menuItemProviders = menuItemProviders
-        self.settingsSectionProviders = settingsSectionProviders
+        self.settingsPageProviders = settingsPageProviders
     }
 
     /// Two options are equal when they share an identity and list the same
-    /// extension, menu item and settings section provider identifiers in the
+    /// extension, menu item and settings page provider identifiers in the
     /// same order.
     public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
         lhs.identity == rhs.identity
             && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
             && lhs.menuItemProviders.map(\.identifier) == rhs.menuItemProviders.map(\.identifier)
-            && lhs.settingsSectionProviders.map(\.identifier) == rhs.settingsSectionProviders.map(\.identifier)
+            && lhs.settingsPageProviders.map(\.identifier) == rhs.settingsPageProviders.map(\.identifier)
     }
 }
 
@@ -109,7 +109,7 @@ public enum PanelumiLauncher {
         let delegate = AppDelegate(
             captureExtensions: options.captureExtensions,
             menuItemProviders: options.menuItemProviders,
-            settingsSectionProviders: options.settingsSectionProviders
+            settingsPageProviders: options.settingsPageProviders
         )
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
