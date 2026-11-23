@@ -14,6 +14,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuController: MenuController?
     private lazy var settingsHost = SettingsWindowHost(
         pages: { [settingsPageProviders] in Self.settingsPages(from: settingsPageProviders) },
+        // The delegate owns the host, which owns this closure; the delegate lives for the
+        // whole app run, so unowned breaks the cycle safely.
         makeView: { [unowned self] pages, initialPage in
             AnyView(SettingsView(model: model, permissions: permissions, pages: pages, initialPage: initialPage))
         }
@@ -166,23 +168,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     /// The menu's rules apply: a repeated provider identifier is skipped and a
-    /// taken page id is dropped.
+    /// taken page id is dropped. The ids of the built-in panes count as taken.
     static func settingsPages(from providers: [any SettingsPageProvider]) -> [SettingsPage] {
         var seenProviders = Set<String>()
-        var seenPages = Set<String>()
+        var seenPages = Set(SettingsView.Pane.allCases.map(\.rawValue))
         var result: [SettingsPage] = []
         for provider in providers {
             guard seenProviders.insert(provider.identifier).inserted else {
-                #if DEBUG
-                NSLog("Panelumi: %@", "settings page provider \(provider.identifier) is listed more than once; only the first is used.")
-                #endif
+                reportRepeatedProvider(provider.identifier)
                 continue
             }
-            for page in provider.pages where seenPages.insert(page.id).inserted {
-                result.append(page)
+            for page in provider.pages {
+                if seenPages.insert(page.id).inserted {
+                    result.append(page)
+                } else {
+                    reportDroppedPage(page.id, provider: provider.identifier)
+                }
             }
         }
         return result
+    }
+
+    private static var reportedProviderIDs = Set<String>()
+    private static var reportedPageIDs = Set<String>()
+
+    private static func reportRepeatedProvider(_ identifier: String) {
+        #if DEBUG
+        guard reportedProviderIDs.insert(identifier).inserted else { return }
+        NSLog("Panelumi: %@", "settings page provider \(identifier) is listed more than once; only the first is used.")
+        #endif
+    }
+
+    private static func reportDroppedPage(_ id: String, provider: String) {
+        #if DEBUG
+        guard reportedPageIDs.insert(id).inserted else { return }
+        NSLog("Panelumi: %@", "settings page provider \(provider) returned id \(id), which is already taken; the page is dropped.")
+        #endif
     }
 
     private func acquireInstanceLock() -> Bool {

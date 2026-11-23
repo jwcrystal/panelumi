@@ -7,9 +7,14 @@ import SwiftUI
 /// own types and state. Pages appear after the built-in pages, in the order
 /// their providers are listed.
 public struct SettingsPage: Identifiable, Sendable {
+    /// Must be unique across all pages and must not match the id of a built-in
+    /// page; a page that breaks either rule is dropped. A stable reverse-DNS
+    /// string is recommended. `--pane <id>` opens the page with this id.
     public let id: String
     /// Already localised; the host does not look it up.
     public let title: String
+    /// An SF Symbol name, shown with `Label(_:systemImage:)`. A wrong name
+    /// shows no icon.
     public let symbolName: String
 
     private let content: @MainActor @Sendable () -> AnyView

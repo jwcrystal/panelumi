@@ -138,28 +138,62 @@ enum Dump {
         // outlive perform() or they silently do nothing.
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders)
-        let item: SwitchItem
-        switch resolveRunTarget(id: id, model: model) {
-        case .success(let found):
-            item = found
-        case .failure(let error):
-            switch error {
-            case .unknown:
-                FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
-                exit(2)
-            case .disabled(let title):
-                FileHandle.standardError.write(Data("\(title) is not available right now.\n".utf8))
-                exit(1)
+        let outcome: Result<String, RunFailure> = withScratchModel(
+            catalog: AppCatalog.make(screenshot: screenshot),
+            itemProviders: itemProviders
+        ) { model in
+            let item: SwitchItem
+            switch resolveRunTarget(id: id, model: model) {
+            case .success(let found):
+                item = found
+            case .failure(.unknown):
+                return .failure(RunFailure(message: "Unknown switch: \(id)", exitCode: 2))
+            case .failure(.disabled(let title)):
+                return .failure(RunFailure(message: "\(title) is not available right now.", exitCode: 1))
             }
+            do {
+                try item.perform()
+            } catch {
+                return .failure(RunFailure(message: "\(item.title) failed: \(error.localizedDescription)", exitCode: 1))
+            }
+            return .success(line(for: item))
         }
-        do {
-            try item.perform()
-        } catch {
-            FileHandle.standardError.write(Data("\(item.title) failed: \(error.localizedDescription)\n".utf8))
-            exit(1)
+        switch outcome {
+        case .success(let output):
+            print(output)
+        case .failure(let failure):
+            FileHandle.standardError.write(Data("\(failure.message)\n".utf8))
+            exit(failure.exitCode)
         }
-        print(line(for: item))
+    }
+
+    struct RunFailure: Error {
+        let message: String
+        let exitCode: Int32
+    }
+
+    /// Builds a model on a throwaway copy of the user's config so a short-lived
+    /// dump process never writes the real file: `AppModel.init` seeds the
+    /// default screenshot shortcut on a fresh profile, which would be saved.
+    /// The copy marks the seed as done and carries the user's switches, order
+    /// and shortcuts, so `--menu` still describes the real menu. The copy is
+    /// removed before this returns, so callers may `exit` afterwards.
+    @MainActor
+    static func withScratchModel<T>(
+        source: URL = ConfigStore.defaultURL(),
+        catalog: SwitchCatalog,
+        itemProviders: [any MenuItemProvider],
+        _ body: (AppModel) -> T
+    ) -> T {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-dump-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        var copy = ConfigStore(url: source).config
+        copy.didSeedScreenshotShortcut = true
+        let store = ConfigStore(url: url)
+        store.update { $0 = copy }
+        return body(AppModel(catalog: catalog, store: store, itemProviders: itemProviders))
     }
 
     enum RunTargetError: Error, Equatable {
@@ -197,8 +231,10 @@ enum Dump {
     static func printMenu(itemProviders: [any MenuItemProvider] = []) {
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders)
-        for line in menuLines(model: model) { print(line) }
+        let lines = withScratchModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders) {
+            menuLines(model: $0)
+        }
+        for line in lines { print(line) }
     }
 
     /// The lines `--menu` prints: a header, then one line per row in menu order.

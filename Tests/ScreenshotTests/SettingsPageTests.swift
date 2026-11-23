@@ -73,6 +73,17 @@ final class SettingsPageTests: XCTestCase {
         XCTAssertEqual(repeated.reads, 0)
     }
 
+    func testPageIDMatchingABuiltInPaneIsDropped() {
+        let clash = SettingsView.Pane.about.rawValue
+        let provider = PageProvider("one") {
+            [
+                SettingsPage(id: clash, title: "Clash", symbolName: "square") { AnyView(EmptyView()) },
+                SettingsPage(id: "ok", title: "Ok", symbolName: "square") { AnyView(EmptyView()) },
+            ]
+        }
+        XCTAssertEqual(AppDelegate.settingsPages(from: [provider]).map(\.id), ["ok"])
+    }
+
     func testSignatureChangesWithWhatTheSidebarShows() {
         func page(_ id: String, _ title: String, _ symbol: String = "square") -> SettingsPage {
             SettingsPage(id: id, title: title, symbolName: symbol) { AnyView(EmptyView()) }

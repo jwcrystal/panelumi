@@ -476,4 +476,30 @@ private extension Result {
         if case .failure(let error) = self { return error }
         return nil
     }
+
+    @MainActor
+    func testScratchModelCarriesTheUserConfigAndNeverWritesTheSource() throws {
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-scratch-source-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: source) }
+        let sourceStore = ConfigStore(url: source)
+        sourceStore.update { $0.setEnabled(false, for: "keepAwake") }
+        let before = try Data(contentsOf: source)
+
+        let (hidden, seeded) = Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) {
+            ($0.config.disabled, $0.config.didSeedScreenshotShortcut)
+        }
+
+        XCTAssertEqual(hidden, ["keepAwake"])
+        XCTAssertTrue(seeded)
+        XCTAssertEqual(try Data(contentsOf: source), before)
+    }
+
+    @MainActor
+    func testScratchModelWithoutASourceDoesNotCreateIt() {
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-scratch-missing-\(UUID().uuidString).json")
+        Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) { _ in }
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+    }
 }
