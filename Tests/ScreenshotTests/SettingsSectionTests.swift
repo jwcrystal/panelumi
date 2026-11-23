@@ -51,4 +51,18 @@ final class SettingsSectionTests: XCTestCase {
         _ = options.settingsSectionProviders[0].sections
         XCTAssertEqual(provider.reads, 1)
     }
+
+    func testRepeatedProviderIdentifierAndSectionIDAreDropped() {
+        func section(_ id: String, _ title: String) -> SettingsSection {
+            SettingsSection(id: id, title: title, symbolName: "square") { AnyView(EmptyView()) }
+        }
+        let first = SectionProvider("one") { [section("p1", "First"), section("shared", "First shared")] }
+        let repeated = SectionProvider("one") { [section("p2", "Repeated")] }
+        let other = SectionProvider("two") { [section("shared", "Other shared"), section("p3", "Other")] }
+
+        let sections = AppDelegate.settingsSections(from: [first, repeated, other])
+
+        XCTAssertEqual(sections.map(\.title), ["First", "First shared", "Other"])
+        XCTAssertEqual(repeated.reads, 0)
+    }
 }

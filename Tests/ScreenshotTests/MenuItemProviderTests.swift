@@ -195,6 +195,14 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(ran, 1)
     }
 
+    func testShortcutItemsKeepHiddenBuiltInsAndAppendInjectedRows() {
+        let model = makeModel(
+            itemProviders: [FakeProvider("one") { [self.row("x"), self.row("a")] }],
+            hidden: ["b"]
+        )
+        XCTAssertEqual(model.shortcutItems.map(\.id), ["a", "b", "c", "x"])
+    }
+
     private final class Flag: @unchecked Sendable { var value = false }
 
     func testValidationReflectsIsEnabledOnEachOpen() throws {

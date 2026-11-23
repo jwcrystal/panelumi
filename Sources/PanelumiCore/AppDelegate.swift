@@ -176,15 +176,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return .builtin(.general)
     }
 
-    /// One list, in provider order; an id repeated by a later provider is
-    /// dropped, the same rule the menu uses.
     private func settingsSections() -> [SettingsSection] {
-        var all: [SettingsSection] = []
-        for provider in settingsSectionProviders {
-            all.append(contentsOf: provider.sections)
+        Self.settingsSections(from: settingsSectionProviders)
+    }
+
+    /// One list, in provider order. A provider whose identifier repeats an
+    /// earlier one is skipped, and a section id already taken is dropped, the
+    /// same rules the menu uses.
+    static func settingsSections(from providers: [any SettingsSectionProvider]) -> [SettingsSection] {
+        var seenProviders = Set<String>()
+        var seenSections = Set<String>()
+        var result: [SettingsSection] = []
+        for provider in providers where seenProviders.insert(provider.identifier).inserted {
+            for section in provider.sections where seenSections.insert(section.id).inserted {
+                result.append(section)
+            }
         }
-        var seen = Set<String>()
-        return all.filter { seen.insert($0.id).inserted }
+        return result
     }
 
     private func acquireInstanceLock() -> Bool {

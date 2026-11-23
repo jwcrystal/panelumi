@@ -68,9 +68,17 @@ final class AppModel: ObservableObject {
     }
 
     /// The shortcut to show next to a row. The menu only asks about rows it
-    /// shows, and those are the rows that were registered.
+    /// shows. A provider row that appeared after the last registration shows
+    /// its binding but does not fire until the config changes again.
     func shortcutLabel(for id: String) -> String? {
         config.hotkey(for: id)?.displayString
+    }
+
+    /// The rows Settings › Shortcuts lists: every built-in switch, hidden ones
+    /// included, then the rows the item providers add.
+    var shortcutItems: [SwitchItem] {
+        let builtInIDs = Set(catalog.ids)
+        return orderedItems + menuItems.filter { !builtInIDs.contains($0.id) }
     }
 
     /// Everything the menu shows: the visible built-in switches, then the rows

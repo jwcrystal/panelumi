@@ -1218,7 +1218,7 @@ private struct ShortcutsPane: View {
             .padding(.top, 28)
 
             List {
-                ForEach(model.menuItems.filter { $0.id != ScreenshotCoordinator.id && $0.id != ScreenshotCoordinator.recognizeTextID }, id: \.id) { item in
+                ForEach(model.shortcutItems.filter { $0.id != ScreenshotCoordinator.id && $0.id != ScreenshotCoordinator.recognizeTextID }, id: \.id) { item in
                     HStack(spacing: 10) {
                         SymbolTile(symbol: item.symbolName)
                         Text(item.title)
@@ -1228,7 +1228,7 @@ private struct ShortcutsPane: View {
                         ShortcutField(model: model, id: item.id)
                     }
                     .padding(.vertical, 4)
-                    .opacity(item.isEnabled() ? 1 : 0.45)
+                    .opacity(model.config.isEnabled(item.id) && item.isEnabled() ? 1 : 0.45)
                 }
             }
             .listStyle(.inset)
