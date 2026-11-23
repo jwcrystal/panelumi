@@ -9,16 +9,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: menuItemProviders)
     }()
     private let menuItemProviders: [any MenuItemProvider]
+    private let settingsPageProviders: [any SettingsPageProvider]
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
-    private var settingsWindow: NSWindow?
+    private lazy var settingsHost = SettingsWindowHost(
+        pages: { [settingsPageProviders] in Self.settingsPages(from: settingsPageProviders) },
+        // The delegate owns the host, which owns this closure; the delegate lives for the
+        // whole app run, so unowned breaks the cycle safely.
+        makeView: { [unowned self] pages, initialPage in
+            AnyView(SettingsView(model: model, permissions: permissions, pages: pages, initialPage: initialPage))
+        }
+    )
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
 
-    /// Creates the delegate; extensions are handed to the screenshot coordinator
-    /// and menu item providers to the model that builds the status-bar menu.
-    init(captureExtensions: [any CaptureExtension] = [], menuItemProviders: [any MenuItemProvider] = []) {
+    /// Creates the delegate; extensions are handed to the screenshot coordinator,
+    /// menu item providers to the model that builds the status-bar menu, and
+    /// settings page providers to the Settings window.
+    init(
+        captureExtensions: [any CaptureExtension] = [],
+        menuItemProviders: [any MenuItemProvider] = [],
+        settingsPageProviders: [any SettingsPageProvider] = []
+    ) {
         self.menuItemProviders = menuItemProviders
+        self.settingsPageProviders = settingsPageProviders
         screenshot = ScreenshotCoordinator(captureExtensions: captureExtensions)
         super.init()
     }
@@ -153,14 +167,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// `--pane customize` opens Settings on a given page; used for screenshots
-    /// and quick checks.
-    private func paneArgument() -> SettingsView.Pane {
-        let arguments = CommandLine.arguments
-        guard let index = arguments.firstIndex(of: "--pane"), arguments.indices.contains(index + 1) else {
-            return .general
+    /// The menu's rules apply: a repeated provider identifier is skipped and a
+    /// taken page id is dropped. The ids of the built-in panes count as taken.
+    static func settingsPages(from providers: [any SettingsPageProvider]) -> [SettingsPage] {
+        var seenProviders = Set<String>()
+        var seenPages = Set(SettingsView.Pane.allCases.map(\.rawValue))
+        var result: [SettingsPage] = []
+        for provider in providers {
+            guard seenProviders.insert(provider.identifier).inserted else {
+                reportRepeatedProvider(provider.identifier)
+                continue
+            }
+            for page in provider.pages {
+                if seenPages.insert(page.id).inserted {
+                    result.append(page)
+                } else {
+                    reportDroppedPage(page.id, provider: provider.identifier)
+                }
+            }
         }
-        return SettingsView.Pane(rawValue: arguments[index + 1]) ?? .general
+        return result
+    }
+
+    private static var reportedProviderIDs = Set<String>()
+    private static var reportedPageIDs = Set<String>()
+
+    private static func reportRepeatedProvider(_ identifier: String) {
+        #if DEBUG
+        guard reportedProviderIDs.insert(identifier).inserted else { return }
+        NSLog("Panelumi: %@", "settings page provider \(identifier) is listed more than once; only the first is used.")
+        #endif
+    }
+
+    private static func reportDroppedPage(_ id: String, provider: String) {
+        #if DEBUG
+        guard reportedPageIDs.insert(id).inserted else { return }
+        NSLog("Panelumi: %@", "settings page provider \(provider) returned id \(id), which is already taken; the page is dropped.")
+        #endif
     }
 
     private func acquireInstanceLock() -> Bool {
@@ -179,24 +222,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func showSettings() {
-        if let window = settingsWindow {
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        let hosting = NSHostingController(rootView: SettingsView(
-            model: model,
-            permissions: permissions,
-            initialPane: paneArgument()
-        ))
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "Panelumi"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.isReleasedWhenClosed = false
-        window.center()
-        settingsWindow = window
-
+        let window = settingsHost.prepareWindow()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }

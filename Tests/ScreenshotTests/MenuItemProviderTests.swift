@@ -123,18 +123,19 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(model.menuItems.map(\.id), catalogIDs + ["x"])
     }
 
-    func testBindingForInjectedIDIsNotRegisteredAndNotReported() {
-        // The same binding on a catalog id would be reported as "already used"
-        // if the injected row were registered too.
+    func testBindingForInjectedIDIsRegisteredAndConflictsAreReported() {
+        // The injected row is registered after the built-in ones, so a repeated
+        // combination is caught exactly as it is between two built-ins.
         let shared = binding(105)
         let model = makeModel(
             itemProviders: [FakeProvider("one") { [self.row("x")] }],
             bindings: ["x": shared, "a": shared]
         )
-        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+        XCTAssertEqual(model.hotkeyIssues, ["x: \(shared.displayString) is already used by a."])
+        XCTAssertEqual(model.shortcutLabel(for: "x"), shared.displayString)
     }
 
-    func testMenuShowsShortcutsForBuiltInRowsOnly() throws {
+    func testMenuShowsShortcutsForInjectedRowsToo() throws {
         let model = makeModel(
             itemProviders: [FakeProvider("one") { [self.row("x", title: "Injected")] }],
             bindings: ["x": binding(105), "a": binding(106)]
@@ -144,11 +145,11 @@ final class MenuItemProviderTests: XCTestCase {
         func title(_ prefix: String) throws -> String {
             try XCTUnwrap(menu.items.compactMap { $0.attributedTitle?.string }.first { $0.hasPrefix(prefix) })
         }
-        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("Injected").contains(binding(105).displayString))
         XCTAssertTrue(try title("a").contains(binding(106).displayString))
 
         controller.menuWillOpen(menu)
-        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("Injected").contains(binding(105).displayString))
         XCTAssertTrue(try title("a").contains(binding(106).displayString))
         controller.menuDidClose(menu)
     }
@@ -174,6 +175,50 @@ final class MenuItemProviderTests: XCTestCase {
             hidden: ["b"]
         )
         XCTAssertEqual(model.menuItems.map(\.id), ["a", "c"])
+    }
+
+    func testPerformSwitchRunsAnInjectedRowAndRespectsIsEnabled() throws {
+        let flag = Flag()
+        var ran = 0
+        let model = makeModel(itemProviders: [FakeProvider("one") {
+            [SwitchItem(id: "gate", title: "Gate", symbolName: "circle", kind: .action,
+                        isEnabled: { flag.value }, perform: { ran += 1 })]
+        }])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+
+        flag.value = false
+        controller.performSwitch(id: "gate")
+        XCTAssertEqual(ran, 0)
+
+        flag.value = true
+        controller.performSwitch(id: "gate")
+        XCTAssertEqual(ran, 1)
+    }
+
+    func testRowThatAppearsLaterIsRegisteredOnRebuild() {
+        let shared = binding(105)
+        let show = Flag()
+        let provider = BindingProvider("one") { show.value ? [self.row("x")] : [] }
+        let model = makeModel(itemProviders: [provider], bindings: ["x": shared, "a": shared])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+
+        show.value = true
+        provider.rebuild?()
+        XCTAssertEqual(model.hotkeyIssues, ["x: \(shared.displayString) is already used by a."])
+
+        show.value = false
+        provider.rebuild?()
+        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+        withExtendedLifetime(controller) {}
+    }
+
+    func testShortcutItemsKeepHiddenBuiltInsAndAppendInjectedRows() {
+        let model = makeModel(
+            itemProviders: [FakeProvider("one") { [self.row("x"), self.row("a")] }],
+            hidden: ["b"]
+        )
+        XCTAssertEqual(model.shortcutItems.map(\.id), ["a", "b", "c", "x"])
     }
 
     private final class Flag: @unchecked Sendable { var value = false }
@@ -220,7 +265,7 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertTrue(settings.isEnabled)
     }
 
-    func testMenuLinesListInjectedRowsAfterBuiltInsWithoutShortcuts() {
+    func testMenuLinesListInjectedRowsAfterBuiltIns() {
         let shared = binding(105)
         let model = makeModel(
             itemProviders: [
@@ -235,7 +280,7 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(Array(lines.dropFirst()), [
             " 1 a",
             " 2 b [\(binding(106).displayString)]",
-            " 3 Extra",
+            " 3 Extra [\(shared.displayString)]",
             " 4 Other",
         ])
     }
@@ -404,5 +449,60 @@ final class MenuItemProviderTests: XCTestCase {
         let provider = BindingProvider("one") { [self.row("x")] }
         Dump.printMenu(itemProviders: [provider])
         XCTAssertEqual(provider.bindCount, 0)
+    }
+
+    func testRunTargetResolvesBuiltInHiddenInjectedAndRefusesTheRest() {
+        let model = makeModel(
+            itemProviders: [FakeProvider("one") { [
+                self.row("x"),
+                self.row("off", title: "Off", isEnabled: { false }),
+                self.row("a"),
+            ] }],
+            hidden: ["b"]
+        )
+        func resolve(_ id: String) -> Result<SwitchItem, Dump.RunTargetError> {
+            Dump.resolveRunTarget(id: id, model: model)
+        }
+        XCTAssertEqual(try? resolve("a").get().id, "a")
+        XCTAssertEqual(try? resolve("b").get().id, "b")
+        XCTAssertEqual(try? resolve("x").get().id, "x")
+        XCTAssertEqual(resolve("nope").failureValue, .unknown)
+        XCTAssertEqual(resolve("off").failureValue, .disabled(title: "Off"))
+    }
+
+    @MainActor
+    func testScratchModelCarriesTheUserConfigAndNeverWritesTheSource() throws {
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-scratch-source-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: source) }
+        let sourceStore = ConfigStore(url: source)
+        sourceStore.update { $0.setEnabled(false, for: "keepAwake") }
+        let before = try Data(contentsOf: source)
+
+        let (hidden, seeded) = Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) {
+            ($0.config.disabled, $0.config.didSeedScreenshotShortcut)
+        }
+
+        XCTAssertEqual(hidden, ["keepAwake"])
+        XCTAssertTrue(seeded)
+        XCTAssertEqual(try Data(contentsOf: source), before)
+    }
+
+    @MainActor
+    func testScratchModelWithoutASourceDoesNotCreateIt() {
+        let source = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-scratch-missing-\(UUID().uuidString).json")
+        let screenshotKey = Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) {
+            $0.config.hotkey(for: ScreenshotCoordinator.id)?.label
+        }
+        XCTAssertEqual(screenshotKey, "E")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
+    }
+}
+
+private extension Result {
+    var failureValue: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
     }
 }

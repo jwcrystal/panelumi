@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     /// The providers in use, without repeated identifiers.
     let itemProviders: [any MenuItemProvider]
     private let hotkeys = HotkeyCenter()
+    private var registeredIDs: [String] = []
 
     @Published private(set) var config: PanelumiConfig
     /// Shortcut problems to show in Settings › Shortcuts. Empty means all good.
@@ -62,17 +63,22 @@ final class AppModel: ObservableObject {
         config.orderedIDs(from: catalog.ids).compactMap(catalog.item(id:))
     }
 
-    /// Only the built-in switches shown in the menu. These are the only rows
-    /// that get shortcuts.
+    /// Only the built-in switches shown in the menu.
     var catalogMenuItems: [SwitchItem] {
         orderedItems.filter { config.isEnabled($0.id) }
     }
 
-    /// The shortcut to show next to a row. Rows added by providers never get
-    /// one, even if the config holds a binding under their id, because they
-    /// are never registered.
+    /// The shortcut to show next to a row. It comes from the config, so a row
+    /// that lost a conflict to an earlier row still shows its label.
     func shortcutLabel(for id: String) -> String? {
-        catalog.item(id: id) == nil ? nil : config.hotkey(for: id)?.displayString
+        config.hotkey(for: id)?.displayString
+    }
+
+    /// The rows Settings › Shortcuts lists: every built-in switch, hidden ones
+    /// included, then the rows the item providers add.
+    var shortcutItems: [SwitchItem] {
+        let builtInIDs = Set(catalog.ids)
+        return orderedItems + menuItems.filter { !builtInIDs.contains($0.id) }
     }
 
     /// Everything the menu shows: the visible built-in switches, then the rows
@@ -134,15 +140,29 @@ final class AppModel: ObservableObject {
 
     /// Re-registers every shortcut after a config change.
     ///
+    /// Every row the menu shows is registered, built-in or added by a provider.
     /// Conflict checks: identical bindings inside the app are caught here, and
     /// combinations another app already owns fail inside Carbon.
     private func registerHotkeys() {
+        registerHotkeys(for: menuItems)
+    }
+
+    /// Called by every menu rebuild with the rows it is about to show, so a
+    /// provider row that appears or goes away gets or loses its shortcut
+    /// without a config change. Unchanged rows are left registered.
+    func syncHotkeys(with items: [SwitchItem]) {
+        guard items.map(\.id) != registeredIDs else { return }
+        registerHotkeys(for: items)
+    }
+
+    private func registerHotkeys(for items: [SwitchItem]) {
         hotkeys.unregisterAll()
+        registeredIDs = items.map(\.id)
 
         var issues: [String] = []
         var owners: [HotkeyBinding: String] = [:]
 
-        for item in catalogMenuItems {
+        for item in items {
             guard let binding = config.hotkey(for: item.id) else { continue }
 
             guard binding.isUsable else {
@@ -151,7 +171,7 @@ final class AppModel: ObservableObject {
             }
 
             if let ownerID = owners[binding] {
-                let owner = catalog.item(id: ownerID)?.title ?? ownerID
+                let owner = items.first { $0.id == ownerID }?.title ?? ownerID
                 issues.append("\(item.title): \(binding.displayString) is already used by \(owner).")
                 continue
             }

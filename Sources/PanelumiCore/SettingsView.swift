@@ -6,12 +6,26 @@ struct SettingsView: View {
     @ObservedObject var model: AppModel
     @ObservedObject var permissions: PermissionCenter
 
-    @State private var pane: Pane?
+    /// What the sidebar can select: a built-in page or one an extension added.
+    enum Page: Hashable {
+        case builtin(Pane)
+        case injected(String)
+    }
 
-    init(model: AppModel, permissions: PermissionCenter, initialPane: Pane = .general) {
+    @State private var page: Page?
+
+    private let pages: [SettingsPage]
+
+    init(
+        model: AppModel,
+        permissions: PermissionCenter,
+        pages: [SettingsPage] = [],
+        initialPage: Page = .builtin(.general)
+    ) {
         self.model = model
         self.permissions = permissions
-        _pane = State(initialValue: initialPane)
+        self.pages = pages
+        _page = State(initialValue: initialPage)
     }
 
     enum Pane: String, CaseIterable, Identifiable {
@@ -46,10 +60,19 @@ struct SettingsView: View {
 
     var body: some View {
         HStack(spacing: 0) {
-            List(selection: $pane) {
+            List(selection: $page) {
                 ForEach(Pane.allCases) { item in
                     Label(item.title, systemImage: item.symbol)
-                        .tag(item)
+                        .tag(Page.builtin(item))
+                }
+
+                if !pages.isEmpty {
+                    Section {
+                        ForEach(pages) { page in
+                            Label(page.title, systemImage: page.symbolName)
+                                .tag(Page.injected(page.id))
+                        }
+                    }
                 }
             }
             .listStyle(.sidebar)
@@ -67,7 +90,19 @@ struct SettingsView: View {
 
     @ViewBuilder
     private var detail: some View {
-        switch pane ?? .general {
+        switch page ?? .builtin(.general) {
+        case .builtin(let pane):
+            builtinDetail(pane)
+        case .injected(let id):
+            if let page = pages.first(where: { $0.id == id }) {
+                page.makeView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func builtinDetail(_ pane: Pane) -> some View {
+        switch pane {
         case .general: GeneralPane(permissions: permissions)
         case .customize: CustomizePane(model: model)
         case .screenshot: ScreenshotPane(model: model)
@@ -1183,7 +1218,7 @@ private struct ShortcutsPane: View {
             .padding(.top, 28)
 
             List {
-                ForEach(model.orderedItems.filter { $0.id != ScreenshotCoordinator.id && $0.id != ScreenshotCoordinator.recognizeTextID }, id: \.id) { item in
+                ForEach(model.shortcutItems.filter { $0.id != ScreenshotCoordinator.id && $0.id != ScreenshotCoordinator.recognizeTextID }, id: \.id) { item in
                     HStack(spacing: 10) {
                         SymbolTile(symbol: item.symbolName)
                         Text(item.title)
@@ -1193,7 +1228,7 @@ private struct ShortcutsPane: View {
                         ShortcutField(model: model, id: item.id)
                     }
                     .padding(.vertical, 4)
-                    .opacity(model.config.isEnabled(item.id) ? 1 : 0.45)
+                    .opacity(model.config.isEnabled(item.id) && item.isEnabled() ? 1 : 0.45)
                 }
             }
             .listStyle(.inset)

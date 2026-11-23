@@ -10,23 +10,29 @@ public struct LaunchOptions: Equatable, Sendable {
     public var captureExtensions: [any CaptureExtension]
     /// Providers of extra status-bar menu rows. Empty by default; with none, the menu is unchanged.
     public var menuItemProviders: [any MenuItemProvider]
+    /// Providers of extra Settings pages. Empty by default; with none, the window is unchanged.
+    public var settingsPageProviders: [any SettingsPageProvider]
 
     public init(
         identity: AppIdentity = .standard,
         captureExtensions: [any CaptureExtension] = [],
-        menuItemProviders: [any MenuItemProvider] = []
+        menuItemProviders: [any MenuItemProvider] = [],
+        settingsPageProviders: [any SettingsPageProvider] = []
     ) {
         self.identity = identity
         self.captureExtensions = captureExtensions
         self.menuItemProviders = menuItemProviders
+        self.settingsPageProviders = settingsPageProviders
     }
 
     /// Two options are equal when they share an identity and list the same
-    /// extension and menu item provider identifiers in the same order.
+    /// extension, menu item and settings page provider identifiers in the
+    /// same order.
     public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
         lhs.identity == rhs.identity
             && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
             && lhs.menuItemProviders.map(\.identifier) == rhs.menuItemProviders.map(\.identifier)
+            && lhs.settingsPageProviders.map(\.identifier) == rhs.settingsPageProviders.map(\.identifier)
     }
 }
 
@@ -50,12 +56,12 @@ public enum PanelumiLauncher {
         }
 
         if let index = arguments.firstIndex(of: "--run"), arguments.count > index + 1 {
-            Dump.run(id: arguments[index + 1])
+            Dump.run(id: arguments[index + 1], itemProviders: options.menuItemProviders)
             return
         }
 
         if arguments.contains("--hotkeys") {
-            Dump.checkHotkeys()
+            Dump.checkHotkeys(itemProviders: options.menuItemProviders)
             return
         }
 
@@ -100,7 +106,11 @@ public enum PanelumiLauncher {
         }
 
         let application = NSApplication.shared
-        let delegate = AppDelegate(captureExtensions: options.captureExtensions, menuItemProviders: options.menuItemProviders)
+        let delegate = AppDelegate(
+            captureExtensions: options.captureExtensions,
+            menuItemProviders: options.menuItemProviders,
+            settingsPageProviders: options.settingsPageProviders
+        )
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()
@@ -121,23 +131,87 @@ enum Dump {
 
     /// Runs one switch without opening the menu: `--run keepAwake`.
     /// Toggles flip state, so the printed state afterwards shows the result.
+    /// Rows added by menu item providers can be run by id too.
     @MainActor
-    static func run(id: String) {
+    static func run(id: String, itemProviders: [any MenuItemProvider] = []) {
         // The screenshot switches hold the coordinator weakly, so it has to
         // outlive perform() or they silently do nothing.
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        guard let item = AppCatalog.make(screenshot: screenshot).item(id: id) else {
-            FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
-            exit(2)
+        let outcome: Result<String, RunFailure> = withScratchModel(
+            catalog: AppCatalog.make(screenshot: screenshot),
+            itemProviders: itemProviders
+        ) { model in
+            let item: SwitchItem
+            switch resolveRunTarget(id: id, model: model) {
+            case .success(let found):
+                item = found
+            case .failure(.unknown):
+                return .failure(RunFailure(message: "Unknown switch: \(id)", exitCode: 2))
+            case .failure(.disabled(let title)):
+                return .failure(RunFailure(message: "\(title) is not available right now.", exitCode: 1))
+            }
+            do {
+                try item.perform()
+            } catch {
+                return .failure(RunFailure(message: "\(item.title) failed: \(error.localizedDescription)", exitCode: 1))
+            }
+            return .success(line(for: item))
         }
-        do {
-            try item.perform()
-        } catch {
-            FileHandle.standardError.write(Data("\(item.title) failed: \(error.localizedDescription)\n".utf8))
-            exit(1)
+        switch outcome {
+        case .success(let output):
+            print(output)
+        case .failure(let failure):
+            FileHandle.standardError.write(Data("\(failure.message)\n".utf8))
+            exit(failure.exitCode)
         }
-        print(line(for: item))
+    }
+
+    struct RunFailure: Error {
+        let message: String
+        let exitCode: Int32
+    }
+
+    /// Builds a model on a throwaway copy of the user's config so a short-lived
+    /// dump process never writes the real file: `AppModel.init` seeds the
+    /// default screenshot shortcut on a fresh profile, which would be saved.
+    /// The copy carries the user's switches, order and shortcuts, so `--menu`
+    /// describes the real menu, and it is seeded the way the app seeds it. The
+    /// copy is removed before this returns, so callers may `exit` afterwards.
+    @MainActor
+    static func withScratchModel<T>(
+        source: URL = ConfigStore.defaultURL(),
+        catalog: SwitchCatalog,
+        itemProviders: [any MenuItemProvider],
+        _ body: (AppModel) -> T
+    ) -> T {
+        let url = URL(fileURLWithPath: NSTemporaryDirectory())
+            .appendingPathComponent("panelumi-dump-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let copy = ConfigStore(url: source).config
+        let store = ConfigStore(url: url)
+        store.update { $0 = copy }
+        return body(AppModel(catalog: catalog, store: store, itemProviders: itemProviders))
+    }
+
+    enum RunTargetError: Error, Equatable {
+        case unknown
+        case disabled(title: String)
+    }
+
+    /// Built-in switches first, hidden ones included, because `--run` never
+    /// depended on the menu. Then the rows providers add, under the menu's rules.
+    /// A provider row that reports itself disabled is refused, as in the menu.
+    @MainActor
+    static func resolveRunTarget(id: String, model: AppModel) -> Result<SwitchItem, RunTargetError> {
+        if let builtIn = model.catalog.item(id: id) {
+            return .success(builtIn)
+        }
+        guard let injected = model.menuItems.first(where: { $0.id == id }) else {
+            return .failure(.unknown)
+        }
+        return injected.isEnabled() ? .success(injected) : .failure(.disabled(title: injected.title))
     }
 
     private static func line(for item: SwitchItem) -> String {
@@ -156,12 +230,14 @@ enum Dump {
     static func printMenu(itemProviders: [any MenuItemProvider] = []) {
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders)
-        for line in menuLines(model: model) { print(line) }
+        let lines = withScratchModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders) {
+            menuLines(model: $0)
+        }
+        for line in lines { print(line) }
     }
 
     /// The lines `--menu` prints: a header, then one line per row in menu order.
-    /// Shortcuts are shown for built-in rows only, because only those are registered.
+    /// Each row shows the shortcut saved for its id, added rows included.
     @MainActor
     static func menuLines(model: AppModel) -> [String] {
         var seen = Set<String>()
@@ -465,7 +541,7 @@ enum Dump {
     /// Registers a probe shortcut through the real Carbon path and reports the
     /// result. Uses a throwaway config file so the user's shortcuts stay alone.
     @MainActor
-    static func checkHotkeys() {
+    static func checkHotkeys(itemProviders: [any MenuItemProvider] = []) {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("panelumi-hotkey-check.json")
         try? FileManager.default.removeItem(at: url)
@@ -482,7 +558,7 @@ enum Dump {
             )
         }
 
-        let model = AppModel(store: store)
+        let model = AppModel(store: store, itemProviders: itemProviders)
         let binding = model.config.hotkey(for: "keepAwake")?.displayString ?? "none"
         print("registered\t\(binding)")
         if model.hotkeyIssues.isEmpty {
