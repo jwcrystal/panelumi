@@ -492,7 +492,10 @@ final class MenuItemProviderTests: XCTestCase {
     func testScratchModelWithoutASourceDoesNotCreateIt() {
         let source = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("panelumi-scratch-missing-\(UUID().uuidString).json")
-        Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) { _ in }
+        let screenshotKey = Dump.withScratchModel(source: source, catalog: .standard(), itemProviders: []) {
+            $0.config.hotkey(for: ScreenshotCoordinator.id)?.label
+        }
+        XCTAssertEqual(screenshotKey, "E")
         XCTAssertFalse(FileManager.default.fileExists(atPath: source.path))
     }
 }
