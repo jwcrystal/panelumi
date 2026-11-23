@@ -175,9 +175,9 @@ enum Dump {
     /// Builds a model on a throwaway copy of the user's config so a short-lived
     /// dump process never writes the real file: `AppModel.init` seeds the
     /// default screenshot shortcut on a fresh profile, which would be saved.
-    /// The copy marks the seed as done and carries the user's switches, order
-    /// and shortcuts, so `--menu` still describes the real menu. The copy is
-    /// removed before this returns, so callers may `exit` afterwards.
+    /// The copy carries the user's switches, order and shortcuts, so `--menu`
+    /// describes the real menu, and it is seeded the way the app seeds it. The
+    /// copy is removed before this returns, so callers may `exit` afterwards.
     @MainActor
     static func withScratchModel<T>(
         source: URL = ConfigStore.defaultURL(),
@@ -189,8 +189,7 @@ enum Dump {
             .appendingPathComponent("panelumi-dump-\(UUID().uuidString).json")
         defer { try? FileManager.default.removeItem(at: url) }
 
-        var copy = ConfigStore(url: source).config
-        copy.didSeedScreenshotShortcut = true
+        let copy = ConfigStore(url: source).config
         let store = ConfigStore(url: url)
         store.update { $0 = copy }
         return body(AppModel(catalog: catalog, store: store, itemProviders: itemProviders))
