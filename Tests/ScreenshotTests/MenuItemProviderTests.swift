@@ -195,6 +195,27 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(ran, 1)
     }
 
+    func testRowThatAppearsLaterIsRegisteredOnRebuild() {
+        let shared = binding(105)
+        let show = Flag()
+        let provider = BindingProvider("one") { show.value ? [self.row("x")] : [] }
+        let model = makeModel(itemProviders: [provider], bindings: ["x": shared, "a": shared])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+        XCTAssertFalse(model.registeredIDs.contains("x"))
+
+        show.value = true
+        provider.rebuild?()
+        XCTAssertTrue(model.registeredIDs.contains("x"))
+        XCTAssertEqual(model.hotkeyIssues, ["x: \(shared.displayString) is already used by a."])
+
+        show.value = false
+        provider.rebuild?()
+        XCTAssertFalse(model.registeredIDs.contains("x"))
+        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+        withExtendedLifetime(controller) {}
+    }
+
     func testShortcutItemsKeepHiddenBuiltInsAndAppendInjectedRows() {
         let model = makeModel(
             itemProviders: [FakeProvider("one") { [self.row("x"), self.row("a")] }],

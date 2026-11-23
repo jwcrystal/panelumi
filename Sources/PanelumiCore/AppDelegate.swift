@@ -13,6 +13,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
+    private var settingsSignature: [SettingsSection.Signature] = []
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
 
@@ -210,20 +211,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
+    /// Sections are read on every open. The window is kept between opens, so
+    /// its content is replaced only when the pages differ, which otherwise
+    /// keeps the selected page and pane state. A new hosting controller, not a
+    /// new rootView, because SwiftUI would keep a selection that may name a
+    /// page that is gone.
     func showSettings() {
+        let sections = settingsSections()
+        let signature = sections.map(\.signature)
+
         if let window = settingsWindow {
+            if signature != settingsSignature {
+                settingsSignature = signature
+                let frame = window.frame
+                window.contentViewController = NSHostingController(rootView: SettingsView(
+                    model: model, permissions: permissions, sections: sections
+                ))
+                window.setFrame(frame, display: false)
+            }
             NSApp.activate(ignoringOtherApps: true)
             window.makeKeyAndOrderFront(nil)
             return
         }
 
-        let sections = settingsSections()
         let hosting = NSHostingController(rootView: SettingsView(
             model: model,
             permissions: permissions,
             sections: sections,
             initialPage: initialPage(sections: sections)
         ))
+        settingsSignature = signature
         let window = NSWindow(contentViewController: hosting)
         window.title = "Panelumi"
         window.styleMask = [.titled, .closable, .miniaturizable]

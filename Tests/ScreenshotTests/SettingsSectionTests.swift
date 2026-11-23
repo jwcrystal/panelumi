@@ -65,4 +65,14 @@ final class SettingsSectionTests: XCTestCase {
         XCTAssertEqual(sections.map(\.title), ["First", "First shared", "Other"])
         XCTAssertEqual(repeated.reads, 0)
     }
+
+    func testSignatureChangesWithWhatTheSidebarShows() {
+        func section(_ id: String, _ title: String, _ symbol: String = "square") -> SettingsSection {
+            SettingsSection(id: id, title: title, symbolName: symbol) { AnyView(EmptyView()) }
+        }
+        XCTAssertEqual(section("p", "A").signature, section("p", "A").signature)
+        XCTAssertNotEqual(section("p", "A").signature, section("q", "A").signature)
+        XCTAssertNotEqual(section("p", "A").signature, section("p", "B").signature)
+        XCTAssertNotEqual(section("p", "A").signature, section("p", "A", "star").signature)
+    }
 }

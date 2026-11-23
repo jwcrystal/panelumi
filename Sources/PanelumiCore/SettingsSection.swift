@@ -30,6 +30,17 @@ public struct SettingsSection: Identifiable, Sendable {
     func makeView() -> AnyView {
         content()
     }
+
+    /// What the sidebar shows for a page; the window is rebuilt when it changes.
+    struct Signature: Equatable {
+        let id: String
+        let title: String
+        let symbolName: String
+    }
+
+    var signature: Signature {
+        Signature(id: id, title: title, symbolName: symbolName)
+    }
 }
 
 /// Adds pages to Settings.
@@ -44,6 +55,8 @@ public protocol SettingsSectionProvider: Sendable {
     /// whose identifier repeats an earlier one.
     nonisolated var identifier: String { get }
 
-    /// Pages appended to Settings, in order. Read each time the window opens.
+    /// Pages appended to Settings, in order. Read each time the window opens;
+    /// when the ids, titles or symbols differ from the last read, the window
+    /// is rebuilt and returns to General.
     @MainActor var sections: [SettingsSection] { get }
 }

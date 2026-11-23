@@ -12,6 +12,7 @@ final class AppModel: ObservableObject {
     /// The providers in use, without repeated identifiers.
     let itemProviders: [any MenuItemProvider]
     private let hotkeys = HotkeyCenter()
+    private(set) var registeredIDs: [String] = []
 
     @Published private(set) var config: PanelumiConfig
     /// Shortcut problems to show in Settings › Shortcuts. Empty means all good.
@@ -68,8 +69,7 @@ final class AppModel: ObservableObject {
     }
 
     /// The shortcut to show next to a row. The menu only asks about rows it
-    /// shows. A provider row that appeared after the last registration shows
-    /// its binding but does not fire until the config changes again.
+    /// shows, and every rebuild registers those rows first.
     func shortcutLabel(for id: String) -> String? {
         config.hotkey(for: id)?.displayString
     }
@@ -144,9 +144,21 @@ final class AppModel: ObservableObject {
     /// Conflict checks: identical bindings inside the app are caught here, and
     /// combinations another app already owns fail inside Carbon.
     private func registerHotkeys() {
-        hotkeys.unregisterAll()
+        registerHotkeys(for: menuItems)
+    }
 
-        let items = menuItems
+    /// Called by every menu rebuild with the rows it is about to show, so a
+    /// provider row that appears or goes away gets or loses its shortcut
+    /// without a config change. Unchanged rows are left registered.
+    func syncHotkeys(with items: [SwitchItem]) {
+        guard items.map(\.id) != registeredIDs else { return }
+        registerHotkeys(for: items)
+    }
+
+    private func registerHotkeys(for items: [SwitchItem]) {
+        hotkeys.unregisterAll()
+        registeredIDs = items.map(\.id)
+
         var issues: [String] = []
         var owners: [HotkeyBinding: String] = [:]
 

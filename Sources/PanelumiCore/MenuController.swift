@@ -120,8 +120,10 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
 
         // Belt and braces: even if a config ever lists an id twice, the menu
         // shows each switch once.
+        let items = model.menuItems
+        model.syncHotkeys(with: items)
         var seen = Set<String>()
-        for item in model.menuItems where seen.insert(item.id).inserted {
+        for item in items where seen.insert(item.id).inserted {
             let menuItem = NSMenuItem(title: item.title, action: #selector(runItem(_:)), keyEquivalent: "")
             menuItem.target = self
             menuItem.representedObject = ItemBox(item)

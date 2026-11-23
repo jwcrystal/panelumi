@@ -19,8 +19,8 @@ public protocol MenuItemProvider: Sendable {
     /// so it must be cheap, must not prompt and must not mutate anything.
     /// A row can carry a global shortcut like a built-in one, and Settings ›
     /// Shortcuts lists it; the config stores the binding under the row's id.
-    /// Shortcuts are registered at launch and whenever the config changes, not
-    /// on a menu rebuild, so a row that appears later fires only after that.
+    /// Shortcuts follow the rows: every menu rebuild registers a row that
+    /// appeared and drops one that went away.
     ///
     /// Only `state`, `subtitle`, `isEnabled` and submenu checkmarks are
     /// refreshed when the menu opens. `title`, `symbolName`, `kind` and the
