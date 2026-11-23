@@ -1,0 +1,49 @@
+import SwiftUI
+
+/// A page added to Settings.
+///
+/// The host knows only the title, the symbol and a view to draw. The view is
+/// built on the main actor when the page is shown, so the extension keeps its
+/// own types and state. Sections appear after the built-in pages, in the order
+/// their providers are listed.
+public struct SettingsSection: Identifiable, Sendable {
+    public let id: String
+    /// Already localised; the host does not look it up.
+    public let title: String
+    public let symbolName: String
+
+    private let content: @MainActor @Sendable () -> AnyView
+
+    public init(
+        id: String,
+        title: String,
+        symbolName: String,
+        content: @escaping @MainActor @Sendable () -> AnyView
+    ) {
+        self.id = id
+        self.title = title
+        self.symbolName = symbolName
+        self.content = content
+    }
+
+    @MainActor
+    func makeView() -> AnyView {
+        content()
+    }
+}
+
+/// Adds pages to Settings.
+///
+/// Register providers with `LaunchOptions.settingsSectionProviders`. With none
+/// registered the window is exactly as it was. Conforming types must be
+/// `Sendable` because `LaunchOptions` is; a `@MainActor` conforming type must
+/// declare `identifier` as `nonisolated`.
+public protocol SettingsSectionProvider: Sendable {
+    /// Stable, unique name, for example a reverse-DNS string. Never shown to
+    /// the user. Used to compare `LaunchOptions` values and to drop a provider
+    /// whose identifier repeats an earlier one.
+    nonisolated var identifier: String { get }
+
+    /// Pages appended to Settings, in order. Read each time the window opens.
+    @MainActor var sections: [SettingsSection] { get }
+}

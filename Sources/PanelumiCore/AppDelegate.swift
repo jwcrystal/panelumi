@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: menuItemProviders)
     }()
     private let menuItemProviders: [any MenuItemProvider]
+    private let settingsSectionProviders: [any SettingsSectionProvider]
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
     private var settingsWindow: NSWindow?
@@ -17,8 +18,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Creates the delegate; extensions are handed to the screenshot coordinator
     /// and menu item providers to the model that builds the status-bar menu.
-    init(captureExtensions: [any CaptureExtension] = [], menuItemProviders: [any MenuItemProvider] = []) {
+    init(
+        captureExtensions: [any CaptureExtension] = [],
+        menuItemProviders: [any MenuItemProvider] = [],
+        settingsSectionProviders: [any SettingsSectionProvider] = []
+    ) {
         self.menuItemProviders = menuItemProviders
+        self.settingsSectionProviders = settingsSectionProviders
         screenshot = ScreenshotCoordinator(captureExtensions: captureExtensions)
         super.init()
     }
@@ -153,14 +159,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// `--pane customize` opens Settings on a given page; used for screenshots
-    /// and quick checks.
-    private func paneArgument() -> SettingsView.Pane {
+    /// `--pane customize` opens Settings on a given page, built-in or injected;
+    /// used for screenshots and quick checks.
+    private func initialPage(sections: [SettingsSection]) -> SettingsView.Page {
         let arguments = CommandLine.arguments
         guard let index = arguments.firstIndex(of: "--pane"), arguments.indices.contains(index + 1) else {
-            return .general
+            return .builtin(.general)
         }
-        return SettingsView.Pane(rawValue: arguments[index + 1]) ?? .general
+        let raw = arguments[index + 1]
+        if let pane = SettingsView.Pane(rawValue: raw) {
+            return .builtin(pane)
+        }
+        if sections.contains(where: { $0.id == raw }) {
+            return .section(raw)
+        }
+        return .builtin(.general)
+    }
+
+    /// One list, in provider order; an id repeated by a later provider is
+    /// dropped, the same rule the menu uses.
+    private func settingsSections() -> [SettingsSection] {
+        var all: [SettingsSection] = []
+        for provider in settingsSectionProviders {
+            all.append(contentsOf: provider.sections)
+        }
+        var seen = Set<String>()
+        return all.filter { seen.insert($0.id).inserted }
     }
 
     private func acquireInstanceLock() -> Bool {
@@ -185,10 +209,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        let sections = settingsSections()
         let hosting = NSHostingController(rootView: SettingsView(
             model: model,
             permissions: permissions,
-            initialPane: paneArgument()
+            sections: sections,
+            initialPage: initialPage(sections: sections)
         ))
         let window = NSWindow(contentViewController: hosting)
         window.title = "Panelumi"

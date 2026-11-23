@@ -34,7 +34,7 @@ final class WindowSelectionTests: XCTestCase {
         store.update { $0.didSeedScreenshotShortcut = true }
         let model = AppModel(store: store)
         let hosting = NSHostingController(rootView: SettingsView(
-            model: model, permissions: PermissionCenter(), initialPane: .screenshot
+            model: model, permissions: PermissionCenter(), initialPage: .builtin(.screenshot)
         ))
         let settings = NSWindow(contentViewController: hosting)
         settings.title = "Panelumi"

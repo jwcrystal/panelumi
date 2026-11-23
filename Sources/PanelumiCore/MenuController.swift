@@ -248,7 +248,7 @@ final class MenuController: NSObject, NSMenuDelegate, NSMenuItemValidation {
 
     /// Entry point for a global shortcut: same path as clicking the row.
     func performSwitch(id: String) {
-        guard let item = model.catalog.item(id: id) else { return }
+        guard let item = model.menuItems.first(where: { $0.id == id }), item.isEnabled() else { return }
         perform { try item.perform() }
     }
 

@@ -17,7 +17,8 @@ public protocol MenuItemProvider: Sendable {
 
     /// Rows appended to the menu, in order. Read each time the menu is built,
     /// so it must be cheap, must not prompt and must not mutate anything.
-    /// These rows never get a global shortcut.
+    /// A row can carry a global shortcut like a built-in one, and Settings ›
+    /// Shortcuts lists it; the config stores the binding under the row's id.
     ///
     /// Only `state`, `subtitle`, `isEnabled` and submenu checkmarks are
     /// refreshed when the menu opens. `title`, `symbolName`, `kind` and the

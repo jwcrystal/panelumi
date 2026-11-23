@@ -123,18 +123,19 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(model.menuItems.map(\.id), catalogIDs + ["x"])
     }
 
-    func testBindingForInjectedIDIsNotRegisteredAndNotReported() {
-        // The same binding on a catalog id would be reported as "already used"
-        // if the injected row were registered too.
+    func testBindingForInjectedIDIsRegisteredAndConflictsAreReported() {
+        // The injected row is registered after the built-in ones, so a repeated
+        // combination is caught exactly as it is between two built-ins.
         let shared = binding(105)
         let model = makeModel(
             itemProviders: [FakeProvider("one") { [self.row("x")] }],
             bindings: ["x": shared, "a": shared]
         )
-        XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
+        XCTAssertEqual(model.hotkeyIssues, ["x: \(shared.displayString) is already used by a."])
+        XCTAssertEqual(model.shortcutLabel(for: "x"), shared.displayString)
     }
 
-    func testMenuShowsShortcutsForBuiltInRowsOnly() throws {
+    func testMenuShowsShortcutsForInjectedRowsToo() throws {
         let model = makeModel(
             itemProviders: [FakeProvider("one") { [self.row("x", title: "Injected")] }],
             bindings: ["x": binding(105), "a": binding(106)]
@@ -144,11 +145,11 @@ final class MenuItemProviderTests: XCTestCase {
         func title(_ prefix: String) throws -> String {
             try XCTUnwrap(menu.items.compactMap { $0.attributedTitle?.string }.first { $0.hasPrefix(prefix) })
         }
-        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("Injected").contains(binding(105).displayString))
         XCTAssertTrue(try title("a").contains(binding(106).displayString))
 
         controller.menuWillOpen(menu)
-        XCTAssertFalse(try title("Injected").contains(binding(105).displayString))
+        XCTAssertTrue(try title("Injected").contains(binding(105).displayString))
         XCTAssertTrue(try title("a").contains(binding(106).displayString))
         controller.menuDidClose(menu)
     }
@@ -174,6 +175,24 @@ final class MenuItemProviderTests: XCTestCase {
             hidden: ["b"]
         )
         XCTAssertEqual(model.menuItems.map(\.id), ["a", "c"])
+    }
+
+    func testPerformSwitchRunsAnInjectedRowAndRespectsIsEnabled() throws {
+        let flag = Flag()
+        var ran = 0
+        let model = makeModel(itemProviders: [FakeProvider("one") {
+            [SwitchItem(id: "gate", title: "Gate", symbolName: "circle", kind: .action,
+                        isEnabled: { flag.value }, perform: { ran += 1 })]
+        }])
+        let controller = MenuController(model: model, permissions: PermissionCenter())
+
+        flag.value = false
+        controller.performSwitch(id: "gate")
+        XCTAssertEqual(ran, 0)
+
+        flag.value = true
+        controller.performSwitch(id: "gate")
+        XCTAssertEqual(ran, 1)
     }
 
     private final class Flag: @unchecked Sendable { var value = false }
@@ -220,7 +239,7 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertTrue(settings.isEnabled)
     }
 
-    func testMenuLinesListInjectedRowsAfterBuiltInsWithoutShortcuts() {
+    func testMenuLinesListInjectedRowsAfterBuiltIns() {
         let shared = binding(105)
         let model = makeModel(
             itemProviders: [
@@ -235,7 +254,7 @@ final class MenuItemProviderTests: XCTestCase {
         XCTAssertEqual(Array(lines.dropFirst()), [
             " 1 a",
             " 2 b [\(binding(106).displayString)]",
-            " 3 Extra",
+            " 3 Extra [\(shared.displayString)]",
             " 4 Other",
         ])
     }

@@ -10,23 +10,29 @@ public struct LaunchOptions: Equatable, Sendable {
     public var captureExtensions: [any CaptureExtension]
     /// Providers of extra status-bar menu rows. Empty by default; with none, the menu is unchanged.
     public var menuItemProviders: [any MenuItemProvider]
+    /// Providers of extra Settings pages. Empty by default; with none, the window is unchanged.
+    public var settingsSectionProviders: [any SettingsSectionProvider]
 
     public init(
         identity: AppIdentity = .standard,
         captureExtensions: [any CaptureExtension] = [],
-        menuItemProviders: [any MenuItemProvider] = []
+        menuItemProviders: [any MenuItemProvider] = [],
+        settingsSectionProviders: [any SettingsSectionProvider] = []
     ) {
         self.identity = identity
         self.captureExtensions = captureExtensions
         self.menuItemProviders = menuItemProviders
+        self.settingsSectionProviders = settingsSectionProviders
     }
 
     /// Two options are equal when they share an identity and list the same
-    /// extension and menu item provider identifiers in the same order.
+    /// extension, menu item and settings section provider identifiers in the
+    /// same order.
     public static func == (lhs: LaunchOptions, rhs: LaunchOptions) -> Bool {
         lhs.identity == rhs.identity
             && lhs.captureExtensions.map(\.identifier) == rhs.captureExtensions.map(\.identifier)
             && lhs.menuItemProviders.map(\.identifier) == rhs.menuItemProviders.map(\.identifier)
+            && lhs.settingsSectionProviders.map(\.identifier) == rhs.settingsSectionProviders.map(\.identifier)
     }
 }
 
@@ -100,7 +106,11 @@ public enum PanelumiLauncher {
         }
 
         let application = NSApplication.shared
-        let delegate = AppDelegate(captureExtensions: options.captureExtensions, menuItemProviders: options.menuItemProviders)
+        let delegate = AppDelegate(
+            captureExtensions: options.captureExtensions,
+            menuItemProviders: options.menuItemProviders,
+            settingsSectionProviders: options.settingsSectionProviders
+        )
         application.delegate = delegate
         application.setActivationPolicy(.accessory)
         application.run()

@@ -62,17 +62,15 @@ final class AppModel: ObservableObject {
         config.orderedIDs(from: catalog.ids).compactMap(catalog.item(id:))
     }
 
-    /// Only the built-in switches shown in the menu. These are the only rows
-    /// that get shortcuts.
+    /// Only the built-in switches shown in the menu.
     var catalogMenuItems: [SwitchItem] {
         orderedItems.filter { config.isEnabled($0.id) }
     }
 
-    /// The shortcut to show next to a row. Rows added by providers never get
-    /// one, even if the config holds a binding under their id, because they
-    /// are never registered.
+    /// The shortcut to show next to a row. The menu only asks about rows it
+    /// shows, and those are the rows that were registered.
     func shortcutLabel(for id: String) -> String? {
-        catalog.item(id: id) == nil ? nil : config.hotkey(for: id)?.displayString
+        config.hotkey(for: id)?.displayString
     }
 
     /// Everything the menu shows: the visible built-in switches, then the rows
@@ -134,15 +132,17 @@ final class AppModel: ObservableObject {
 
     /// Re-registers every shortcut after a config change.
     ///
+    /// Every row the menu shows is registered, built-in or added by a provider.
     /// Conflict checks: identical bindings inside the app are caught here, and
     /// combinations another app already owns fail inside Carbon.
     private func registerHotkeys() {
         hotkeys.unregisterAll()
 
+        let items = menuItems
         var issues: [String] = []
         var owners: [HotkeyBinding: String] = [:]
 
-        for item in catalogMenuItems {
+        for item in items {
             guard let binding = config.hotkey(for: item.id) else { continue }
 
             guard binding.isUsable else {
@@ -151,7 +151,7 @@ final class AppModel: ObservableObject {
             }
 
             if let ownerID = owners[binding] {
-                let owner = catalog.item(id: ownerID)?.title ?? ownerID
+                let owner = items.first { $0.id == ownerID }?.title ?? ownerID
                 issues.append("\(item.title): \(binding.displayString) is already used by \(owner).")
                 continue
             }
