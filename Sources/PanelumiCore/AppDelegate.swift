@@ -12,13 +12,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let settingsPageProviders: [any SettingsPageProvider]
     private let permissions = PermissionCenter()
     private var menuController: MenuController?
-    private var settingsWindow: NSWindow?
-    private var settingsSignature: [SettingsPage.Signature] = []
+    private lazy var settingsHost = SettingsWindowHost(
+        pages: { [settingsPageProviders] in Self.settingsPages(from: settingsPageProviders) },
+        makeView: { [unowned self] pages, initialPage in
+            AnyView(SettingsView(model: model, permissions: permissions, pages: pages, initialPage: initialPage))
+        }
+    )
     private var setupWindow: NSWindow?
     private var instanceLockFD: Int32 = -1
 
-    /// Creates the delegate; extensions are handed to the screenshot coordinator
-    /// and menu item providers to the model that builds the status-bar menu.
+    /// Creates the delegate; extensions are handed to the screenshot coordinator,
+    /// menu item providers to the model that builds the status-bar menu, and
+    /// settings page providers to the Settings window.
     init(
         captureExtensions: [any CaptureExtension] = [],
         menuItemProviders: [any MenuItemProvider] = [],
@@ -160,35 +165,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         window.makeKeyAndOrderFront(nil)
     }
 
-    /// `--pane customize` opens Settings on a given page, built-in or injected;
-    /// used for screenshots and quick checks.
-    private func initialPage(pages: [SettingsPage]) -> SettingsView.Page {
-        let arguments = CommandLine.arguments
-        guard let index = arguments.firstIndex(of: "--pane"), arguments.indices.contains(index + 1) else {
-            return .builtin(.general)
-        }
-        let raw = arguments[index + 1]
-        if let pane = SettingsView.Pane(rawValue: raw) {
-            return .builtin(pane)
-        }
-        if pages.contains(where: { $0.id == raw }) {
-            return .injected(raw)
-        }
-        return .builtin(.general)
-    }
-
-    private func settingsPages() -> [SettingsPage] {
-        Self.settingsPages(from: settingsPageProviders)
-    }
-
-    /// One list, in provider order. A provider whose identifier repeats an
-    /// earlier one is skipped, and a page id already taken is dropped, the
-    /// same rules the menu uses.
+    /// The menu's rules apply: a repeated provider identifier is skipped and a
+    /// taken page id is dropped.
     static func settingsPages(from providers: [any SettingsPageProvider]) -> [SettingsPage] {
         var seenProviders = Set<String>()
         var seenPages = Set<String>()
         var result: [SettingsPage] = []
-        for provider in providers where seenProviders.insert(provider.identifier).inserted {
+        for provider in providers {
+            guard seenProviders.insert(provider.identifier).inserted else {
+                #if DEBUG
+                NSLog("Panelumi: %@", "settings page provider \(provider.identifier) is listed more than once; only the first is used.")
+                #endif
+                continue
+            }
             for page in provider.pages where seenPages.insert(page.id).inserted {
                 result.append(page)
             }
@@ -211,43 +200,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return true
     }
 
-    /// Pages are read on every open. The window is kept between opens, so
-    /// its content is replaced only when the pages differ, which otherwise
-    /// keeps the selected page and pane state. A new hosting controller, not a
-    /// new rootView, because SwiftUI would keep a selection that may name a
-    /// page that is gone.
     func showSettings() {
-        let pages = settingsPages()
-        let signature = pages.map(\.signature)
-
-        if let window = settingsWindow {
-            if signature != settingsSignature {
-                settingsSignature = signature
-                let frame = window.frame
-                window.contentViewController = NSHostingController(rootView: SettingsView(
-                    model: model, permissions: permissions, pages: pages
-                ))
-                window.setFrame(frame, display: false)
-            }
-            NSApp.activate(ignoringOtherApps: true)
-            window.makeKeyAndOrderFront(nil)
-            return
-        }
-
-        let hosting = NSHostingController(rootView: SettingsView(
-            model: model,
-            permissions: permissions,
-            pages: pages,
-            initialPage: initialPage(pages: pages)
-        ))
-        settingsSignature = signature
-        let window = NSWindow(contentViewController: hosting)
-        window.title = "Panelumi"
-        window.styleMask = [.titled, .closable, .miniaturizable]
-        window.isReleasedWhenClosed = false
-        window.center()
-        settingsWindow = window
-
+        let window = settingsHost.prepareWindow()
         NSApp.activate(ignoringOtherApps: true)
         window.makeKeyAndOrderFront(nil)
     }

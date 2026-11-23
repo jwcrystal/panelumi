@@ -56,12 +56,12 @@ public enum PanelumiLauncher {
         }
 
         if let index = arguments.firstIndex(of: "--run"), arguments.count > index + 1 {
-            Dump.run(id: arguments[index + 1])
+            Dump.run(id: arguments[index + 1], itemProviders: options.menuItemProviders)
             return
         }
 
         if arguments.contains("--hotkeys") {
-            Dump.checkHotkeys()
+            Dump.checkHotkeys(itemProviders: options.menuItemProviders)
             return
         }
 
@@ -131,15 +131,27 @@ enum Dump {
 
     /// Runs one switch without opening the menu: `--run keepAwake`.
     /// Toggles flip state, so the printed state afterwards shows the result.
+    /// Rows added by menu item providers can be run by id too.
     @MainActor
-    static func run(id: String) {
+    static func run(id: String, itemProviders: [any MenuItemProvider] = []) {
         // The screenshot switches hold the coordinator weakly, so it has to
         // outlive perform() or they silently do nothing.
         let screenshot = ScreenshotCoordinator()
         defer { withExtendedLifetime(screenshot) {} }
-        guard let item = AppCatalog.make(screenshot: screenshot).item(id: id) else {
-            FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
-            exit(2)
+        let model = AppModel(catalog: AppCatalog.make(screenshot: screenshot), itemProviders: itemProviders)
+        let item: SwitchItem
+        switch resolveRunTarget(id: id, model: model) {
+        case .success(let found):
+            item = found
+        case .failure(let error):
+            switch error {
+            case .unknown:
+                FileHandle.standardError.write(Data("Unknown switch: \(id)\n".utf8))
+                exit(2)
+            case .disabled(let title):
+                FileHandle.standardError.write(Data("\(title) is not available right now.\n".utf8))
+                exit(1)
+            }
         }
         do {
             try item.perform()
@@ -148,6 +160,25 @@ enum Dump {
             exit(1)
         }
         print(line(for: item))
+    }
+
+    enum RunTargetError: Error, Equatable {
+        case unknown
+        case disabled(title: String)
+    }
+
+    /// Built-in switches first, hidden ones included, because `--run` never
+    /// depended on the menu. Then the rows providers add, under the menu's rules.
+    /// A provider row that reports itself disabled is refused, as in the menu.
+    @MainActor
+    static func resolveRunTarget(id: String, model: AppModel) -> Result<SwitchItem, RunTargetError> {
+        if let builtIn = model.catalog.item(id: id) {
+            return .success(builtIn)
+        }
+        guard let injected = model.menuItems.first(where: { $0.id == id }) else {
+            return .failure(.unknown)
+        }
+        return injected.isEnabled() ? .success(injected) : .failure(.disabled(title: injected.title))
     }
 
     private static func line(for item: SwitchItem) -> String {
@@ -171,7 +202,7 @@ enum Dump {
     }
 
     /// The lines `--menu` prints: a header, then one line per row in menu order.
-    /// Shortcuts are shown for built-in rows only, because only those are registered.
+    /// Each row shows the shortcut saved for its id, added rows included.
     @MainActor
     static func menuLines(model: AppModel) -> [String] {
         var seen = Set<String>()
@@ -475,7 +506,7 @@ enum Dump {
     /// Registers a probe shortcut through the real Carbon path and reports the
     /// result. Uses a throwaway config file so the user's shortcuts stay alone.
     @MainActor
-    static func checkHotkeys() {
+    static func checkHotkeys(itemProviders: [any MenuItemProvider] = []) {
         let url = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("panelumi-hotkey-check.json")
         try? FileManager.default.removeItem(at: url)
@@ -492,7 +523,7 @@ enum Dump {
             )
         }
 
-        let model = AppModel(store: store)
+        let model = AppModel(store: store, itemProviders: itemProviders)
         let binding = model.config.hotkey(for: "keepAwake")?.displayString ?? "none"
         print("registered\t\(binding)")
         if model.hotkeyIssues.isEmpty {

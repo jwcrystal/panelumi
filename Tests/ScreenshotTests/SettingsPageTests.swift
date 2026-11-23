@@ -1,6 +1,5 @@
 import SwiftUI
 import XCTest
-import PanelumiKit
 @testable import PanelumiCore
 
 private final class PageProvider: SettingsPageProvider, @unchecked Sendable {
@@ -18,6 +17,14 @@ private final class PageProvider: SettingsPageProvider, @unchecked Sendable {
     @MainActor var pages: [SettingsPage] {
         reads += 1
         return make()
+    }
+}
+
+@MainActor
+private final class IsolatedProvider: SettingsPageProvider {
+    nonisolated let identifier: String = "isolated"
+    var pages: [SettingsPage] {
+        [SettingsPage(id: "isolated.page", title: "Isolated", symbolName: "square") { AnyView(EmptyView()) }]
     }
 }
 
@@ -74,5 +81,23 @@ final class SettingsPageTests: XCTestCase {
         XCTAssertNotEqual(page("p", "A").signature, page("q", "A").signature)
         XCTAssertNotEqual(page("p", "A").signature, page("p", "B").signature)
         XCTAssertNotEqual(page("p", "A").signature, page("p", "A", "star").signature)
+    }
+
+    func testInitialPageFollowsPaneArgument() {
+        let pages = [SettingsPage(id: "pro.x", title: "X", symbolName: "star") { AnyView(EmptyView()) }]
+        func initial(_ arguments: [String]) -> SettingsView.Page {
+            SettingsWindowHost.initialPage(arguments: arguments, pages: pages)
+        }
+        XCTAssertEqual(initial(["x", "--pane", "screenshot"]), .builtin(.screenshot))
+        XCTAssertEqual(initial(["x", "--pane", "pro.x"]), .injected("pro.x"))
+        XCTAssertEqual(initial(["x", "--pane", "nope"]), .builtin(.general))
+        XCTAssertEqual(initial(["x", "--pane"]), .builtin(.general))
+        XCTAssertEqual(initial(["x"]), .builtin(.general))
+    }
+
+    func testMainActorProviderWithNonisolatedIdentifierWorks() {
+        let options = LaunchOptions(settingsPageProviders: [IsolatedProvider()])
+        XCTAssertEqual(options.settingsPageProviders.map(\.identifier), ["isolated"])
+        XCTAssertEqual(AppDelegate.settingsPages(from: options.settingsPageProviders).map(\.id), ["isolated.page"])
     }
 }

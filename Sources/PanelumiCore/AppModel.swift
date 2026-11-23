@@ -12,7 +12,7 @@ final class AppModel: ObservableObject {
     /// The providers in use, without repeated identifiers.
     let itemProviders: [any MenuItemProvider]
     private let hotkeys = HotkeyCenter()
-    private(set) var registeredIDs: [String] = []
+    private var registeredIDs: [String] = []
 
     @Published private(set) var config: PanelumiConfig
     /// Shortcut problems to show in Settings › Shortcuts. Empty means all good.
@@ -68,8 +68,8 @@ final class AppModel: ObservableObject {
         orderedItems.filter { config.isEnabled($0.id) }
     }
 
-    /// The shortcut to show next to a row. The menu only asks about rows it
-    /// shows, and every rebuild registers those rows first.
+    /// The shortcut to show next to a row. It comes from the config, so a row
+    /// that lost a conflict to an earlier row still shows its label.
     func shortcutLabel(for id: String) -> String? {
         config.hotkey(for: id)?.displayString
     }

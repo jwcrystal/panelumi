@@ -202,16 +202,13 @@ final class MenuItemProviderTests: XCTestCase {
         let model = makeModel(itemProviders: [provider], bindings: ["x": shared, "a": shared])
         let controller = MenuController(model: model, permissions: PermissionCenter())
         XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
-        XCTAssertFalse(model.registeredIDs.contains("x"))
 
         show.value = true
         provider.rebuild?()
-        XCTAssertTrue(model.registeredIDs.contains("x"))
         XCTAssertEqual(model.hotkeyIssues, ["x: \(shared.displayString) is already used by a."])
 
         show.value = false
         provider.rebuild?()
-        XCTAssertFalse(model.registeredIDs.contains("x"))
         XCTAssertTrue(model.hotkeyIssues.isEmpty, "\(model.hotkeyIssues)")
         withExtendedLifetime(controller) {}
     }
@@ -452,5 +449,31 @@ final class MenuItemProviderTests: XCTestCase {
         let provider = BindingProvider("one") { [self.row("x")] }
         Dump.printMenu(itemProviders: [provider])
         XCTAssertEqual(provider.bindCount, 0)
+    }
+
+    func testRunTargetResolvesBuiltInHiddenInjectedAndRefusesTheRest() {
+        let model = makeModel(
+            itemProviders: [FakeProvider("one") { [
+                self.row("x"),
+                self.row("off", title: "Off", isEnabled: { false }),
+                self.row("a"),
+            ] }],
+            hidden: ["b"]
+        )
+        func resolve(_ id: String) -> Result<SwitchItem, Dump.RunTargetError> {
+            Dump.resolveRunTarget(id: id, model: model)
+        }
+        XCTAssertEqual(try? resolve("a").get().id, "a")
+        XCTAssertEqual(try? resolve("b").get().id, "b")
+        XCTAssertEqual(try? resolve("x").get().id, "x")
+        XCTAssertEqual(resolve("nope").failureValue, .unknown)
+        XCTAssertEqual(resolve("off").failureValue, .disabled(title: "Off"))
+    }
+}
+
+private extension Result {
+    var failureValue: Failure? {
+        if case .failure(let error) = self { return error }
+        return nil
     }
 }
